@@ -22,6 +22,7 @@ import type {
 } from '@/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const APP_API_KEY = import.meta.env.VITE_APP_API_KEY || '';
 
 class ApiClient {
   private baseUrl: string;
@@ -57,6 +58,10 @@ class ApiClient {
       'Content-Type': 'application/json',
       ...options.headers as Record<string, string>,
     };
+
+    if (APP_API_KEY) {
+      headers['x-api-key'] = APP_API_KEY;
+    }
 
     const token = this.getToken();
     if (token) {
@@ -169,11 +174,13 @@ class ApiClient {
     this.refreshPromise = (async () => {
       try {
         const url = `${this.baseUrl}/tickets/auth/refresh`;
+        const refreshHeaders: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+        if (APP_API_KEY) refreshHeaders['x-api-key'] = APP_API_KEY;
         const response = await fetch(url, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: refreshHeaders,
           body: JSON.stringify({ refreshToken }),
         });
 
@@ -365,11 +372,12 @@ class ApiClient {
       formData.append('poster', file);
 
       const token = this.getToken();
+      const uploadHeaders: Record<string, string> = {};
+      if (token) uploadHeaders['Authorization'] = `Bearer ${token}`;
+      if (APP_API_KEY) uploadHeaders['x-api-key'] = APP_API_KEY;
       const response = await fetch(`${this.baseUrl}/media/events/${eventId}/poster`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: uploadHeaders,
         body: formData,
       });
 
@@ -387,11 +395,12 @@ class ApiClient {
       formData.append('thumbnail', file);
 
       const token = this.getToken();
+      const uploadHeaders: Record<string, string> = {};
+      if (token) uploadHeaders['Authorization'] = `Bearer ${token}`;
+      if (APP_API_KEY) uploadHeaders['x-api-key'] = APP_API_KEY;
       const response = await fetch(`${this.baseUrl}/media/events/${eventId}/thumbnail`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: uploadHeaders,
         body: formData,
       });
 
@@ -411,11 +420,12 @@ class ApiClient {
       });
 
       const token = this.getToken();
+      const uploadHeaders: Record<string, string> = {};
+      if (token) uploadHeaders['Authorization'] = `Bearer ${token}`;
+      if (APP_API_KEY) uploadHeaders['x-api-key'] = APP_API_KEY;
       const response = await fetch(`${this.baseUrl}/media/events/${eventId}/gallery`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: uploadHeaders,
         body: formData,
       });
 
@@ -433,11 +443,12 @@ class ApiClient {
       formData.append('qrcode', file);
 
       const token = this.getToken();
+      const uploadHeaders: Record<string, string> = {};
+      if (token) uploadHeaders['Authorization'] = `Bearer ${token}`;
+      if (APP_API_KEY) uploadHeaders['x-api-key'] = APP_API_KEY;
       const response = await fetch(`${this.baseUrl}/media/events/${eventId}/qrcode`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: uploadHeaders,
         body: formData,
       });
 
@@ -607,6 +618,9 @@ class ApiClient {
       const headers: Record<string, string> = {};
       if (this.token) {
         headers['Authorization'] = `Bearer ${this.token}`;
+      }
+      if (APP_API_KEY) {
+        headers['x-api-key'] = APP_API_KEY;
       }
 
       const response = await fetch(url, { headers });
