@@ -4,11 +4,21 @@ export interface LoginCredentials {
   password: string;
 }
 
+export interface RegisterData {
+  businessName: string;
+  email?: string;
+  phoneNumber?: string;
+  password: string;
+  businessType?: string;
+}
+
 export interface AuthResponse {
   accessToken: string;
   refreshToken: string;
   user: AuthUser;
 }
+
+export type VerificationStatus = 'pending' | 'verified' | 'rejected' | 'suspended';
 
 export interface AuthUser {
   _id: string;
@@ -20,6 +30,8 @@ export interface AuthUser {
   role: 'vendor' | 'admin';
   isActive: boolean;
   createdAt: string;
+  verificationStatus?: VerificationStatus;
+  isVerified?: boolean;
 }
 
 // Event Types
