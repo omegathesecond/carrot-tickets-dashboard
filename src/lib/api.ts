@@ -1,5 +1,6 @@
 import type {
   LoginCredentials,
+  RegisterData,
   AuthResponse,
   AuthUser,
   Event,
@@ -224,6 +225,18 @@ class ApiClient {
         {
           method: 'POST',
           body: JSON.stringify(credentials),
+        }
+      );
+      this.setToken(response.accessToken, response.refreshToken);
+      return response;
+    },
+
+    register: async (data: RegisterData): Promise<AuthResponse> => {
+      const response = await this.request<AuthResponse>(
+        `/tickets/auth/register`,
+        {
+          method: 'POST',
+          body: JSON.stringify(data),
         }
       );
       this.setToken(response.accessToken, response.refreshToken);

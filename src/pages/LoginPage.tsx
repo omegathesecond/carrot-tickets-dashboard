@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -78,6 +78,12 @@ export function LoginPage() {
             >
               {isLoading ? 'Logging in...' : 'Login'}
             </Button>
+            <p className="text-center text-sm text-muted-foreground">
+              New here?{' '}
+              <Link to="/signup" className="text-orange-600 font-medium hover:underline">
+                Create an organizer account
+              </Link>
+            </p>
           </form>
         </CardContent>
       </Card>
