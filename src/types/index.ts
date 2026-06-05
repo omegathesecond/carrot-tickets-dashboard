@@ -79,13 +79,52 @@ export interface EventFormData {
   startTime: string; // For single-day: start time. For multi-day: start datetime
   endTime: string; // For single-day: end time. For multi-day: end datetime
   isMultiDay?: boolean;
-  capacity: number;
+  // Optional — total capacity is derived server-side from the sum of ticket
+  // quantities, so the create form no longer asks for it.
+  capacity?: number;
   ticketTypes: {
     name: string;
     price: number;
     quantity: number; // Changed from capacity
     description?: string;
   }[];
+}
+
+// Event creator (organizer) + their event history — powers the admin
+// "Creator" panel on the event detail page.
+export interface EventCreator {
+  _id: string;
+  businessName: string;
+  email?: string;
+  phoneNumber?: string;
+  primaryContact?: string;
+  businessType?: string;
+  verificationStatus?: VerificationStatus;
+  verifiedAt?: string;
+  isActive?: boolean;
+  createdAt?: string;
+}
+
+export interface EventCreatorSummary {
+  creator: EventCreator;
+  stats: {
+    totalEvents: number;
+    totalTicketsSold: number;
+    totalRevenue: number;
+  };
+  events: Array<{
+    _id: string;
+    name: string;
+    status: Event['status'];
+    eventDate: string;
+    venue: string;
+    totalTicketsSold: number;
+    totalRevenue: number;
+    capacity: number;
+    posterUrl?: string;
+    thumbnailUrl?: string;
+    createdAt: string;
+  }>;
 }
 
 // Sales Types

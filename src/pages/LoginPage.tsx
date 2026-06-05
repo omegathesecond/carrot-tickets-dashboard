@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Ticket } from 'lucide-react';
 import { toast } from 'sonner';
+import { AuthHeader } from '@/components/AuthHeader';
 
 export function LoginPage() {
   const [credentials, setCredentials] = useState({ identifier: '', password: '' });
@@ -31,7 +32,8 @@ export function LoginPage() {
   };
 
   return (
-    <div className="w-full h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-amber-100">
+    <div className="relative w-full h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-amber-100">
+      <AuthHeader />
       <Card className="w-full max-w-md mx-4">
         <CardHeader className="space-y-4">
           <div className="flex items-center justify-center">
