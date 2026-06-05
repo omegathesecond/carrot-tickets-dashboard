@@ -6,6 +6,7 @@ import type {
   Event,
   EventFormData,
   EventQueryParams,
+  EventCreatorSummary,
   TicketSale,
   SellTicketsRequest,
   SalesQueryParams,
@@ -273,6 +274,11 @@ class ApiClient {
 
     getEvent: async (id: string): Promise<Event> => {
       return this.request<Event>(`/tickets/events/${id}`);
+    },
+
+    // Creator (organizer) of the event + a roll-up of all their events.
+    getEventCreator: async (id: string): Promise<EventCreatorSummary> => {
+      return this.request<EventCreatorSummary>(`/tickets/events/${id}/creator`);
     },
 
     createEvent: async (data: EventFormData): Promise<Event> => {

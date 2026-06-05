@@ -11,9 +11,13 @@ import { TicketTypeDialog } from '@/components/TicketTypeDialog';
 import { ImageUploadInput } from '@/components/ImageUploadInput';
 import { GalleryManager } from '@/components/GalleryManager';
 import { EventAnalyticsTab } from '@/components/EventAnalyticsTab';
+import { EventCreatorTab } from '@/components/EventCreatorTab';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { highlightVerificationBanner } from '@/components/VerificationBanner';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   ArrowLeft, Calendar, MapPin, Users, DollarSign, CheckCircle,
-  Edit, Trash2, Eye, EyeOff, QrCode, Plus, TrendingUp, TrendingDown, Image, BarChart3
+  Edit, Trash2, Eye, EyeOff, QrCode, Plus, TrendingUp, TrendingDown, Image, BarChart3, UserCircle
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -24,8 +28,17 @@ export function EventDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [ticketDialogOpen, setTicketDialogOpen] = useState(false);
   const [editingTicket, setEditingTicket] = useState<TicketType | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+
+  // A pending/unverified organizer can't publish — the API rejects it. Detect
+  // that client-side so we can point them at the verification banner instead.
+  const isVerified =
+    !user || user.verificationStatus === undefined
+      ? true
+      : user.verificationStatus === 'verified' || !!user.isVerified;
 
   const { data: event, isLoading } = useQuery({
     queryKey: ['event', id],
@@ -144,15 +157,6 @@ export function EventDetailsPage() {
     onError: (error: any) => toast.error(error.message),
   });
 
-  const uploadQRCodeMutation = useMutation({
-    mutationFn: (file: File) => apiClient.events.uploadQRCode(id!, file),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['event', id] });
-      toast.success('QR code uploaded successfully');
-    },
-    onError: (error: any) => toast.error(error.message),
-  });
-
   const deleteMediaMutation = useMutation({
     mutationFn: ({ url, mediaType }: { url: string; mediaType: 'poster' | 'thumbnail' | 'gallery' | 'qrcode' }) =>
       apiClient.events.deleteMedia(id!, url, mediaType),
@@ -206,7 +210,16 @@ export function EventDetailsPage() {
         <div className="flex gap-2">
           <Button
             variant={isPublished ? 'outline' : 'default'}
-            onClick={() => publishMutation.mutate(!isPublished)}
+            onClick={() => {
+              // Block the call for unverified organizers and point them at the
+              // banner explaining why, instead of letting the API 4xx silently.
+              if (!isPublished && !isVerified) {
+                highlightVerificationBanner();
+                toast.error('Your organizer account must be verified before you can publish.');
+                return;
+              }
+              publishMutation.mutate(!isPublished);
+            }}
             disabled={publishMutation.isPending}
           >
             {isPublished ? (
@@ -217,11 +230,7 @@ export function EventDetailsPage() {
           </Button>
           <Button
             variant="destructive"
-            onClick={() => {
-              if (confirm('Are you sure you want to delete this event?')) {
-                deleteMutation.mutate();
-              }
-            }}
+            onClick={() => setDeleteConfirmOpen(true)}
             disabled={deleteMutation.isPending}
           >
             <Trash2 className="h-4 w-4 mr-2" /> Delete
@@ -231,7 +240,7 @@ export function EventDetailsPage() {
 
       {/* Tabs */}
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
+        <TabsList className="grid w-full max-w-lg grid-cols-3">
           <TabsTrigger value="overview" className="flex items-center gap-2">
             <Calendar className="h-4 w-4" />
             Overview
@@ -239,6 +248,10 @@ export function EventDetailsPage() {
           <TabsTrigger value="analytics" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
             Analytics
+          </TabsTrigger>
+          <TabsTrigger value="creator" className="flex items-center gap-2">
+            <UserCircle className="h-4 w-4" />
+            Creator
           </TabsTrigger>
         </TabsList>
 
@@ -476,17 +489,6 @@ export function EventDetailsPage() {
                 maxSize={10}
                 disabled={uploadGalleryMutation.isPending || deleteMediaMutation.isPending}
               />
-
-              {/* Custom QR Code */}
-              <ImageUploadInput
-                label="Custom QR Code"
-                currentImageUrl={event.qrCodeUrl}
-                onFileSelect={(file) => uploadQRCodeMutation.mutate(file)}
-                onRemove={() => event.qrCodeUrl && deleteMediaMutation.mutate({ url: event.qrCodeUrl, mediaType: 'qrcode' })}
-                accept="image/jpeg,image/png,image/webp,image/svg+xml"
-                maxSize={2}
-                disabled={uploadQRCodeMutation.isPending || deleteMediaMutation.isPending}
-              />
             </CardContent>
           </Card>
 
@@ -625,6 +627,11 @@ export function EventDetailsPage() {
         <TabsContent value="analytics" className="mt-6">
           <EventAnalyticsTab eventId={id!} />
         </TabsContent>
+
+        {/* Creator Tab */}
+        <TabsContent value="creator" className="mt-6">
+          <EventCreatorTab eventId={id!} />
+        </TabsContent>
       </Tabs>
 
       {/* Ticket Type Dialog */}
@@ -648,6 +655,20 @@ export function EventDetailsPage() {
         }}
         ticketType={editingTicket}
         isLoading={addTicketMutation.isPending || updateTicketMutation.isPending}
+      />
+
+      {/* Delete confirmation */}
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        title="Delete this event?"
+        description={`"${event.name}" and its ticket configuration will be permanently removed. This cannot be undone.`}
+        confirmLabel="Delete event"
+        isLoading={deleteMutation.isPending}
+        onConfirm={() => {
+          deleteMutation.mutate();
+          setDeleteConfirmOpen(false);
+        }}
       />
     </div>
   );

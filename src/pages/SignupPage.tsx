@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Ticket } from 'lucide-react';
 import { toast } from 'sonner';
+import { AuthHeader } from '@/components/AuthHeader';
 
 const BUSINESS_TYPES = [
   { value: 'event_organizer', label: 'Event Organizer' },
@@ -58,7 +59,8 @@ export function SignupPage() {
   };
 
   return (
-    <div className="w-full min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-amber-100 py-10">
+    <div className="relative w-full min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-amber-100 py-10 pt-20">
+      <AuthHeader />
       <Card className="w-full max-w-md mx-4">
         <CardHeader className="space-y-4">
           <div className="flex items-center justify-center">
