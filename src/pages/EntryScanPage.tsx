@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ import { format } from 'date-fns';
 export function EntryScanPage() {
   const [ticketId, setTicketId] = useState('');
   const [lastScan, setLastScan] = useState<any>(null);
+  const queryClient = useQueryClient();
 
   const { data: scansData } = useQuery({
     queryKey: ['scans'],
@@ -38,7 +39,11 @@ export function EntryScanPage() {
       toast.success('Check-in successful!');
       setTicketId('');
       setLastScan(null);
+      // Check-in is the only action that writes a scan record — refresh the
+      // Recent Scans list so the new entry appears immediately.
+      queryClient.invalidateQueries({ queryKey: ['scans'] });
     },
+    onError: (error: any) => toast.error(error.message || 'Check-in failed'),
   });
 
   const handleValidate = (e: React.FormEvent) => {

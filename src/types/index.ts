@@ -32,6 +32,9 @@ export interface AuthUser {
   createdAt: string;
   verificationStatus?: VerificationStatus;
   isVerified?: boolean;
+  // True for Keshless platform admins, who approve events and see every
+  // vendor's sales/scans. Set from the API's getMe/login payload.
+  isSuperAdmin?: boolean;
 }
 
 // Event Types
@@ -55,7 +58,7 @@ export interface Event {
   thumbnailUrl?: string;
   galleryImages?: string[];
   qrCodeUrl?: string;
-  status: 'draft' | 'published' | 'cancelled' | 'completed';
+  status: 'draft' | 'pending_approval' | 'published' | 'cancelled' | 'completed';
   createdAt: string;
   updatedAt: string;
 }
@@ -139,7 +142,7 @@ export interface TicketSale {
   customerName: string;
   customerPhone: string;
   paymentMethod: 'cash' | 'keshless_wallet';
-  paymentStatus: 'pending' | 'paid' | 'refunded' | 'failed';
+  paymentStatus: 'pending' | 'completed' | 'refunded' | 'failed';
   tickets: Ticket[];
   vendorId: string;
   soldBy: string;
@@ -181,7 +184,9 @@ export interface ScanRecord {
   event?: Event;
   scannedBy: string;
   scannedByName?: string;
-  status: 'success' | 'failed';
+  // Mirrors the API's scanResult: a successful check-in, or one of the failure
+  // reasons (already scanned, invalid ticket, wrong event, cancelled).
+  status: 'success' | 'failed' | 'already_scanned' | 'invalid_ticket' | 'wrong_event' | 'cancelled';
   failureReason?: string;
   notes?: string;
   createdAt: string;
