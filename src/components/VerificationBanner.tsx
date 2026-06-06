@@ -1,75 +1,66 @@
-import { useEffect, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
-import { AlertCircle, ShieldCheck } from 'lucide-react';
-
-const HIGHLIGHT_EVENT = 'keshless:highlight-verification-banner';
-
-/**
- * Call this from anywhere (e.g. when a pending organizer clicks Publish) to
- * draw their eye to the verification banner — it scrolls into view and flashes
- * a ring, explaining WHY publishing didn't happen instead of silently failing.
- */
-export function highlightVerificationBanner() {
-  window.dispatchEvent(new CustomEvent(HIGHLIGHT_EVENT));
-}
+import { apiClient } from '@/lib/api';
+import { AlertCircle, Clock } from 'lucide-react';
 
 /**
- * Shown to organizers whose account isn't verified yet. A pending organizer
- * can build draft events but the API blocks publishing until an admin
- * approves them — this banner sets that expectation up front so a failed
- * publish isn't a surprise.
+ * Approval in Keshless Tickets is per-EVENT, not per-organizer-account. This
+ * banner tells an organizer that one or more of their events are sitting in the
+ * approval queue — and, crucially, disappears on its own once every event has
+ * been approved (or none are pending). It is NOT keyed off the account's
+ * verification status, so an organizer with all events live sees nothing.
+ *
+ * A suspended/rejected account is a separate, genuine account-level block and
+ * still gets its own red notice.
  */
 export function VerificationBanner() {
   const { user } = useAuth();
-  const [highlighted, setHighlighted] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const onHighlight = () => {
-      setHighlighted(true);
-      ref.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      const timer = setTimeout(() => setHighlighted(false), 2500);
-      return () => clearTimeout(timer);
-    };
-    window.addEventListener(HIGHLIGHT_EVENT, onHighlight);
-    return () => window.removeEventListener(HIGHLIGHT_EVENT, onHighlight);
-  }, []);
+  // Admins approve events; they don't need the organizer-facing banner.
+  const isAdmin = !!user?.isSuperAdmin;
 
-  // Only vendors carry a verification status; sub-users / verified accounts
-  // see nothing.
-  if (!user || user.verificationStatus === undefined) return null;
-  if (user.verificationStatus === 'verified' || user.isVerified) return null;
+  const accountBlocked =
+    user?.verificationStatus === 'rejected' || user?.verificationStatus === 'suspended';
 
-  const rejected = user.verificationStatus === 'rejected' || user.verificationStatus === 'suspended';
+  const { data: eventsData } = useQuery({
+    queryKey: ['events'],
+    queryFn: () => apiClient.events.getEvents({ limit: 100 }),
+    enabled: !!user && !isAdmin && !accountBlocked,
+  });
+
+  if (!user || isAdmin) return null;
+
+  // Genuine account-level sanction — keep warning the organizer.
+  if (accountBlocked) {
+    return (
+      <div className="flex items-start gap-3 px-4 py-3 text-sm border-b bg-red-50 border-red-200 text-red-800">
+        <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+        <p>
+          <span className="font-semibold">Account {user.verificationStatus}.</span>{' '}
+          Publishing is disabled. Please contact Keshless support to resolve this.
+        </p>
+      </div>
+    );
+  }
+
+  const pendingCount =
+    eventsData?.data?.filter((e) => e.status === 'pending_approval').length ?? 0;
+
+  // No events awaiting approval → nothing to show.
+  if (pendingCount === 0) return null;
 
   return (
-    <div
-      ref={ref}
-      className={`flex items-start gap-3 px-4 py-3 text-sm border-b transition-all duration-300 ${
-        rejected
-          ? 'bg-red-50 border-red-200 text-red-800'
-          : 'bg-amber-50 border-amber-200 text-amber-900'
-      } ${highlighted ? 'ring-2 ring-offset-2 ring-amber-500 animate-pulse shadow-lg' : ''}`}
-    >
-      {rejected ? (
-        <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
-      ) : (
-        <ShieldCheck className="h-5 w-5 shrink-0 mt-0.5" />
-      )}
-      <div>
-        {rejected ? (
-          <p>
-            <span className="font-semibold">Account {user.verificationStatus}.</span>{' '}
-            Publishing is disabled. Please contact Keshless support to resolve this.
-          </p>
-        ) : (
-          <p>
-            <span className="font-semibold">Account pending approval.</span>{' '}
-            You can create and edit events now. Publishing (going live and selling
-            tickets) unlocks once your organizer account is verified.
-          </p>
-        )}
-      </div>
+    <div className="flex items-start gap-3 px-4 py-3 text-sm border-b bg-amber-50 border-amber-200 text-amber-900">
+      <Clock className="h-5 w-5 shrink-0 mt-0.5" />
+      <p>
+        <span className="font-semibold">
+          {pendingCount === 1
+            ? 'You have an event awaiting approval.'
+            : `You have ${pendingCount} events awaiting approval.`}
+        </span>{' '}
+        Keshless is reviewing {pendingCount === 1 ? 'it' : 'them'} — once approved,{' '}
+        {pendingCount === 1 ? 'it goes' : 'they go'} live and tickets can be sold.
+      </p>
     </div>
   );
 }

@@ -66,7 +66,7 @@ export function SalesHistoryPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={sale.paymentStatus === 'paid' ? 'default' : 'destructive'}>
+                      <Badge variant={sale.paymentStatus === 'completed' ? 'default' : 'destructive'}>
                         {sale.paymentStatus}
                       </Badge>
                     </TableCell>

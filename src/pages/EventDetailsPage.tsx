@@ -13,10 +13,9 @@ import { GalleryManager } from '@/components/GalleryManager';
 import { EventAnalyticsTab } from '@/components/EventAnalyticsTab';
 import { EventCreatorTab } from '@/components/EventCreatorTab';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import { highlightVerificationBanner } from '@/components/VerificationBanner';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  ArrowLeft, Calendar, MapPin, Users, DollarSign, CheckCircle,
+  ArrowLeft, Calendar, MapPin, Users, CheckCircle, Clock,
   Edit, Trash2, Eye, EyeOff, QrCode, Plus, TrendingUp, TrendingDown, Image, BarChart3, UserCircle
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -33,12 +32,9 @@ export function EventDetailsPage() {
   const [editingTicket, setEditingTicket] = useState<TicketType | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
-  // A pending/unverified organizer can't publish — the API rejects it. Detect
-  // that client-side so we can point them at the verification banner instead.
-  const isVerified =
-    !user || user.verificationStatus === undefined
-      ? true
-      : user.verificationStatus === 'verified' || !!user.isVerified;
+  // Keshless admins approve events (publish them live) and can unpublish/delete
+  // even after tickets sell. Organizers instead SUBMIT events for approval.
+  const isAdmin = !!user?.isSuperAdmin;
 
   const { data: event, isLoading } = useQuery({
     queryKey: ['event', id],
@@ -61,11 +57,22 @@ export function EventDetailsPage() {
   const publishMutation = useMutation({
     mutationFn: (publish: boolean) =>
       publish ? apiClient.events.publishEvent(id!) : apiClient.events.unpublishEvent(id!),
-    onSuccess: () => {
+    onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: ['event', id] });
       queryClient.invalidateQueries({ queryKey: ['events'] });
-      toast.success('Event updated successfully');
+      // Message reflects the state the event actually landed in, so an
+      // organizer sees "submitted for approval" rather than a misleading
+      // "published".
+      if (updated?.status === 'pending_approval') {
+        toast.success('Event submitted for approval — it goes live once Keshless approves it.');
+      } else if (updated?.status === 'published') {
+        toast.success('Event published');
+      } else {
+        toast.success('Event updated');
+      }
     },
+    // Never swallow a failed publish/unpublish — surface it.
+    onError: (error: any) => toast.error(error.message || 'Failed to update event'),
   });
 
   const deleteMutation = useMutation({
@@ -186,6 +193,11 @@ export function EventDetailsPage() {
   }
 
   const isPublished = event.status === 'published';
+  const isPending = event.status === 'pending_approval';
+  const statusLabel =
+    event.status === 'pending_approval' ? 'Waiting for Approval' : event.status;
+  const statusVariant: 'default' | 'secondary' | 'destructive' =
+    isPublished ? 'default' : isPending ? 'secondary' : 'secondary';
   const totalCapacity = event.capacity || event.ticketTypes.reduce((sum, tt) => sum + tt.quantity, 0);
   const soldPercentage = totalCapacity > 0 ? (event.totalTicketsSold / totalCapacity) * 100 : 0;
 
@@ -200,34 +212,61 @@ export function EventDetailsPage() {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-3xl font-bold">{event.name}</h1>
-              <Badge variant={isPublished ? 'default' : 'secondary'} className="capitalize">
-                {event.status}
+              <Badge variant={statusVariant} className="capitalize">
+                {statusLabel}
               </Badge>
             </div>
             <p className="text-slate-600 mt-1">Event ID: {event.eventId}</p>
+            {isPending && (
+              <p className="text-sm text-amber-700 mt-1 flex items-center gap-1.5">
+                <Clock className="h-4 w-4" />
+                {isAdmin
+                  ? 'This event is awaiting your approval.'
+                  : 'Submitted — waiting for Keshless to approve it before it goes live.'}
+              </p>
+            )}
           </div>
         </div>
         <div className="flex gap-2">
-          <Button
-            variant={isPublished ? 'outline' : 'default'}
-            onClick={() => {
-              // Block the call for unverified organizers and point them at the
-              // banner explaining why, instead of letting the API 4xx silently.
-              if (!isPublished && !isVerified) {
-                highlightVerificationBanner();
-                toast.error('Your organizer account must be verified before you can publish.');
-                return;
-              }
-              publishMutation.mutate(!isPublished);
-            }}
-            disabled={publishMutation.isPending}
-          >
-            {isPublished ? (
-              <><EyeOff className="h-4 w-4 mr-2" /> Unpublish</>
+          {isPublished ? (
+            // Pull a live event back to draft. Organizers are blocked once
+            // tickets have sold; admins can override (handled server-side).
+            <Button
+              variant="outline"
+              onClick={() => publishMutation.mutate(false)}
+              disabled={publishMutation.isPending}
+            >
+              <EyeOff className="h-4 w-4 mr-2" /> Unpublish
+            </Button>
+          ) : isPending ? (
+            isAdmin ? (
+              // Admin approval — takes the event live.
+              <Button
+                onClick={() => publishMutation.mutate(true)}
+                disabled={publishMutation.isPending}
+              >
+                <CheckCircle className="h-4 w-4 mr-2" /> Approve &amp; Publish
+              </Button>
             ) : (
-              <><Eye className="h-4 w-4 mr-2" /> Publish</>
-            )}
-          </Button>
+              // Organizer can withdraw their submission back to draft.
+              <Button
+                variant="outline"
+                onClick={() => publishMutation.mutate(false)}
+                disabled={publishMutation.isPending}
+              >
+                <EyeOff className="h-4 w-4 mr-2" /> Withdraw
+              </Button>
+            )
+          ) : (
+            // Draft: admin publishes live, organizer submits for approval.
+            <Button
+              onClick={() => publishMutation.mutate(true)}
+              disabled={publishMutation.isPending}
+            >
+              <Eye className="h-4 w-4 mr-2" />
+              {isAdmin ? 'Publish' : 'Submit for Approval'}
+            </Button>
+          )}
           <Button
             variant="destructive"
             onClick={() => setDeleteConfirmOpen(true)}
