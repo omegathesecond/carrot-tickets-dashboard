@@ -27,11 +27,18 @@ export interface AuthUser {
   firstName?: string;
   lastName?: string;
   businessName: string;
-  role: 'vendor' | 'admin';
+  // Raw role from the API (e.g. 'tickets_owner', 'tickets_sales'); kept as a
+  // string so we don't have to enumerate every TicketsRole on the client.
+  role: string;
   isActive: boolean;
   createdAt: string;
   verificationStatus?: VerificationStatus;
   isVerified?: boolean;
+  // Account capabilities — used to show/hide nav tabs for restricted accounts
+  // (e.g. a sales-only reseller). Full vendor accounts get every permission.
+  permissions?: string[];
+  userType?: 'vendor' | 'sub-user';
+  isSuperAdmin?: boolean;
 }
 
 // Event Types
@@ -139,8 +146,11 @@ export interface TicketSale {
   customerName: string;
   customerPhone: string;
   paymentMethod: 'cash' | 'keshless_wallet';
-  paymentStatus: 'pending' | 'paid' | 'refunded' | 'failed';
+  paymentStatus: 'pending' | 'paid' | 'completed' | 'refunded' | 'failed';
   tickets: Ticket[];
+  // Individual tickets as populated by the sales list endpoint (each carries
+  // its scannable `ticketId` code and `ticketType` name).
+  ticketIds?: Ticket[];
   vendorId: string;
   soldBy: string;
   soldByName?: string;
@@ -154,7 +164,8 @@ export interface Ticket {
   ticketId: string; // QR code ID
   saleId: string;
   eventId: string;
-  ticketTypeId: string;
+  ticketTypeId?: string;
+  ticketType?: string; // denormalized ticket type name (e.g. "VIP")
   status: 'valid' | 'used' | 'refunded' | 'cancelled';
   scannedAt?: string;
   scannedBy?: string;
@@ -175,16 +186,27 @@ export interface SellTicketsRequest {
 // Scan Types
 export interface ScanRecord {
   _id: string;
-  ticketId: string;
+  // Populated by the scans endpoint: the scanned Ticket object (carries the
+  // scannable `ticketId` code). May be a raw id string if not populated.
+  ticketId: string | Ticket;
   ticket?: Ticket;
   eventId: string;
   event?: Event;
   scannedBy: string;
   scannedByName?: string;
   status: 'success' | 'failed';
+  scanResult?: 'success' | 'already_scanned' | 'invalid_ticket' | 'wrong_event' | 'cancelled';
   failureReason?: string;
   notes?: string;
+  scannedAt?: string;
   createdAt: string;
+}
+
+export interface ScanStats {
+  totalScans: number;
+  successfulScans: number;
+  failedScans: number;
+  alreadyScannedCount: number;
 }
 
 export interface ValidateTicketRequest {
@@ -289,7 +311,7 @@ export interface SalesQueryParams {
   limit?: number;
   eventId?: string;
   paymentMethod?: 'cash' | 'keshless_wallet';
-  paymentStatus?: 'pending' | 'paid' | 'refunded' | 'failed';
+  paymentStatus?: 'pending' | 'completed' | 'refunded' | 'failed';
   startDate?: string;
   endDate?: string;
   search?: string;

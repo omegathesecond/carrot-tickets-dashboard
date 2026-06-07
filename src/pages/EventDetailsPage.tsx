@@ -15,6 +15,7 @@ import { EventCreatorTab } from '@/components/EventCreatorTab';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { highlightVerificationBanner } from '@/components/VerificationBanner';
 import { useAuth } from '@/contexts/AuthContext';
+import { getSaleTicketType, getSaleTicketCodes } from '@/lib/sales';
 import {
   ArrowLeft, Calendar, MapPin, Users, DollarSign, CheckCircle,
   Edit, Trash2, Eye, EyeOff, QrCode, Plus, TrendingUp, TrendingDown, Image, BarChart3, UserCircle
@@ -509,6 +510,7 @@ export function EventDetailsPage() {
                     <TableRow>
                       <TableHead>Customer</TableHead>
                       <TableHead>Ticket Type</TableHead>
+                      <TableHead>Ticket ID</TableHead>
                       <TableHead className="text-right">Quantity</TableHead>
                       <TableHead className="text-right">Amount</TableHead>
                       <TableHead>Date</TableHead>
@@ -518,7 +520,8 @@ export function EventDetailsPage() {
                     {sales.data.slice(0, 5).map((sale: any) => (
                       <TableRow key={sale._id}>
                         <TableCell>{sale.customerName}</TableCell>
-                        <TableCell>{sale.ticketType?.name || 'N/A'}</TableCell>
+                        <TableCell>{getSaleTicketType(sale)}</TableCell>
+                        <TableCell className="font-mono text-xs">{getSaleTicketCodes(sale)}</TableCell>
                         <TableCell className="text-right">{sale.quantity}</TableCell>
                         <TableCell className="text-right">E {sale.totalAmount.toLocaleString()}</TableCell>
                         <TableCell>{format(new Date(sale.createdAt), 'PP')}</TableCell>

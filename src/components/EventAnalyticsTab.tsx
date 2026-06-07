@@ -114,6 +114,42 @@ export function EventAnalyticsTab({ eventId }: EventAnalyticsTabProps) {
         <DateRangePicker value={dateRange} onChange={setDateRange} />
       </div>
 
+      {/* Summary Stats — shown at the top for an at-a-glance overview */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold text-slate-900">
+              {formatCurrency(analytics.sales.totalRevenue)}
+            </div>
+            <div className="text-sm text-slate-600">Total Revenue</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold text-slate-900">
+              {analytics.sales.ticketsSold.toLocaleString()}
+            </div>
+            <div className="text-sm text-slate-600">Tickets Sold</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold text-slate-900">
+              {analytics.sales.checkedIn.toLocaleString()}
+            </div>
+            <div className="text-sm text-slate-600">Checked In</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold text-slate-900">
+              {analytics.sales.totalSales.toLocaleString()}
+            </div>
+            <div className="text-sm text-slate-600">Total Sales</div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Revenue Timeline */}
@@ -327,42 +363,6 @@ export function EventAnalyticsTab({ eventId }: EventAnalyticsTabProps) {
                 </div>
               )}
             </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-slate-900">
-              {formatCurrency(analytics.sales.totalRevenue)}
-            </div>
-            <div className="text-sm text-slate-600">Total Revenue</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-slate-900">
-              {analytics.sales.ticketsSold.toLocaleString()}
-            </div>
-            <div className="text-sm text-slate-600">Tickets Sold</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-slate-900">
-              {analytics.sales.checkedIn.toLocaleString()}
-            </div>
-            <div className="text-sm text-slate-600">Checked In</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-slate-900">
-              {analytics.sales.totalSales.toLocaleString()}
-            </div>
-            <div className="text-sm text-slate-600">Total Sales</div>
           </CardContent>
         </Card>
       </div>
