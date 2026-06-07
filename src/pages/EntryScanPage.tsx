@@ -7,19 +7,71 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
+import { DateRangePicker, DateRange } from '@/components/DateRangePicker';
 import { ScanLine, CheckCircle, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import type { ScanQueryParams } from '@/types';
+
+const ALL = 'all';
+
+// Defensive readers: the scans endpoint populates the event into `eventId` and
+// the ticket into `ticketId`, and exposes a normalized `status`. Fall back
+// gracefully across shapes so the table renders regardless of populate state.
+const scanEventName = (s: any): string => s.event?.name || s.eventId?.name || 'N/A';
+const scanTicketCode = (s: any): string => {
+  if (s.ticketId && typeof s.ticketId === 'object') return s.ticketId.ticketId || '—';
+  return s.ticket?.ticketId || '—';
+};
+const scanStatus = (s: any): 'success' | 'failed' =>
+  s.status || (s.scanResult === 'success' ? 'success' : 'failed');
+const scanTime = (s: any): string => format(new Date(s.scannedAt || s.createdAt), 'HH:mm:ss');
 
 export function EntryScanPage() {
   const [ticketId, setTicketId] = useState('');
   const [lastScan, setLastScan] = useState<any>(null);
+  const [eventId, setEventId] = useState<string>(ALL);
+  const [status, setStatus] = useState<string>(ALL);
+  const [dateRange, setDateRange] = useState<DateRange>({
+    startDate: undefined,
+    endDate: undefined,
+    preset: 'all',
+  });
   const queryClient = useQueryClient();
 
+  const scanFilters: ScanQueryParams = {
+    limit: 50,
+    ...(eventId !== ALL ? { eventId } : {}),
+    ...(status !== ALL ? { status: status as ScanQueryParams['status'] } : {}),
+    ...(dateRange.startDate ? { startDate: dateRange.startDate } : {}),
+    ...(dateRange.endDate ? { endDate: dateRange.endDate } : {}),
+  };
+
   const { data: scansData } = useQuery({
-    queryKey: ['scans'],
-    queryFn: () => apiClient.scans.getScans({ limit: 50 }),
+    queryKey: ['scans', scanFilters],
+    queryFn: () => apiClient.scans.getScans(scanFilters),
   });
+
+  const { data: scanStats } = useQuery({
+    queryKey: ['scanStats', eventId, dateRange.startDate, dateRange.endDate],
+    queryFn: () => apiClient.scans.getScanStats({
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
+      ...(eventId !== ALL ? { eventId } : {}),
+    }),
+  });
+
+  const { data: eventsData } = useQuery({
+    queryKey: ['events', 'all-for-filter'],
+    queryFn: () => apiClient.events.getEvents({ limit: 100 }),
+  });
+
+  const refetchScans = () => {
+    queryClient.invalidateQueries({ queryKey: ['scans'] });
+    queryClient.invalidateQueries({ queryKey: ['scanStats'] });
+  };
 
   const validateMutation = useMutation({
     mutationFn: (ticketId: string) => apiClient.scans.validateTicket({ ticketId }),
@@ -40,8 +92,8 @@ export function EntryScanPage() {
       setTicketId('');
       setLastScan(null);
       // Check-in is the only action that writes a scan record — refresh the
-      // Recent Scans list so the new entry appears immediately.
-      queryClient.invalidateQueries({ queryKey: ['scans'] });
+      // Recent Scans list and stats so the new entry appears immediately.
+      refetchScans();
     },
     onError: (error: any) => toast.error(error.message || 'Check-in failed'),
   });
@@ -59,11 +111,30 @@ export function EntryScanPage() {
     }
   };
 
+  const statsCards = [
+    { title: 'Total Scans', value: (scanStats?.totalScans || 0).toLocaleString() },
+    { title: 'Successful', value: (scanStats?.successfulScans || 0).toLocaleString() },
+    { title: 'Failed', value: (scanStats?.failedScans || 0).toLocaleString() },
+    { title: 'Already Scanned', value: (scanStats?.alreadyScannedCount || 0).toLocaleString() },
+  ];
+
   return (
     <div className="p-8 space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Entry Scan</h1>
         <p className="text-slate-600">Validate and check-in tickets</p>
+      </div>
+
+      {/* Scan analytics */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {statsCards.map((s) => (
+          <Card key={s.title}>
+            <CardContent className="pt-6">
+              <div className="text-2xl font-bold text-slate-900">{s.value}</div>
+              <div className="text-sm text-slate-600">{s.title}</div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -121,27 +192,64 @@ export function EntryScanPage() {
           <CardHeader>
             <CardTitle>Recent Scans</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {/* Filters: event, date, status */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <SearchableSelect
+                value={eventId}
+                onValueChange={setEventId}
+                options={[
+                  { value: ALL, label: 'All events' },
+                  ...(eventsData?.data || []).map((e) => ({ value: e._id, label: e.name })),
+                ]}
+                placeholder="All events"
+                searchPlaceholder="Search events…"
+                emptyText="No events found"
+              />
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>All statuses</SelectItem>
+                  <SelectItem value="success">Success</SelectItem>
+                  <SelectItem value="failed">Failed</SelectItem>
+                  <SelectItem value="already_scanned">Already Scanned</SelectItem>
+                </SelectContent>
+              </Select>
+              <DateRangePicker value={dateRange} onChange={setDateRange} />
+            </div>
+
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Time</TableHead>
+                  <TableHead>Ticket ID</TableHead>
                   <TableHead>Event</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {scansData?.data?.map((scan) => (
-                  <TableRow key={scan._id}>
-                    <TableCell className="text-sm">{format(new Date(scan.createdAt), 'HH:mm:ss')}</TableCell>
-                    <TableCell>{scan.event?.name || 'N/A'}</TableCell>
-                    <TableCell>
-                      <Badge variant={scan.status === 'success' ? 'default' : 'destructive'}>
-                        {scan.status}
-                      </Badge>
+                {scansData?.data && scansData.data.length > 0 ? (
+                  scansData.data.map((scan: any) => (
+                    <TableRow key={scan._id}>
+                      <TableCell className="text-sm">{scanTime(scan)}</TableCell>
+                      <TableCell className="font-mono text-xs">{scanTicketCode(scan)}</TableCell>
+                      <TableCell>{scanEventName(scan)}</TableCell>
+                      <TableCell>
+                        <Badge variant={scanStatus(scan) === 'success' ? 'default' : 'destructive'}>
+                          {scanStatus(scan)}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center text-slate-500 py-8">
+                      No scans found
                     </TableCell>
                   </TableRow>
-                ))}
+                )}
               </TableBody>
             </Table>
           </CardContent>
