@@ -7,6 +7,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Layout } from '@/components/layout/Layout';
 
+import { AdminRoute } from '@/components/AdminRoute';
 import { LoginPage } from '@/pages/LoginPage';
 import { SignupPage } from '@/pages/SignupPage';
 import { DashboardPage } from '@/pages/DashboardPage';
@@ -16,6 +17,7 @@ import { TicketSalesPage } from '@/pages/TicketSalesPage';
 import { SalesHistoryPage } from '@/pages/SalesHistoryPage';
 import { EntryScanPage } from '@/pages/EntryScanPage';
 import { AnalyticsPage } from '@/pages/AnalyticsPage';
+import { SettingsPage } from '@/pages/SettingsPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -51,6 +53,7 @@ function App() {
                   <Route path="sales-history" element={<SalesHistoryPage />} />
                   <Route path="entry-scan" element={<EntryScanPage />} />
                   <Route path="analytics" element={<AnalyticsPage />} />
+                  <Route path="settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
                 </Route>
               </Routes>
               <Toaster position="top-right" richColors />

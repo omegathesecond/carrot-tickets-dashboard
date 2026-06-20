@@ -21,6 +21,7 @@ import type {
   EventAnalytics,
   StatsQueryParams,
   PaginatedResponse,
+  PaymentMethodSettings,
 } from '@/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -622,6 +623,18 @@ class ApiClient {
         `/tickets/stats/events/${eventId}?${query.toString()}`
       );
     },
+  };
+
+  // Settings endpoints (super-admin only)
+  settings = {
+    getPaymentMethods: async (): Promise<PaymentMethodSettings> =>
+      this.request<PaymentMethodSettings>(`/tickets/settings/payment-methods`),
+
+    updatePaymentMethods: async (data: PaymentMethodSettings): Promise<PaymentMethodSettings> =>
+      this.request<PaymentMethodSettings>(`/tickets/settings/payment-methods`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
   };
 
   // Export endpoints

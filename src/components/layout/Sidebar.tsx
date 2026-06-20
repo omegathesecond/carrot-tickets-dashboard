@@ -6,6 +6,7 @@ import {
   History,
   ScanLine,
   BarChart3,
+  Settings2,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { BRAND_NAME } from '@/lib/brand';
@@ -50,6 +51,7 @@ export function Sidebar() {
       href: '/analytics',
       icon: BarChart3,
     },
+    ...(user?.isSuperAdmin ? [{ name: 'Settings', href: '/settings', icon: Settings2 }] : []),
   ];
 
   return (

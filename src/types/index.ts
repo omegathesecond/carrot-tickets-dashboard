@@ -32,6 +32,12 @@ export interface AuthUser {
   createdAt: string;
   verificationStatus?: VerificationStatus;
   isVerified?: boolean;
+  isSuperAdmin?: boolean;
+}
+
+export interface PaymentMethodSettings {
+  keshlessWalletEnabled: boolean;
+  mtnMomoEnabled: boolean;
 }
 
 // Event Types
