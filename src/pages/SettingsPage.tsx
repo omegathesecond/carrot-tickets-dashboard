@@ -14,7 +14,7 @@ import { toast } from 'sonner';
 export function SettingsPage() {
   const qc = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['payment-methods'],
     queryFn: () => apiClient.settings.getPaymentMethods(),
   });
@@ -26,10 +26,28 @@ export function SettingsPage() {
       qc.setQueryData(['payment-methods'], d);
       toast.success('Payment methods updated');
     },
-    onError: (e: any) => toast.error(e.message || 'Update failed'),
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : 'Update failed'),
   });
 
-  if (isLoading || !data) return <div className="p-6">Loading…</div>;
+  if (isLoading) return <div className="p-6">Loading…</div>;
+  if (isError || !data)
+    return (
+      <div className="p-6 max-w-2xl">
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-destructive font-medium">
+              Failed to load payment settings. Please retry.
+            </p>
+            <button
+              className="mt-4 text-sm underline text-primary"
+              onClick={() => refetch()}
+            >
+              Retry
+            </button>
+          </CardContent>
+        </Card>
+      </div>
+    );
 
   const toggle = (key: 'keshlessWalletEnabled' | 'mtnMomoEnabled') =>
     mutation.mutate({ ...data, [key]: !data[key] });
