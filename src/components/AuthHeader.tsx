@@ -1,4 +1,4 @@
-import { ArrowLeft, Ticket } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { LANDING_URL } from '@/lib/constants';
 import { BRAND_NAME } from '@/lib/brand';
 
@@ -12,9 +12,7 @@ export function AuthHeader() {
     <header className="absolute top-0 inset-x-0 z-10">
       <div className="flex items-center justify-between px-4 sm:px-8 py-4">
         <a href={LANDING_URL} className="flex items-center gap-2 group">
-          <div className="h-9 w-9 bg-gradient-to-br from-orange-500 to-amber-600 rounded-lg flex items-center justify-center">
-            <Ticket className="h-5 w-5 text-white" />
-          </div>
+          <img src="/carrot_tickets_icon.png" alt={BRAND_NAME} className="h-9 w-9" />
           <span className="font-bold text-slate-800 group-hover:text-orange-600 transition-colors">
             {BRAND_NAME}
           </span>

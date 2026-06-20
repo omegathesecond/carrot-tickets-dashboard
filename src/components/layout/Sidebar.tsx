@@ -6,7 +6,6 @@ import {
   History,
   ScanLine,
   BarChart3,
-  Ticket,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { BRAND_NAME } from '@/lib/brand';
@@ -58,9 +57,7 @@ export function Sidebar() {
       {/* Logo */}
       <div className="p-6 border-b border-slate-200">
         <NavLink to="/" className="flex items-center space-x-3 group">
-          <div className="h-12 w-12 bg-gradient-to-br from-orange-500 to-amber-600 rounded-lg flex items-center justify-center">
-            <Ticket className="h-7 w-7 text-white" />
-          </div>
+          <img src="/carrot_tickets_icon.png" alt={BRAND_NAME} className="h-12 w-12" />
           <div className="space-y-0">
             <h2 className="text-lg font-bold text-slate-900">{BRAND_NAME}</h2>
             <p className="text-xs text-slate-500">

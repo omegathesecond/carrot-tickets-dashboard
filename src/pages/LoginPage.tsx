@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Ticket } from 'lucide-react';
 import { toast } from 'sonner';
 import { AuthHeader } from '@/components/AuthHeader';
 import { BRAND_NAME } from '@/lib/brand';
@@ -38,9 +37,7 @@ export function LoginPage() {
       <Card className="w-full max-w-md mx-4">
         <CardHeader className="space-y-4">
           <div className="flex items-center justify-center">
-            <div className="h-16 w-16 bg-gradient-to-br from-orange-500 to-amber-600 rounded-lg flex items-center justify-center">
-              <Ticket className="h-10 w-10 text-white" />
-            </div>
+            <img src="/carrot_tickets_icon.png" alt={BRAND_NAME} className="h-16 w-16" />
           </div>
           <div className="text-center">
             <CardTitle className="text-2xl">{BRAND_NAME}</CardTitle>
