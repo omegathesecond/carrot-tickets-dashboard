@@ -1,4 +1,5 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { BRAND_NAME } from '@/lib/brand';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { CheckCircle, Printer, MessageSquare, MessageCircle } from 'lucide-react';
@@ -61,7 +62,7 @@ export function TicketSuccessDialog({ open, onOpenChange, saleData }: TicketSucc
           </style>
         </head>
         <body>
-          <h1>🎫 Keshless Tickets - Receipt</h1>
+          <h1>🎫 ${BRAND_NAME} - Receipt</h1>
           <div class="section">
             <p><span class="label">Event:</span> ${saleData.eventName}</p>
             <p><span class="label">Ticket Type:</span> ${saleData.ticketTypeName}</p>
@@ -115,7 +116,7 @@ export function TicketSuccessDialog({ open, onOpenChange, saleData }: TicketSucc
   const handleSendWhatsApp = () => {
     // WhatsApp: Include ticket details with QR code instructions
     const ticketList = saleData.ticketIds.map((id, i) => `${i + 1}. ${id}`).join('\n');
-    const message = `🎫 *Keshless Tickets*\n\n*Event:* ${saleData.eventName}\n*Ticket Type:* ${saleData.ticketTypeName}\n*Customer:* ${saleData.customerName}\n*Quantity:* ${saleData.quantity}\n*Total:* E ${saleData.totalAmount.toLocaleString()}\n\n*Your Ticket ID(s):*\n${ticketList}\n\n✅ Save these ticket IDs - you'll need them at the event!\n📱 Show your printed tickets with QR codes for faster entry.\n\nSee you at the event! 🎉`;
+    const message = `🎫 *${BRAND_NAME}*\n\n*Event:* ${saleData.eventName}\n*Ticket Type:* ${saleData.ticketTypeName}\n*Customer:* ${saleData.customerName}\n*Quantity:* ${saleData.quantity}\n*Total:* E ${saleData.totalAmount.toLocaleString()}\n\n*Your Ticket ID(s):*\n${ticketList}\n\n✅ Save these ticket IDs - you'll need them at the event!\n📱 Show your printed tickets with QR codes for faster entry.\n\nSee you at the event! 🎉`;
 
     const phoneNumber = saleData.customerPhone.replace(/^\+/, '').replace(/\s/g, '');
     window.open(`https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`, '_blank');

@@ -1,9 +1,10 @@
 import { ArrowLeft, Ticket } from 'lucide-react';
 import { LANDING_URL } from '@/lib/constants';
+import { BRAND_NAME } from '@/lib/brand';
 
 /**
  * Top bar for the unauthenticated auth pages (login / signup). Gives
- * organizers a way back to the public Keshless Tickets landing page — those
+ * organizers a way back to the public Carrot Tickets landing page — those
  * pages otherwise had no navigation at all.
  */
 export function AuthHeader() {
@@ -15,7 +16,7 @@ export function AuthHeader() {
             <Ticket className="h-5 w-5 text-white" />
           </div>
           <span className="font-bold text-slate-800 group-hover:text-orange-600 transition-colors">
-            Keshless Tickets
+            {BRAND_NAME}
           </span>
         </a>
         <a

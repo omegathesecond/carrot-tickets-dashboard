@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { AlertCircle, ShieldCheck } from 'lucide-react';
+import { BRAND_NAME } from '@/lib/brand';
 
 const HIGHLIGHT_EVENT = 'keshless:highlight-verification-banner';
 
@@ -60,7 +61,7 @@ export function VerificationBanner() {
         {rejected ? (
           <p>
             <span className="font-semibold">Account {user.verificationStatus}.</span>{' '}
-            Publishing is disabled. Please contact Keshless support to resolve this.
+            Publishing is disabled. Please contact {BRAND_NAME} support to resolve this.
           </p>
         ) : (
           <p>

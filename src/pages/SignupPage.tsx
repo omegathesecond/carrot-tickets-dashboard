@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Ticket } from 'lucide-react';
 import { toast } from 'sonner';
 import { AuthHeader } from '@/components/AuthHeader';
+import { BRAND_NAME } from '@/lib/brand';
 
 const BUSINESS_TYPES = [
   { value: 'event_organizer', label: 'Event Organizer' },
@@ -70,7 +71,7 @@ export function SignupPage() {
           </div>
           <div className="text-center">
             <CardTitle className="text-2xl">Create your organizer account</CardTitle>
-            <CardDescription>Start selling tickets to your events on Keshless</CardDescription>
+            <CardDescription>Start selling tickets to your events on {BRAND_NAME}</CardDescription>
           </div>
         </CardHeader>
         <CardContent>

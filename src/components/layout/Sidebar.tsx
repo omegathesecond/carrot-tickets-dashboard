@@ -9,6 +9,7 @@ import {
   Ticket,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { BRAND_NAME } from '@/lib/brand';
 
 interface NavigationItem {
   name: string;
@@ -61,7 +62,7 @@ export function Sidebar() {
             <Ticket className="h-7 w-7 text-white" />
           </div>
           <div className="space-y-0">
-            <h2 className="text-lg font-bold text-slate-900">Keshless Tickets</h2>
+            <h2 className="text-lg font-bold text-slate-900">{BRAND_NAME}</h2>
             <p className="text-xs text-slate-500">
               {user?.businessName || 'Event Management'}
             </p>
@@ -93,7 +94,7 @@ export function Sidebar() {
       {/* Footer */}
       <div className="p-4 border-t border-slate-200">
         <div className="text-xs text-slate-500 space-y-1">
-          <p>© 2025 Keshless Tickets</p>
+          <p>© 2026 {BRAND_NAME}</p>
           <p>Version 1.0.0</p>
           {user && (
             <p className="text-orange-600 font-medium mt-2">

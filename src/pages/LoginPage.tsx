@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Ticket } from 'lucide-react';
 import { toast } from 'sonner';
 import { AuthHeader } from '@/components/AuthHeader';
+import { BRAND_NAME } from '@/lib/brand';
 
 export function LoginPage() {
   const [credentials, setCredentials] = useState({ identifier: '', password: '' });
@@ -42,7 +43,7 @@ export function LoginPage() {
             </div>
           </div>
           <div className="text-center">
-            <CardTitle className="text-2xl">Keshless Tickets</CardTitle>
+            <CardTitle className="text-2xl">{BRAND_NAME}</CardTitle>
             <CardDescription>Event Ticketing Dashboard</CardDescription>
           </div>
         </CardHeader>
