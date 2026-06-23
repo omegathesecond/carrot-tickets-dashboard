@@ -123,15 +123,42 @@ export const resellerApi = {
   },
 
   async getEvents(): Promise<ResellerEvent[]> {
-    return request<ResellerEvent[]>('/reseller/events');
+    // Backend wraps events in a paginated envelope: { data: ResellerEvent[], pagination }.
+    // The generic request() strips the outer ApiResponse.data, leaving that envelope —
+    // so pull the array out here rather than handing the POS page a non-iterable object.
+    const result = await request<{ data?: ResellerEvent[] } | ResellerEvent[]>('/reseller/events');
+    return Array.isArray(result) ? result : result?.data ?? [];
   },
 
   async getEventTickets(eventId: string): Promise<ResellerTicketType[]> {
-    return request<ResellerTicketType[]>(`/reseller/events/${eventId}/tickets`);
+    // Backend returns { event, ticketTypes }, and exposes capacity as `remaining`.
+    const result = await request<{ ticketTypes?: any[] } | ResellerTicketType[]>(
+      `/reseller/events/${eventId}/tickets`
+    );
+    const list = Array.isArray(result) ? result : result?.ticketTypes ?? [];
+    return list.map((tt: any) => ({
+      id: tt.id,
+      name: tt.name,
+      price: tt.price,
+      available: tt.available ?? tt.remaining ?? 0,
+    }));
   },
 
   async getPaymentMethods(): Promise<ResellerPaymentMethods> {
-    return request<ResellerPaymentMethods>('/reseller/payment-methods');
+    // Backend returns the enabled methods as a string[] under `methods`;
+    // the POS expects a boolean map keyed by method id.
+    const result = await request<{ methods?: string[] } | ResellerPaymentMethods>(
+      '/reseller/payment-methods'
+    );
+    if (result && Array.isArray((result as { methods?: string[] }).methods)) {
+      const methods = (result as { methods: string[] }).methods;
+      return {
+        cash: methods.includes('cash'),
+        mtn_momo: methods.includes('mtn_momo'),
+        keshless_wallet: methods.includes('keshless_wallet'),
+      };
+    }
+    return (result ?? {}) as ResellerPaymentMethods;
   },
 
   async createSale(payload: CreateSalePayload): Promise<CreateSaleResponse> {
