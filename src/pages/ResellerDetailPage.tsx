@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
@@ -44,10 +44,14 @@ function HubsTab({ resellerId }: { resellerId: string }) {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [form, setForm] = useState({ name: '', city: '', region: '' });
 
-  const { data: hubs = [], isLoading } = useQuery({
+  const { data: hubs = [], isLoading, isError: hubsError } = useQuery({
     queryKey: ['hubs', resellerId],
     queryFn: () => apiClient.resellerAdmin.listHubs(resellerId),
   });
+
+  useEffect(() => {
+    if (hubsError) toast.error('Failed to load hubs');
+  }, [hubsError]);
 
   const createHub = useMutation({
     mutationFn: () =>
@@ -180,16 +184,24 @@ function OperatorsTab({ resellerId }: { resellerId: string }) {
     role: 'reseller_operator',
   });
 
-  const { data: hubs = [], isLoading: hubsLoading } = useQuery({
+  const { data: hubs = [], isLoading: hubsLoading, isError: hubsLoadError } = useQuery({
     queryKey: ['hubs', resellerId],
     queryFn: () => apiClient.resellerAdmin.listHubs(resellerId),
   });
 
-  const { data: operators = [], isLoading: opsLoading } = useQuery({
+  useEffect(() => {
+    if (hubsLoadError) toast.error('Failed to load hubs');
+  }, [hubsLoadError]);
+
+  const { data: operators = [], isLoading: opsLoading, isError: opsError } = useQuery({
     queryKey: ['operators', selectedHubId],
     queryFn: () => apiClient.resellerAdmin.listOperators(selectedHubId),
     enabled: !!selectedHubId,
   });
+
+  useEffect(() => {
+    if (opsError) toast.error('Failed to load operators');
+  }, [opsError]);
 
   const createOperator = useMutation({
     mutationFn: () =>
@@ -545,11 +557,15 @@ export function ResellerDetailPage() {
   const queryClient = useQueryClient();
   const [commissionInput, setCommissionInput] = useState('');
 
-  const { data: reseller, isLoading } = useQuery({
+  const { data: reseller, isLoading, isError: resellerError } = useQuery({
     queryKey: ['reseller', id],
     queryFn: () => apiClient.resellerAdmin.getReseller(id!),
     enabled: !!id,
   });
+
+  useEffect(() => {
+    if (resellerError) toast.error('Failed to load reseller');
+  }, [resellerError]);
 
   const updateCommission = useMutation({
     mutationFn: () =>
@@ -569,6 +585,14 @@ export function ResellerDetailPage() {
     return (
       <div className="p-8">
         <p className="text-slate-500">Loading reseller…</p>
+      </div>
+    );
+  }
+
+  if (resellerError) {
+    return (
+      <div className="p-8">
+        <p className="text-red-600">Failed to load reseller. Please try again.</p>
       </div>
     );
   }

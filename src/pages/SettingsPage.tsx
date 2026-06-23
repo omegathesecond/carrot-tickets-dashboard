@@ -74,8 +74,16 @@ export function SettingsPage() {
       </div>
     );
 
-  const toggle = (key: 'keshlessWalletEnabled' | 'mtnMomoEnabled' | 'cashEnabled') =>
-    mutation.mutate({ ...data, [key]: !data[key] });
+  const toggle = (key: 'keshlessWalletEnabled' | 'mtnMomoEnabled' | 'cashEnabled') => {
+    const feeVal = parseFloat(feeInput);
+    const commVal = parseFloat(commInput);
+    mutation.mutate({
+      ...data,
+      platformFeePercent: !isNaN(feeVal) ? feeVal : data.platformFeePercent,
+      defaultResellerCommissionPercent: !isNaN(commVal) ? commVal : data.defaultResellerCommissionPercent,
+      [key]: !data[key],
+    });
+  };
 
   const feeVal = parseFloat(feeInput);
   const commVal = parseFloat(commInput);
