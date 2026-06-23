@@ -27,16 +27,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
-
-type SaleData = {
-  eventName: string;
-  ticketTypeName: string;
-  customerName: string;
-  customerPhone: string;
-  quantity: number;
-  totalAmount: number;
-  ticketIds: string[];
-};
+import type { SaleData } from '@/lib/saleData';
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
   cash: 'Cash',
@@ -182,12 +173,18 @@ export function ResellerPosPage() {
           const ticketIds =
             response.tickets?.map((t) => t.ticketId) || response.ticketIds || [];
           const sale: SaleData = {
+            saleId: response.saleId,
             eventName: selectedEvent?.name ?? eventId,
+            eventDate: selectedEvent?.date,
+            venue: selectedEvent?.venue,
             ticketTypeName: selectedTicketType?.name ?? ticketTypeId,
+            unitPrice: selectedTicketType?.price ?? 0,
             customerName,
             customerPhone,
             quantity,
             totalAmount: (selectedTicketType?.price ?? 0) * quantity,
+            paymentMethod: PAYMENT_METHOD_LABELS[paymentMethod] ?? paymentMethod,
+            operatorName: operator?.fullName ?? '',
             ticketIds,
           };
           setSuccessData(sale);
@@ -235,12 +232,18 @@ export function ResellerPosPage() {
               result.tickets?.map((t) => t.ticketId) || result.ticketIds || [];
             if (ticketIds.length > 0) {
               const sale: SaleData = {
+                saleId: result.saleId ?? '',
                 eventName: selectedEvent?.name ?? eventId,
+                eventDate: selectedEvent?.date,
+                venue: selectedEvent?.venue,
                 ticketTypeName: selectedTicketType?.name ?? ticketTypeId,
+                unitPrice: selectedTicketType?.price ?? 0,
                 customerName,
                 customerPhone,
                 quantity,
                 totalAmount: (selectedTicketType?.price ?? 0) * quantity,
+                paymentMethod: PAYMENT_METHOD_LABELS[paymentMethod] ?? paymentMethod,
+                operatorName: operator?.fullName ?? '',
                 ticketIds,
               };
               setSuccessData(sale);

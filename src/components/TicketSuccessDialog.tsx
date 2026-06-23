@@ -4,19 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { CheckCircle, Printer, MessageSquare, MessageCircle } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
+import type { SaleData } from '@/lib/saleData';
 
 interface TicketSuccessDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  saleData: {
-    eventName: string;
-    ticketTypeName: string;
-    customerName: string;
-    customerPhone: string;
-    quantity: number;
-    totalAmount: number;
-    ticketIds: string[];
-  };
+  saleData: SaleData;
 }
 
 export function TicketSuccessDialog({ open, onOpenChange, saleData }: TicketSuccessDialogProps) {
