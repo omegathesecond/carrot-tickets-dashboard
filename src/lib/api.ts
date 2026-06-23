@@ -11,6 +11,7 @@ import type {
   SellTicketsRequest,
   SalesQueryParams,
   ScanRecord,
+  ScanStats,
   ValidateTicketRequest,
   CheckInRequest,
   ValidateTicketResponse,
@@ -582,6 +583,17 @@ class ApiClient {
 
       return this.request<PaginatedResponse<ScanRecord>>(
         `/tickets/scans?${query.toString()}`
+      );
+    },
+
+    getScanStats: async (params?: StatsQueryParams): Promise<ScanStats> => {
+      const query = new URLSearchParams();
+      if (params?.startDate) query.append('startDate', params.startDate);
+      if (params?.endDate) query.append('endDate', params.endDate);
+      if (params?.eventId) query.append('eventId', params.eventId);
+
+      return this.request<ScanStats>(
+        `/tickets/scans/stats?${query.toString()}`
       );
     },
   };

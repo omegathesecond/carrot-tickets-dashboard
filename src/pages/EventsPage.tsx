@@ -17,6 +17,7 @@ import {
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { type Event, EventFormData } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Buckets shown as the status filter tabs. Drafts are "pending" (awaiting
 // approval to publish), published+upcoming are "approved", published events
@@ -36,7 +37,8 @@ const BUCKET_TABS: { value: Bucket; label: string }[] = [
 function classifyEvent(e: Event): Exclude<Bucket, 'all'> {
   const now = Date.now();
   if (e.status === 'cancelled') return 'cancelled';
-  if (e.status === 'draft') return 'pending';
+  // Drafts and events submitted-but-not-yet-approved both sit under "Pending".
+  if (e.status === 'draft' || e.status === 'pending_approval') return 'pending';
   const start = new Date(e.startTime || e.eventDate).getTime();
   const end = new Date(e.endTime || e.eventDate).getTime();
   if (e.status === 'completed' || (Number.isFinite(end) && end < now)) return 'past';
@@ -50,6 +52,8 @@ export function EventsPage() {
   const [activeTab, setActiveTab] = useState<Bucket>('all');
   const [deleteTarget, setDeleteTarget] = useState<Event | null>(null);
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isAdmin = !!user?.isSuperAdmin;
 
   const { data: eventsData, isLoading } = useQuery({
     queryKey: ['events'],
@@ -80,9 +84,15 @@ export function EventsPage() {
   const publishMutation = useMutation({
     mutationFn: ({ id, publish }: { id: string; publish: boolean }) =>
       publish ? apiClient.events.publishEvent(id) : apiClient.events.unpublishEvent(id),
-    onSuccess: () => {
+    onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
-      toast.success('Event updated');
+      if (updated?.status === 'pending_approval') {
+        toast.success('Event submitted for approval');
+      } else if (updated?.status === 'published') {
+        toast.success('Event published');
+      } else {
+        toast.success('Event updated');
+      }
     },
     onError: (error: any) => toast.error(error.message || 'Failed to update event'),
   });
@@ -330,14 +340,40 @@ export function EventsPage() {
                 </Link>
                 <CardContent className="pt-0">
                   <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant={isPublished ? 'outline' : 'default'}
-                      className="flex-1"
-                      onClick={() => publishMutation.mutate({ id: event._id, publish: !isPublished })}
-                    >
-                      {isPublished ? 'Unpublish' : 'Publish'}
-                    </Button>
+                    {(() => {
+                      const isPendingEvent = event.status === 'pending_approval';
+                      // Pending event: organizers see a disabled marker; admins
+                      // get an Approve action. Otherwise it's a normal
+                      // publish/unpublish toggle.
+                      if (isPendingEvent && !isAdmin) {
+                        return (
+                          <Button size="sm" variant="outline" className="flex-1" disabled>
+                            Pending Approval
+                          </Button>
+                        );
+                      }
+                      if (isPendingEvent && isAdmin) {
+                        return (
+                          <Button
+                            size="sm"
+                            className="flex-1"
+                            onClick={() => publishMutation.mutate({ id: event._id, publish: true })}
+                          >
+                            Approve
+                          </Button>
+                        );
+                      }
+                      return (
+                        <Button
+                          size="sm"
+                          variant={isPublished ? 'outline' : 'default'}
+                          className="flex-1"
+                          onClick={() => publishMutation.mutate({ id: event._id, publish: !isPublished })}
+                        >
+                          {isPublished ? 'Unpublish' : isAdmin ? 'Publish' : 'Submit for Approval'}
+                        </Button>
+                      );
+                    })()}
                     <Button
                       size="sm"
                       variant="destructive"

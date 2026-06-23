@@ -22,6 +22,8 @@ import {
 } from 'recharts';
 import { format } from 'date-fns';
 import { DateRangePicker, DateRange } from '@/components/DateRangePicker';
+import { useAuth } from '@/contexts/AuthContext';
+import { TicketsPermission, hasPermission } from '@/lib/permissions';
 import {
   CHART_COLORS,
   PAYMENT_METHOD_COLORS,
@@ -32,6 +34,7 @@ import {
 } from '@/lib/chartColors';
 
 export function DashboardPage() {
+  const { user } = useAuth();
   const [dateRange, setDateRange] = useState<DateRange>({
     startDate: undefined,
     endDate: undefined,
@@ -103,13 +106,18 @@ export function DashboardPage() {
       change: stats?.eventsChange,
       color: 'text-purple-600 bg-purple-50',
     },
-    {
-      title: "Today's Scans",
-      value: stats?.todayScans || 0,
-      icon: ScanLine,
-      change: stats?.scansChange,
-      color: 'text-orange-600 bg-orange-50',
-    },
+    // Hidden for sales-only accounts (resellers) that can't scan entries.
+    ...(hasPermission(user, TicketsPermission.VIEW_SCANS)
+      ? [
+          {
+            title: "Today's Scans",
+            value: stats?.todayScans || 0,
+            icon: ScanLine,
+            change: stats?.scansChange,
+            color: 'text-orange-600 bg-orange-50',
+          },
+        ]
+      : []),
   ];
 
   return (

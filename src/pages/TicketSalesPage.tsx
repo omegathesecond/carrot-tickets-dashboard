@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PhoneInput } from '@/components/PhoneInput';
 import { TicketSuccessDialog } from '@/components/TicketSuccessDialog';
@@ -79,18 +80,17 @@ export function TicketSalesPage() {
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
                 <Label>Select Event</Label>
-                <Select value={formData.eventId} onValueChange={(v) => setFormData({ ...formData, eventId: v, ticketTypeId: undefined })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose an event" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {eventsData?.data?.map((event) => (
-                      <SelectItem key={event._id} value={event._id}>
-                        {event.name} - {event.venue}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={formData.eventId}
+                  onValueChange={(v) => setFormData({ ...formData, eventId: v, ticketTypeId: undefined })}
+                  options={(eventsData?.data || []).map((event) => ({
+                    value: event._id,
+                    label: `${event.name} - ${event.venue}`,
+                  }))}
+                  placeholder="Choose an event"
+                  searchPlaceholder="Search events…"
+                  emptyText="No events found"
+                />
               </div>
 
               {selectedEvent && (

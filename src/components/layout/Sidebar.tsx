@@ -12,53 +12,64 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { BRAND_NAME } from '@/lib/brand';
+import { TicketsPermission, hasPermission, canManageEvents } from '@/lib/permissions';
 
 interface NavigationItem {
   name: string;
   href: string;
   icon: any;
+  show: boolean;
 }
 
 export function Sidebar() {
   const { user } = useAuth();
 
+  // Sales-only accounts (e.g. a reseller like PicknPay) lack event-management
+  // and scanning permissions, so the Events and Entry Scan tabs are hidden —
+  // their job is only to sell tickets. Full vendor accounts keep every tab.
   const navigation: NavigationItem[] = [
     {
       name: 'Dashboard',
       href: '/',
       icon: LayoutDashboard,
+      show: true,
     },
     {
       name: 'Events',
       href: '/events',
       icon: Calendar,
+      show: canManageEvents(user),
     },
     {
       name: 'Sell Tickets',
       href: '/sell-tickets',
       icon: ShoppingCart,
+      show: hasPermission(user, TicketsPermission.SELL_TICKETS),
     },
     {
       name: 'Sales History',
       href: '/sales-history',
       icon: History,
+      show: hasPermission(user, TicketsPermission.VIEW_SALES),
     },
     {
       name: 'Entry Scan',
       href: '/entry-scan',
       icon: ScanLine,
+      show: hasPermission(user, TicketsPermission.SCAN_TICKETS),
     },
     {
       name: 'Analytics',
       href: '/analytics',
       icon: BarChart3,
+      show: hasPermission(user, TicketsPermission.VIEW_STATS),
     },
     ...(user?.isSuperAdmin ? [
-      { name: 'Settings', href: '/settings', icon: Settings2 },
-      { name: 'Resellers', href: '/resellers', icon: Users },
-      { name: 'Payouts', href: '/payouts', icon: Banknote },
+      { name: 'Settings', href: '/settings', icon: Settings2, show: true },
+      { name: 'Resellers', href: '/resellers', icon: Users, show: true },
+      { name: 'Payouts', href: '/payouts', icon: Banknote, show: true },
     ] : []),
-  ];
+  ].filter((item) => item.show);
 
   return (
     <div className="w-64 bg-white border-r border-slate-200 flex flex-col">
