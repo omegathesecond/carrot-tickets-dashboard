@@ -8,6 +8,7 @@ import {
   BarChart3,
   Settings2,
   Users,
+  Banknote,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { BRAND_NAME } from '@/lib/brand';
@@ -55,6 +56,7 @@ export function Sidebar() {
     ...(user?.isSuperAdmin ? [
       { name: 'Settings', href: '/settings', icon: Settings2 },
       { name: 'Resellers', href: '/resellers', icon: Users },
+      { name: 'Payouts', href: '/payouts', icon: Banknote },
     ] : []),
   ];
 

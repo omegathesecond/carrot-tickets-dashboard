@@ -20,6 +20,7 @@ import { AnalyticsPage } from '@/pages/AnalyticsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { ResellersPage } from '@/pages/ResellersPage';
 import { ResellerDetailPage } from '@/pages/ResellerDetailPage';
+import { OrganizerPayoutsPage } from '@/pages/OrganizerPayoutsPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -58,6 +59,7 @@ function App() {
                   <Route path="settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
                   <Route path="resellers" element={<AdminRoute><ResellersPage /></AdminRoute>} />
                   <Route path="resellers/:id" element={<AdminRoute><ResellerDetailPage /></AdminRoute>} />
+                  <Route path="payouts" element={<AdminRoute><OrganizerPayoutsPage /></AdminRoute>} />
                 </Route>
               </Routes>
               <Toaster position="top-right" richColors />

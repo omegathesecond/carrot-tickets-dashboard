@@ -40,6 +40,9 @@ export interface AuthUser {
 export interface PaymentMethodSettings {
   keshlessWalletEnabled: boolean;
   mtnMomoEnabled: boolean;
+  cashEnabled: boolean;
+  defaultResellerCommissionPercent: number;
+  platformFeePercent: number;
 }
 
 // Event Types
