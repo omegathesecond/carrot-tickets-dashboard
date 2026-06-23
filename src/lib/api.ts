@@ -22,6 +22,13 @@ import type {
   StatsQueryParams,
   PaginatedResponse,
   PaymentMethodSettings,
+  Reseller,
+  ResellerHub,
+  ResellerOperator,
+  ResellerSettlementPreview,
+  ResellerSettlement,
+  OrganizerPayoutPreview,
+  OrganizerPayout,
 } from '@/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -635,6 +642,143 @@ class ApiClient {
         method: 'PUT',
         body: JSON.stringify(data),
       }),
+  };
+
+  // Reseller admin endpoints (super-admin only)
+  resellerAdmin = {
+    listResellers: async (): Promise<Reseller[]> =>
+      this.request<Reseller[]>(`/admin/resellers`),
+
+    createReseller: async (data: {
+      businessName: string;
+      email?: string;
+      phoneNumber?: string;
+      commissionPercent?: number | null;
+    }): Promise<Reseller> =>
+      this.request<Reseller>(`/admin/resellers`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    getReseller: async (id: string): Promise<Reseller> =>
+      this.request<Reseller>(`/admin/resellers/${id}`),
+
+    updateReseller: async (
+      id: string,
+      patch: {
+        commissionPercent?: number | null;
+        status?: 'active' | 'suspended';
+        businessName?: string;
+        email?: string;
+        phoneNumber?: string;
+        isActive?: boolean;
+      }
+    ): Promise<Reseller> =>
+      this.request<Reseller>(`/admin/resellers/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(patch),
+      }),
+
+    listHubs: async (resellerId: string): Promise<ResellerHub[]> =>
+      this.request<ResellerHub[]>(`/admin/resellers/${resellerId}/hubs`),
+
+    createHub: async (
+      resellerId: string,
+      data: { name: string; location?: { city?: string; region?: string } }
+    ): Promise<ResellerHub> =>
+      this.request<ResellerHub>(`/admin/resellers/${resellerId}/hubs`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    listOperators: async (hubId: string): Promise<ResellerOperator[]> =>
+      this.request<ResellerOperator[]>(`/admin/hubs/${hubId}/operators`),
+
+    createOperator: async (
+      hubId: string,
+      data: {
+        fullName: string;
+        phoneNumber?: string;
+        email?: string;
+        password: string;
+        role?: string;
+      }
+    ): Promise<ResellerOperator> =>
+      this.request<ResellerOperator>(`/admin/hubs/${hubId}/operators`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    getResellerSettlement: async (
+      resellerId: string,
+      from: string,
+      to: string
+    ): Promise<ResellerSettlementPreview> => {
+      const query = new URLSearchParams({ from, to });
+      return this.request<ResellerSettlementPreview>(
+        `/admin/resellers/${resellerId}/settlement?${query.toString()}`
+      );
+    },
+
+    closeResellerSettlement: async (
+      resellerId: string,
+      from: string,
+      to: string
+    ): Promise<ResellerSettlement> =>
+      this.request<ResellerSettlement>(
+        `/admin/resellers/${resellerId}/settlement/close`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ from, to }),
+        }
+      ),
+
+    markResellerSettlementPaid: async (
+      resellerId: string,
+      settlementId: string,
+      paymentReference?: string
+    ): Promise<ResellerSettlement> =>
+      this.request<ResellerSettlement>(
+        `/admin/resellers/${resellerId}/settlement/${settlementId}/mark-paid`,
+        {
+          method: 'POST',
+          body: JSON.stringify(paymentReference ? { paymentReference } : {}),
+        }
+      ),
+
+    getVendorPayout: async (
+      vendorId: string,
+      from: string,
+      to: string
+    ): Promise<OrganizerPayoutPreview> => {
+      const query = new URLSearchParams({ from, to });
+      return this.request<OrganizerPayoutPreview>(
+        `/admin/vendors/${vendorId}/payout?${query.toString()}`
+      );
+    },
+
+    closeVendorPayout: async (
+      vendorId: string,
+      from: string,
+      to: string
+    ): Promise<OrganizerPayout> =>
+      this.request<OrganizerPayout>(`/admin/vendors/${vendorId}/payout/close`, {
+        method: 'POST',
+        body: JSON.stringify({ from, to }),
+      }),
+
+    markVendorPayoutPaid: async (
+      vendorId: string,
+      payoutId: string,
+      paymentReference?: string
+    ): Promise<OrganizerPayout> =>
+      this.request<OrganizerPayout>(
+        `/admin/vendors/${vendorId}/payout/${payoutId}/mark-paid`,
+        {
+          method: 'POST',
+          body: JSON.stringify(paymentReference ? { paymentReference } : {}),
+        }
+      ),
   };
 
   // Export endpoints

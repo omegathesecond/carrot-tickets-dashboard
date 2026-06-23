@@ -1,3 +1,5 @@
+export * from './reseller';
+
 // Authentication Types
 export interface LoginCredentials {
   identifier: string; // email or phone
