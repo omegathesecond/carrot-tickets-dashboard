@@ -52,6 +52,7 @@ export type CreateSaleResponse = {
 
 export type FinalizeSaleResponse = {
   status: 'completed' | 'pending' | 'failed';
+  saleId?: string;
   tickets?: Array<{ ticketId: string }>;
   ticketIds?: string[];
 };
@@ -181,6 +182,12 @@ export const resellerApi = {
 
   async finalizeSale(referenceId: string): Promise<FinalizeSaleResponse> {
     return request<FinalizeSaleResponse>(`/reseller/sales/${referenceId}/finalize`, {
+      method: 'POST',
+    });
+  },
+
+  async sendSaleSms(saleId: string): Promise<{ sent: boolean }> {
+    return request<{ sent: boolean }>(`/reseller/sales/${saleId}/send-sms`, {
       method: 'POST',
     });
   },
