@@ -140,3 +140,54 @@ export function buildTicketReceiptHtml(
 </body>
 </html>`;
 }
+
+/**
+ * Build ONE complete standalone ticket as an inline-styled HTML fragment, sized
+ * for a 384px-wide thermal bitmap (58mm ≈ 384 dots @ 203dpi). Used by the native
+ * POS shell: the fragment is rendered off-screen and rasterized to a PNG
+ * (html2canvas), then printed via the Senraise printer (one bitmap + feed per
+ * ticket). Inline styles so it renders correctly without the document <style>
+ * block, and font sizes are scaled up so the bitmap stays crisp at print width.
+ */
+export function buildSingleTicketHtml(
+  sale: SaleData,
+  ticket: ReceiptTicket,
+  index: number,
+  total: number,
+  logoDataUrl: string | null,
+): string {
+  const logo = logoDataUrl
+    ? `<img src="${esc(logoDataUrl)}" alt="${esc(BRAND_NAME)}" style="display:block;margin:0 auto 4px;width:120px;height:120px;object-fit:contain;" />`
+    : '';
+  const dateLine = sale.eventDate
+    ? `<div style="text-align:center;font-size:20px;margin-top:2px;">${esc(formatDateTime(sale.eventDate))}</div>`
+    : '';
+  const venueLine = sale.venue
+    ? `<div style="text-align:center;font-size:20px;">${esc(sale.venue)}</div>`
+    : '';
+  const refPart = sale.saleId ? ` · Ref ${esc(shortRef(sale.saleId))}` : '';
+
+  return `
+  <div style="width:384px;padding:16px 14px;background:#fff;color:#000;font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif;">
+    ${logo}
+    <div style="text-align:center;font-weight:800;font-size:30px;letter-spacing:0.5px;">${esc(BRAND_NAME)}</div>
+    <div style="text-align:center;font-weight:700;font-size:26px;margin-top:6px;">${esc(sale.eventName)}</div>
+    ${dateLine}
+    ${venueLine}
+    <div style="border-top:2px dashed #000;margin:12px 0;"></div>
+    <div style="text-align:center;font-weight:800;font-size:22px;">${esc(sale.ticketTypeName)}</div>
+    <div style="text-align:center;font-weight:800;font-size:20px;letter-spacing:1px;margin-top:2px;">TICKET ${index + 1} OF ${total}</div>
+    <img src="${esc(ticket.qrDataUrl)}" alt="QR ${esc(ticket.ticketId)}" style="display:block;margin:12px auto;width:280px;height:280px;image-rendering:pixelated;" />
+    <div style="text-align:center;font-family:'Courier New',monospace;font-weight:700;font-size:22px;word-break:break-all;">${esc(ticket.ticketId)}</div>
+    <div style="text-align:center;font-size:18px;margin-top:8px;">Sold by ${esc(sale.operatorName)}${refPart}</div>
+    <div style="text-align:center;font-weight:800;font-size:22px;margin-top:2px;">E ${esc(sale.totalAmount.toLocaleString())} · ${esc(sale.paymentMethod)}</div>
+    <div style="border-top:2px dashed #000;margin:12px 0;"></div>
+    <div style="font-size:18px;line-height:1.4;">
+      <div style="font-weight:700;text-align:center;margin-bottom:4px;">Entry instructions</div>
+      1. Show this QR at the entrance to be scanned.<br/>
+      2. Each QR admits one person and scans once.<br/>
+      3. Keep it safe — no refunds or exchanges.
+    </div>
+    <div style="text-align:center;font-size:16px;margin-top:10px;">Support: ${esc(SUPPORT_EMAIL)}<br/>Thank you &amp; enjoy the event!</div>
+  </div>`;
+}

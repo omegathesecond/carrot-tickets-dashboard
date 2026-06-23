@@ -34,10 +34,12 @@ export function TicketSuccessDialog({ open, onOpenChange, saleData }: TicketSucc
       });
 
       const logoDataUrl = await getPrintLogoDataUrl();
-      const ok = printTicket(saleData, tickets, logoDataUrl);
+      const ok = await printTicket(saleData, tickets, logoDataUrl);
       if (!ok) {
         toast.error('Could not open the print view. Allow pop-ups and try again.');
       }
+    } catch (err) {
+      toast.error(err instanceof Error ? `Print failed: ${err.message}` : 'Print failed');
     } finally {
       setPrinting(false);
     }
