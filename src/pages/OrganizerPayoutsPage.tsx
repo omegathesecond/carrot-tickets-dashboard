@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { toast } from 'sonner';
@@ -29,10 +29,14 @@ export function OrganizerPayoutsPage() {
   const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
   const [paymentRef, setPaymentRef] = useState('');
 
-  const { data: eventsData, isLoading: eventsLoading } = useQuery({
+  const { data: eventsData, isLoading: eventsLoading, isError: eventsError } = useQuery({
     queryKey: ['events-all'],
     queryFn: () => apiClient.events.getEvents({ limit: 500 }),
   });
+
+  useEffect(() => {
+    if (eventsError) toast.error('Failed to load organizers');
+  }, [eventsError]);
 
   // De-duplicate by vendorId
   const vendors = eventsData
@@ -88,7 +92,7 @@ export function OrganizerPayoutsPage() {
       <div className="flex flex-wrap items-end gap-4 mb-6">
         <div className="space-y-2">
           <Label htmlFor="vendor-select">Organizer</Label>
-          <Select value={vendorId} onValueChange={setVendorId} disabled={eventsLoading}>
+          <Select value={vendorId} onValueChange={(v) => { setVendorId(v); setPreview(null); setPayout(null); }} disabled={eventsLoading}>
             <SelectTrigger id="vendor-select" className="w-64">
               <SelectValue placeholder={eventsLoading ? 'Loading organizers…' : 'Select organizer…'} />
             </SelectTrigger>
@@ -102,7 +106,7 @@ export function OrganizerPayoutsPage() {
           </Select>
         </div>
 
-        <DateRangePicker value={dateRange} onChange={setDateRange} />
+        <DateRangePicker value={dateRange} onChange={(r) => { setDateRange(r); setPreview(null); setPayout(null); }} />
 
         <Button
           onClick={() => previewMutation.mutate()}
