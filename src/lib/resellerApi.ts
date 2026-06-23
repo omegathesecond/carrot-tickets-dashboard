@@ -112,7 +112,14 @@ export const resellerApi = {
 
   getOperator(): ResellerOperator | null {
     const raw = localStorage.getItem(OPERATOR_KEY);
-    return raw ? (JSON.parse(raw) as ResellerOperator) : null;
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as ResellerOperator;
+    } catch {
+      // Corrupt/tampered value — clear it rather than crash the portal on boot.
+      localStorage.removeItem(OPERATOR_KEY);
+      return null;
+    }
   },
 
   async getEvents(): Promise<ResellerEvent[]> {
