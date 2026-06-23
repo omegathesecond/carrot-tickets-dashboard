@@ -16,6 +16,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
+import { OperatorCredentialsDialog } from '@/components/OperatorCredentialsDialog';
 
 const MANAGER_ROLES = ['reseller_admin', 'reseller_hub_manager'];
 
@@ -38,6 +39,7 @@ export function ResellerOperatorsPage() {
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [form, setForm] = useState({ fullName: '', role: 'reseller_operator' });
+  const [issued, setIssued] = useState<{ title: string; loginCode?: string; pin: string } | null>(null);
 
   const { data: operators = [], isLoading } = useQuery({
     queryKey: ['portal-operators'],
@@ -48,7 +50,8 @@ export function ResellerOperatorsPage() {
     mutationFn: () => resellerOperatorsApi.create({ fullName: form.fullName, role: form.role }),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['portal-operators'] });
-      toast.success(`Created. User ID: ${res.loginCode} · PIN: ${res.pin}`, { duration: 15000 });
+      toast.success('Operator created');
+      setIssued({ title: 'Operator created', loginCode: res.loginCode, pin: res.pin });
       setIsAddOpen(false);
       setForm({ fullName: '', role: 'reseller_operator' });
     },
@@ -57,7 +60,7 @@ export function ResellerOperatorsPage() {
 
   const resetPin = useMutation({
     mutationFn: (id: string) => resellerOperatorsApi.resetPin(id),
-    onSuccess: (res) => toast.success(`New PIN: ${res.pin}`, { duration: 15000 }),
+    onSuccess: (res) => setIssued({ title: 'PIN reset', pin: res.pin }),
     onError: (e: any) => toast.error(e.message || 'Failed to reset PIN'),
   });
 
@@ -208,6 +211,16 @@ export function ResellerOperatorsPage() {
           </div>
         )}
       </div>
+
+      {issued && (
+        <OperatorCredentialsDialog
+          open={!!issued}
+          onClose={() => setIssued(null)}
+          title={issued.title}
+          loginCode={issued.loginCode}
+          pin={issued.pin}
+        />
+      )}
     </div>
   );
 }
