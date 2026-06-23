@@ -18,6 +18,8 @@ import { SalesHistoryPage } from '@/pages/SalesHistoryPage';
 import { EntryScanPage } from '@/pages/EntryScanPage';
 import { AnalyticsPage } from '@/pages/AnalyticsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
+import { ResellersPage } from '@/pages/ResellersPage';
+import { ResellerDetailPage } from '@/pages/ResellerDetailPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -54,6 +56,8 @@ function App() {
                   <Route path="entry-scan" element={<EntryScanPage />} />
                   <Route path="analytics" element={<AnalyticsPage />} />
                   <Route path="settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
+                  <Route path="resellers" element={<AdminRoute><ResellersPage /></AdminRoute>} />
+                  <Route path="resellers/:id" element={<AdminRoute><ResellerDetailPage /></AdminRoute>} />
                 </Route>
               </Routes>
               <Toaster position="top-right" richColors />
