@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
@@ -38,10 +38,14 @@ export function ResellersPage() {
   });
   const [suspendTarget, setSuspendTarget] = useState<Reseller | null>(null);
 
-  const { data: resellers = [], isLoading } = useQuery({
+  const { data: resellers = [], isLoading, isError: resellersError } = useQuery({
     queryKey: ['resellers'],
     queryFn: () => apiClient.resellerAdmin.listResellers(),
   });
+
+  useEffect(() => {
+    if (resellersError) toast.error('Failed to load resellers');
+  }, [resellersError]);
 
   const createMutation = useMutation({
     mutationFn: () =>
