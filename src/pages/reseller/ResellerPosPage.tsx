@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
@@ -246,14 +247,21 @@ export function ResellerPosPage() {
             )}
           </div>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={logout}
-          className="text-slate-600 hover:text-red-600 hover:border-red-300"
-        >
-          Logout
-        </Button>
+        <div className="flex items-center gap-3">
+          {operator && ['reseller_admin', 'reseller_hub_manager'].includes(operator.role) && (
+            <Link to="/reseller/operators" className="text-sm text-orange-600 hover:underline mr-4">
+              Operators
+            </Link>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={logout}
+            className="text-slate-600 hover:text-red-600 hover:border-red-300"
+          >
+            Logout
+          </Button>
+        </div>
       </header>
 
       {/* Main */}
