@@ -8,6 +8,10 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Layout } from '@/components/layout/Layout';
 
 import { AdminRoute } from '@/components/AdminRoute';
+import { ResellerAuthProvider } from '@/contexts/ResellerAuthContext';
+import { ResellerProtectedRoute } from '@/components/ResellerProtectedRoute';
+import { ResellerLoginPage } from '@/pages/reseller/ResellerLoginPage';
+import { ResellerPosPage } from '@/pages/reseller/ResellerPosPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { SignupPage } from '@/pages/SignupPage';
 import { DashboardPage } from '@/pages/DashboardPage';
@@ -61,6 +65,17 @@ function App() {
                   <Route path="resellers/:id" element={<AdminRoute><ResellerDetailPage /></AdminRoute>} />
                   <Route path="payouts" element={<AdminRoute><OrganizerPayoutsPage /></AdminRoute>} />
                 </Route>
+                <Route path="/reseller/login" element={<ResellerLoginPage />} />
+                <Route
+                  path="/reseller"
+                  element={
+                    <ResellerAuthProvider>
+                      <ResellerProtectedRoute>
+                        <ResellerPosPage />
+                      </ResellerProtectedRoute>
+                    </ResellerAuthProvider>
+                  }
+                />
               </Routes>
               <Toaster position="top-right" richColors />
             </div>
