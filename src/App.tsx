@@ -25,6 +25,7 @@ import { AnalyticsPage } from '@/pages/AnalyticsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { ResellersPage } from '@/pages/ResellersPage';
 import { ResellerDetailPage } from '@/pages/ResellerDetailPage';
+import { HubDetailPage } from '@/pages/HubDetailPage';
 import { OrganizerPayoutsPage } from '@/pages/OrganizerPayoutsPage';
 
 const queryClient = new QueryClient({
@@ -64,6 +65,7 @@ function App() {
                   <Route path="settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
                   <Route path="resellers" element={<AdminRoute><ResellersPage /></AdminRoute>} />
                   <Route path="resellers/:id" element={<AdminRoute><ResellerDetailPage /></AdminRoute>} />
+                  <Route path="resellers/:id/hubs/:hubId" element={<AdminRoute><HubDetailPage /></AdminRoute>} />
                   <Route path="payouts" element={<AdminRoute><OrganizerPayoutsPage /></AdminRoute>} />
                 </Route>
                 <Route path="/reseller/login" element={<ResellerLoginPage />} />

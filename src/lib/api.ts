@@ -30,6 +30,7 @@ import type {
   ResellerSettlement,
   OrganizerPayoutPreview,
   OrganizerPayout,
+  HubAnalytics,
 } from '@/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -702,6 +703,14 @@ class ApiClient {
         method: 'POST',
         body: JSON.stringify(data),
       }),
+
+    getHub: async (hubId: string): Promise<ResellerHub> =>
+      this.request<ResellerHub>(`/admin/hubs/${hubId}`),
+
+    getHubAnalytics: async (hubId: string, from?: string, to?: string): Promise<HubAnalytics> => {
+      const qs = from && to ? `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}` : '';
+      return this.request<HubAnalytics>(`/admin/hubs/${hubId}/analytics${qs}`);
+    },
 
     listOperators: async (hubId: string): Promise<ResellerOperator[]> =>
       this.request<ResellerOperator[]>(`/admin/hubs/${hubId}/operators`),

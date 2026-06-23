@@ -52,6 +52,24 @@ export interface ResellerSettlement extends ResellerSettlementPreview {
   paymentReference?: string;
 }
 
+export interface HubOperatorStat {
+  operatorId: string;
+  fullName: string;
+  loginCode: string;
+  salesCount: number;
+  revenue: number;
+  ticketsSold: number;
+}
+
+export interface HubAnalytics {
+  hubId: string;
+  revenue: number;
+  ticketsSold: number;
+  salesCount: number;
+  operatorsCount: number;
+  byOperator: HubOperatorStat[];
+}
+
 export interface OrganizerPayoutPreview {
   proceedsOwed: number;
   feeOwedByVendor: number;

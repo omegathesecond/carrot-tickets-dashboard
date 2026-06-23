@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { toast } from 'sonner';
@@ -41,6 +41,7 @@ import { DateRangePicker, type DateRange } from '@/components/DateRangePicker';
 // ─── Hubs Tab ────────────────────────────────────────────────────────────────
 
 function HubsTab({ resellerId }: { resellerId: string }) {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [form, setForm] = useState({ name: '', city: '', region: '' });
@@ -150,7 +151,11 @@ function HubsTab({ resellerId }: { resellerId: string }) {
           </TableHeader>
           <TableBody>
             {hubs.map((hub) => (
-              <TableRow key={hub._id}>
+              <TableRow
+                key={hub._id}
+                className="cursor-pointer hover:bg-slate-50"
+                onClick={() => navigate(`/resellers/${resellerId}/hubs/${hub._id}`)}
+              >
                 <TableCell className="font-medium">{hub.name}</TableCell>
                 <TableCell className="text-slate-600">
                   {hub.location?.city || hub.location?.region
