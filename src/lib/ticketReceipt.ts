@@ -46,13 +46,13 @@ export function buildTicketReceiptHtml(
   });
 
   const logoHtml = logoDataUrl
-    ? `<img class="logo" src="${logoDataUrl}" alt="${esc(BRAND_NAME)}" />`
+    ? `<img class="logo" src="${esc(logoDataUrl)}" alt="${esc(BRAND_NAME)}" />`
     : '';
 
   const ticketsHtml = tickets.map((t, i) => `
     <div class="ticket">
       <div class="ticket-no">TICKET ${i + 1} OF ${tickets.length}</div>
-      <img class="qr" src="${t.qrDataUrl}" alt="QR ${esc(t.ticketId)}" />
+      <img class="qr" src="${esc(t.qrDataUrl)}" alt="QR ${esc(t.ticketId)}" />
       <div class="code">${esc(t.ticketId)}</div>
     </div>
     ${i < tickets.length - 1 ? '<div class="perf"></div>' : ''}
