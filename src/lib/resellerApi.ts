@@ -15,6 +15,7 @@ export interface ResellerEvent {
   name: string;
   venue?: string;
   date?: string;
+  thumbnailUrl?: string;
 }
 
 export interface ResellerTicketType {
@@ -123,11 +124,21 @@ export const resellerApi = {
   },
 
   async getEvents(): Promise<ResellerEvent[]> {
-    // Backend wraps events in a paginated envelope: { data: ResellerEvent[], pagination }.
+    // Backend wraps events in a paginated envelope: { data: <raw event docs>, pagination }.
     // The generic request() strips the outer ApiResponse.data, leaving that envelope —
     // so pull the array out here rather than handing the POS page a non-iterable object.
-    const result = await request<{ data?: ResellerEvent[] } | ResellerEvent[]>('/reseller/events');
-    return Array.isArray(result) ? result : result?.data ?? [];
+    // Raw docs are lean Mongo documents (_id / eventDate), so normalize to the fields
+    // the POS uses. Mapping _id -> id is critical: without a stable unique id every card
+    // matches the (undefined) selected id and they all appear selected at once.
+    const result = await request<{ data?: any[] } | any[]>('/reseller/events');
+    const list = Array.isArray(result) ? result : result?.data ?? [];
+    return list.map((ev: any) => ({
+      id: ev.id ?? ev._id,
+      name: ev.name,
+      venue: ev.venue,
+      date: ev.date ?? ev.eventDate,
+      thumbnailUrl: ev.thumbnailUrl ?? ev.posterUrl,
+    }));
   },
 
   async getEventTickets(eventId: string): Promise<ResellerTicketType[]> {

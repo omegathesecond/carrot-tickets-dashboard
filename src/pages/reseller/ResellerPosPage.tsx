@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -12,6 +12,7 @@ import {
   Ticket,
   Users,
   LogOut,
+  Search,
 } from 'lucide-react';
 import { useResellerAuth } from '@/contexts/ResellerAuthContext';
 import {
@@ -59,6 +60,7 @@ export function ResellerPosPage() {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [momoPhone, setMomoPhone] = useState('');
+  const [eventSearch, setEventSearch] = useState('');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [waitingForMomo, setWaitingForMomo] = useState(false);
@@ -120,6 +122,16 @@ export function ResellerPosPage() {
 
   const selectedEvent = events.find((e) => e.id === eventId);
   const selectedTicketType = ticketTypes.find((t) => t.id === ticketTypeId);
+
+  const filteredEvents = useMemo(() => {
+    const q = eventSearch.trim().toLowerCase();
+    if (!q) return events;
+    return events.filter(
+      (e) =>
+        e.name.toLowerCase().includes(q) ||
+        (e.venue ?? '').toLowerCase().includes(q)
+    );
+  }, [events, eventSearch]);
 
   const enabledPaymentMethods = paymentMethods
     ? (Object.entries(paymentMethods) as [string, boolean | undefined][]).filter(([, v]) => v === true).map(([k]) => k)
@@ -330,46 +342,89 @@ export function ResellerPosPage() {
                     </CardContent>
                   </Card>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[18rem] overflow-y-auto pr-1">
-                    {events.map((ev) => {
-                      const active = ev.id === eventId;
-                      const dateLabel = formatEventDate(ev.date);
-                      return (
-                        <button
-                          key={ev.id}
-                          type="button"
-                          onClick={() => {
-                            setEventId(ev.id);
-                            setTicketTypeId('');
-                          }}
-                          className={`group relative text-left rounded-xl border-2 p-3.5 transition-all ${
-                            active
-                              ? 'border-orange-500 bg-orange-50 shadow-sm'
-                              : 'border-slate-200 bg-white hover:border-orange-300'
-                          }`}
-                        >
-                          <p className="font-semibold text-slate-900 pr-6 leading-snug">{ev.name}</p>
-                          <div className="mt-1.5 space-y-0.5 text-xs text-slate-500">
-                            {ev.venue && (
-                              <p className="flex items-center gap-1">
-                                <MapPin className="h-3 w-3 shrink-0" /> {ev.venue}
-                              </p>
-                            )}
-                            {dateLabel && (
-                              <p className="flex items-center gap-1">
-                                <Calendar className="h-3 w-3 shrink-0" /> {dateLabel}
-                              </p>
-                            )}
-                          </div>
-                          {active && (
-                            <span className="absolute top-3 right-3 flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-white">
-                              <Check className="h-3.5 w-3.5" />
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                      <Input
+                        type="search"
+                        value={eventSearch}
+                        onChange={(e) => setEventSearch(e.target.value)}
+                        placeholder="Search events by name or venue"
+                        className="h-11 pl-9"
+                        aria-label="Search events"
+                      />
+                    </div>
+                    {filteredEvents.length === 0 ? (
+                      <Card className="border-dashed">
+                        <CardContent className="py-6 text-center text-sm text-slate-400">
+                          No events match “{eventSearch.trim()}”.
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[22rem] overflow-y-auto pr-1">
+                        {filteredEvents.map((ev) => {
+                          const active = !!eventId && ev.id === eventId;
+                          const dateLabel = formatEventDate(ev.date);
+                          return (
+                            <button
+                              key={ev.id}
+                              type="button"
+                              onClick={() => {
+                                setEventId(ev.id);
+                                setTicketTypeId('');
+                              }}
+                              className={`group relative flex gap-3 text-left rounded-xl border-2 p-2.5 transition-all ${
+                                active
+                                  ? 'border-orange-500 bg-orange-50 shadow-sm'
+                                  : 'border-slate-200 bg-white hover:border-orange-300'
+                              }`}
+                            >
+                              <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-orange-100">
+                                {ev.thumbnailUrl ? (
+                                  <img
+                                    src={ev.thumbnailUrl}
+                                    alt=""
+                                    loading="lazy"
+                                    className="h-full w-full object-cover"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none';
+                                    }}
+                                  />
+                                ) : (
+                                  <span className="flex h-full w-full items-center justify-center text-orange-400">
+                                    <Ticket className="h-6 w-6" />
+                                  </span>
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="font-semibold text-slate-900 pr-6 leading-snug line-clamp-2">
+                                  {ev.name}
+                                </p>
+                                <div className="mt-1 space-y-0.5 text-xs text-slate-500">
+                                  {ev.venue && (
+                                    <p className="flex items-center gap-1 truncate">
+                                      <MapPin className="h-3 w-3 shrink-0" />
+                                      <span className="truncate">{ev.venue}</span>
+                                    </p>
+                                  )}
+                                  {dateLabel && (
+                                    <p className="flex items-center gap-1">
+                                      <Calendar className="h-3 w-3 shrink-0" /> {dateLabel}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              {active && (
+                                <span className="absolute top-2.5 right-2.5 flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-white">
+                                  <Check className="h-3.5 w-3.5" />
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
                 )}
               </section>
 
