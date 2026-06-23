@@ -56,21 +56,33 @@ export function ResellerPosPage() {
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const { data: events = [] } = useQuery<ResellerEvent[]>({
+  const { data: events = [], error: eventsError } = useQuery<ResellerEvent[]>({
     queryKey: ['reseller-events'],
     queryFn: () => resellerApi.getEvents(),
   });
 
-  const { data: ticketTypes = [] } = useQuery<ResellerTicketType[]>({
+  const { data: ticketTypes = [], error: ticketTypesError } = useQuery<ResellerTicketType[]>({
     queryKey: ['reseller-event-tickets', eventId],
     queryFn: () => resellerApi.getEventTickets(eventId),
     enabled: !!eventId,
   });
 
-  const { data: paymentMethods } = useQuery<ResellerPaymentMethods>({
+  const { data: paymentMethods, error: paymentMethodsError } = useQuery<ResellerPaymentMethods>({
     queryKey: ['reseller-payment-methods'],
     queryFn: () => resellerApi.getPaymentMethods(),
   });
+
+  useEffect(() => {
+    if (eventsError) toast.error((eventsError as Error).message || 'Failed to load events');
+  }, [eventsError]);
+
+  useEffect(() => {
+    if (ticketTypesError) toast.error((ticketTypesError as Error).message || 'Failed to load ticket types');
+  }, [ticketTypesError]);
+
+  useEffect(() => {
+    if (paymentMethodsError) toast.error((paymentMethodsError as Error).message || 'Failed to load payment methods');
+  }, [paymentMethodsError]);
 
   const stopPolling = () => {
     if (intervalRef.current !== null) {
@@ -106,6 +118,11 @@ export function ResellerPosPage() {
     e.preventDefault();
 
     if (!eventId || !ticketTypeId || !customerName || !customerPhone) {
+      toast.error('Please fill all required fields');
+      return;
+    }
+
+    if (paymentMethod === 'mtn_momo' && !momoPhone) {
       toast.error('Please fill all required fields');
       return;
     }
