@@ -1,10 +1,15 @@
+import { useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { BRAND_NAME } from '@/lib/brand';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { CheckCircle, Printer, MessageSquare, MessageCircle } from 'lucide-react';
+import { CheckCircle, Printer, MessageSquare, MessageCircle, Loader2 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
+import { toast } from 'sonner';
 import type { SaleData } from '@/lib/saleData';
+import { printTicket } from '@/lib/printTicket';
+import { getPrintLogoDataUrl } from '@/lib/printAssets';
+import type { ReceiptTicket } from '@/lib/ticketReceipt';
+import { resellerApi } from '@/lib/resellerApi';
 
 interface TicketSuccessDialogProps {
   open: boolean;
@@ -13,106 +18,49 @@ interface TicketSuccessDialogProps {
 }
 
 export function TicketSuccessDialog({ open, onOpenChange, saleData }: TicketSuccessDialogProps) {
-  const handlePrint = () => {
-    // Create printable content with QR codes for each ticket
-    const ticketsHtml = saleData.ticketIds.map((id, index) => `
-      <div class="ticket">
-        <h3>Ticket ${index + 1} of ${saleData.quantity}</h3>
-        <p><span class="label">Ticket ID:</span> <span class="ticket-id">${id}</span></p>
-        <div class="qr-container">
-          <canvas id="qr-${index}"></canvas>
-        </div>
-        <p class="qr-label">Scan this QR code at the event entrance</p>
-      </div>
-    `).join('');
+  const qrRefs = useRef<Array<HTMLCanvasElement | null>>([]);
+  const [printing, setPrinting] = useState(false);
+  const [sendingSms, setSendingSms] = useState(false);
 
-    const printContent = `
-      <html>
-        <head>
-          <title>Ticket Receipt</title>
-          <style>
-            @media print {
-              @page { margin: 0.5cm; }
-              body { margin: 0; }
-            }
-            body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
-            h1 { color: #ea580c; text-align: center; border-bottom: 3px solid #ea580c; padding-bottom: 15px; margin-bottom: 25px; }
-            .section { margin: 20px 0; padding: 20px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb; }
-            .label { font-weight: bold; color: #374151; }
-            .ticket {
-              page-break-inside: avoid;
-              margin: 25px 0;
-              padding: 25px;
-              border: 3px solid #ea580c;
-              border-radius: 12px;
-              background: white;
-            }
-            .ticket h3 { margin: 0 0 15px 0; color: #ea580c; font-size: 18px; }
-            .ticket-id { font-family: monospace; background: #fef3c7; padding: 2px 8px; border-radius: 4px; }
-            .qr-container { text-align: center; margin: 20px 0; }
-            .qr-label { text-align: center; font-size: 13px; color: #6b7280; margin-top: 10px; }
-            h2 { color: #ea580c; margin: 30px 0 20px 0; font-size: 20px; }
-          </style>
-        </head>
-        <body>
-          <h1>🎫 ${BRAND_NAME} - Receipt</h1>
-          <div class="section">
-            <p><span class="label">Event:</span> ${saleData.eventName}</p>
-            <p><span class="label">Ticket Type:</span> ${saleData.ticketTypeName}</p>
-            <p><span class="label">Customer:</span> ${saleData.customerName}</p>
-            <p><span class="label">Phone:</span> ${saleData.customerPhone}</p>
-            <p><span class="label">Quantity:</span> ${saleData.quantity}</p>
-            <p><span class="label">Total Amount:</span> E ${saleData.totalAmount.toLocaleString()}</p>
-          </div>
+  const handlePrint = async () => {
+    setPrinting(true);
+    try {
+      const tickets: ReceiptTicket[] = saleData.ticketIds.map((ticketId, i) => {
+        const canvas = qrRefs.current[i];
+        // The offscreen QR canvases are mounted whenever the dialog is open, so
+        // toDataURL is available synchronously and offline (no CDN).
+        const qrDataUrl = canvas ? canvas.toDataURL('image/png') : '';
+        return { ticketId, qrDataUrl };
+      });
 
-          <h2>Your Tickets:</h2>
-          ${ticketsHtml}
-
-          <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
-          <script>
-            ${saleData.ticketIds.map((id, index) => `
-              QRCode.toCanvas(document.getElementById('qr-${index}'), '${id}', {
-                width: 220,
-                margin: 2,
-                color: {
-                  dark: '#000000',
-                  light: '#FFFFFF'
-                }
-              }, function(error) {
-                if (error) console.error(error);
-              });
-            `).join('\n')}
-
-            // Auto print when QR codes are loaded
-            setTimeout(function() {
-              window.print();
-            }, 600);
-          </script>
-        </body>
-      </html>
-    `;
-
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(printContent);
-      printWindow.document.close();
+      const logoDataUrl = await getPrintLogoDataUrl();
+      const ok = printTicket(saleData, tickets, logoDataUrl);
+      if (!ok) {
+        toast.error('Could not open the print view. Allow pop-ups and try again.');
+      }
+    } finally {
+      setPrinting(false);
     }
   };
 
-  const handleSendSMS = () => {
-    // SMS: Simple text with just ticket IDs (no QR codes)
-    const message = `Your ${saleData.eventName} ticket(s): ${saleData.quantity}x ${saleData.ticketTypeName}. Ticket ID(s): ${saleData.ticketIds.join(', ')}`;
-    const phoneNumber = saleData.customerPhone.replace(/^\+/, '');
-    window.location.href = `sms:${phoneNumber}?body=${encodeURIComponent(message)}`;
-  };
-
-  const handleSendWhatsApp = () => {
-    // WhatsApp: Include ticket details with QR code instructions
-    const ticketList = saleData.ticketIds.map((id, i) => `${i + 1}. ${id}`).join('\n');
-    const message = `🎫 *${BRAND_NAME}*\n\n*Event:* ${saleData.eventName}\n*Ticket Type:* ${saleData.ticketTypeName}\n*Customer:* ${saleData.customerName}\n*Quantity:* ${saleData.quantity}\n*Total:* E ${saleData.totalAmount.toLocaleString()}\n\n*Your Ticket ID(s):*\n${ticketList}\n\n✅ Save these ticket IDs - you'll need them at the event!\n📱 Show your printed tickets with QR codes for faster entry.\n\nSee you at the event! 🎉`;
-
-    const phoneNumber = saleData.customerPhone.replace(/^\+/, '').replace(/\s/g, '');
-    window.open(`https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`, '_blank');
+  const handleSendSMS = async () => {
+    if (!saleData.saleId) {
+      toast.error('This sale cannot be re-sent (missing reference).');
+      return;
+    }
+    setSendingSms(true);
+    try {
+      const { sent } = await resellerApi.sendSaleSms(saleData.saleId);
+      if (sent) {
+        toast.success(`Ticket SMS sent to ${saleData.customerPhone}`);
+      } else {
+        toast.error('SMS was not accepted by the gateway. Please try again.');
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to send SMS');
+    } finally {
+      setSendingSms(false);
+    }
   };
 
   return (
@@ -126,6 +74,20 @@ export function TicketSuccessDialog({ open, onOpenChange, saleData }: TicketSucc
             <DialogTitle className="text-2xl">Tickets Sold Successfully!</DialogTitle>
           </div>
         </DialogHeader>
+
+        {/* Offscreen QR canvases — one per ticket — used to build the printed
+            receipt offline. Mounted while the dialog is open. */}
+        <div aria-hidden className="absolute h-0 w-0 overflow-hidden opacity-0">
+          {saleData.ticketIds.map((id, i) => (
+            <QRCodeCanvas
+              key={id}
+              value={id}
+              size={240}
+              level="M"
+              ref={(el) => { qrRefs.current[i] = el; }}
+            />
+          ))}
+        </div>
 
         <div className="space-y-6 py-4">
           {/* Ticket Details Card */}
@@ -160,11 +122,10 @@ export function TicketSuccessDialog({ open, onOpenChange, saleData }: TicketSucc
                 </div>
               </div>
 
-              {/* Ticket IDs */}
               <div className="border-t border-orange-200 pt-4">
                 <p className="text-sm text-slate-600 font-medium mb-2">Ticket ID(s)</p>
                 <div className="flex flex-wrap gap-2">
-                  {saleData.ticketIds.map((id, index) => (
+                  {saleData.ticketIds.map((id) => (
                     <span
                       key={id}
                       className="px-3 py-1 bg-white border border-orange-300 rounded-md text-sm font-mono"
@@ -179,46 +140,53 @@ export function TicketSuccessDialog({ open, onOpenChange, saleData }: TicketSucc
 
           {/* Action Buttons */}
           <div className="space-y-4">
-            {/* Print Button */}
+            {/* Print */}
             <Button
               variant="outline"
               size="lg"
+              disabled={printing}
               className="w-full h-16 flex items-center justify-center gap-3 border-2 border-slate-300 hover:border-slate-400 hover:bg-slate-50 transition-all duration-200 text-base font-semibold group"
               onClick={handlePrint}
             >
               <div className="flex items-center justify-center w-10 h-10 rounded-full bg-slate-100 group-hover:bg-slate-200 transition-colors">
-                <Printer className="h-5 w-5 text-slate-700" />
+                {printing ? <Loader2 className="h-5 w-5 animate-spin text-slate-700" /> : <Printer className="h-5 w-5 text-slate-700" />}
               </div>
               <span>Print Tickets with QR Codes</span>
             </Button>
 
-            {/* SMS Button */}
+            {/* SMS — server-side via CarrotTix */}
             <Button
               variant="outline"
               size="lg"
+              disabled={sendingSms}
               className="w-full h-16 flex items-center justify-center gap-3 border-2 border-blue-300 hover:border-blue-400 hover:bg-blue-50 transition-all duration-200 text-base font-semibold group"
               onClick={handleSendSMS}
             >
               <div className="flex items-center justify-center w-10 h-10 rounded-full bg-blue-100 group-hover:bg-blue-200 transition-colors">
-                <MessageSquare className="h-5 w-5 text-blue-700" />
+                {sendingSms ? <Loader2 className="h-5 w-5 animate-spin text-blue-700" /> : <MessageSquare className="h-5 w-5 text-blue-700" />}
               </div>
-              <span className="text-blue-700">Send via SMS</span>
+              <span className="text-blue-700">{sendingSms ? 'Sending SMS…' : 'Send via SMS'}</span>
             </Button>
 
-            {/* WhatsApp Button */}
+            {/* WhatsApp — coming soon (disabled) */}
             <Button
+              variant="outline"
               size="lg"
-              className="w-full h-16 flex items-center justify-center gap-3 bg-gradient-to-r from-[#25D366] to-[#128C7E] hover:from-[#20BD5A] hover:to-[#0F7A68] text-white shadow-lg hover:shadow-xl transition-all duration-200 text-base font-semibold group"
-              onClick={handleSendWhatsApp}
+              disabled
+              aria-disabled
+              className="w-full h-16 flex items-center justify-center gap-3 border-2 border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed text-base font-semibold"
             >
-              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-white/20 group-hover:bg-white/30 transition-colors">
-                <MessageCircle className="h-5 w-5 text-white fill-white" />
+              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-slate-200">
+                <MessageCircle className="h-5 w-5 text-slate-400" />
               </div>
               <span>Send via WhatsApp</span>
+              <span className="ml-1 rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-500">
+                Coming soon
+              </span>
             </Button>
           </div>
 
-          {/* Close Button */}
+          {/* Close */}
           <Button
             variant="ghost"
             size="lg"
