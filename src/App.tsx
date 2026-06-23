@@ -13,6 +13,8 @@ import { ResellerProtectedRoute } from '@/components/ResellerProtectedRoute';
 import { ResellerLoginPage } from '@/pages/reseller/ResellerLoginPage';
 import { ResellerPosPage } from '@/pages/reseller/ResellerPosPage';
 import { ResellerOperatorsPage } from '@/pages/reseller/ResellerOperatorsPage';
+import { ResellerHubsPage } from '@/pages/reseller/ResellerHubsPage';
+import { ResellerHubDetailPage } from '@/pages/reseller/ResellerHubDetailPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { SignupPage } from '@/pages/SignupPage';
 import { DashboardPage } from '@/pages/DashboardPage';
@@ -79,6 +81,12 @@ function App() {
                     </ResellerAuthProvider>
                   }
                 />
+                <Route path="/reseller/hubs" element={
+                  <ResellerAuthProvider><ResellerProtectedRoute><ResellerHubsPage /></ResellerProtectedRoute></ResellerAuthProvider>
+                } />
+                <Route path="/reseller/hubs/:hubId" element={
+                  <ResellerAuthProvider><ResellerProtectedRoute><ResellerHubDetailPage /></ResellerProtectedRoute></ResellerAuthProvider>
+                } />
                 <Route
                   path="/reseller"
                   element={

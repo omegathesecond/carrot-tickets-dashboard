@@ -190,7 +190,8 @@ export interface OperatorAdminRow {
 export type IssuedCredentials = { operator: OperatorAdminRow; loginCode: string; pin: string };
 
 export const resellerOperatorsApi = {
-  list: () => request<OperatorAdminRow[]>('/reseller/operators'),
+  list: (hubId?: string) =>
+    request<OperatorAdminRow[]>(`/reseller/operators${hubId ? `?hubId=${encodeURIComponent(hubId)}` : ''}`),
   create: (data: { fullName: string; role: string; hubId?: string; pin?: string }) =>
     request<IssuedCredentials>('/reseller/operators', { method: 'POST', body: JSON.stringify(data) }),
   resetPin: (id: string, pin?: string) =>
@@ -201,4 +202,31 @@ export const resellerOperatorsApi = {
     request<OperatorAdminRow>(`/reseller/operators/${id}`, {
       method: 'PATCH', body: JSON.stringify({ isActive }),
     }),
+};
+
+export interface HubRow {
+  _id: string;
+  name: string;
+  resellerId: string;
+  location?: { city?: string; region?: string };
+  isActive: boolean;
+}
+
+export interface HubOperatorStat {
+  operatorId: string; fullName: string; loginCode: string;
+  salesCount: number; revenue: number; ticketsSold: number;
+}
+
+export interface HubAnalytics {
+  hubId: string; revenue: number; ticketsSold: number; salesCount: number;
+  operatorsCount: number; byOperator: HubOperatorStat[];
+}
+
+export const resellerHubsApi = {
+  list: () => request<HubRow[]>('/reseller/hubs'),
+  get: (hubId: string) => request<HubRow>(`/reseller/hubs/${hubId}`),
+  analytics: (hubId: string, from?: string, to?: string) => {
+    const qs = from && to ? `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}` : '';
+    return request<HubAnalytics>(`/reseller/hubs/${hubId}/analytics${qs}`);
+  },
 };

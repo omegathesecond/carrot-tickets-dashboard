@@ -272,13 +272,21 @@ export function ResellerPosPage() {
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
             {isManager && (
-              <Link
-                to="/reseller/operators"
-                className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-medium text-orange-700 hover:bg-orange-50"
-              >
-                <Users className="h-4 w-4" />
-                <span className="hidden sm:inline">Operators</span>
-              </Link>
+              <>
+                <Link
+                  to="/reseller/hubs"
+                  className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-medium text-orange-700 hover:bg-orange-50"
+                >
+                  <span className="hidden sm:inline">Hubs</span>
+                </Link>
+                <Link
+                  to="/reseller/operators"
+                  className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-medium text-orange-700 hover:bg-orange-50"
+                >
+                  <Users className="h-4 w-4" />
+                  <span className="hidden sm:inline">Operators</span>
+                </Link>
+              </>
             )}
             <button
               onClick={logout}
