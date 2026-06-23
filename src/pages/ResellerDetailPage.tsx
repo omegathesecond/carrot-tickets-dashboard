@@ -35,6 +35,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StatsCard } from '@/components/ui/stats-card';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { OperatorCredentialsDialog } from '@/components/OperatorCredentialsDialog';
 import { DateRangePicker, type DateRange } from '@/components/DateRangePicker';
 
 // ─── Hubs Tab ────────────────────────────────────────────────────────────────
@@ -176,6 +177,7 @@ function OperatorsTab({ resellerId }: { resellerId: string }) {
   const queryClient = useQueryClient();
   const [selectedHubId, setSelectedHubId] = useState<string>('');
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [issued, setIssued] = useState<{ title: string; loginCode?: string; pin: string } | null>(null);
   const [form, setForm] = useState({
     fullName: '',
     phoneNumber: '',
@@ -212,7 +214,8 @@ function OperatorsTab({ resellerId }: { resellerId: string }) {
       }),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['operators', selectedHubId] });
-      toast.success(`Operator created. User ID: ${res.loginCode} · PIN: ${res.pin}`, { duration: 15000 });
+      toast.success('Operator created');
+      setIssued({ title: 'Operator created', loginCode: res.loginCode, pin: res.pin });
       setIsAddOpen(false);
       setForm({ fullName: '', phoneNumber: '', email: '', role: 'reseller_operator' });
     },
@@ -221,7 +224,7 @@ function OperatorsTab({ resellerId }: { resellerId: string }) {
 
   const resetPin = useMutation({
     mutationFn: (operatorId: string) => apiClient.resellerAdmin.resetOperatorPin(operatorId),
-    onSuccess: (res) => toast.success(`New PIN: ${res.pin}`, { duration: 15000 }),
+    onSuccess: (res) => setIssued({ title: 'PIN reset', pin: res.pin }),
     onError: (error: any) => toast.error(error.message || 'Failed to reset PIN'),
   });
 
@@ -375,6 +378,16 @@ function OperatorsTab({ resellerId }: { resellerId: string }) {
             ))}
           </TableBody>
         </Table>
+      )}
+
+      {issued && (
+        <OperatorCredentialsDialog
+          open={!!issued}
+          onClose={() => setIssued(null)}
+          title={issued.title}
+          loginCode={issued.loginCode}
+          pin={issued.pin}
+        />
       )}
     </div>
   );
