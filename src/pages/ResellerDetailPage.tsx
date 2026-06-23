@@ -180,7 +180,6 @@ function OperatorsTab({ resellerId }: { resellerId: string }) {
     fullName: '',
     phoneNumber: '',
     email: '',
-    password: '',
     role: 'reseller_operator',
   });
 
@@ -209,21 +208,26 @@ function OperatorsTab({ resellerId }: { resellerId: string }) {
         fullName: form.fullName,
         phoneNumber: form.phoneNumber || undefined,
         email: form.email || undefined,
-        password: form.password,
         role: form.role,
       }),
-    onSuccess: () => {
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['operators', selectedHubId] });
-      toast.success(`Operator created. Temp password: ${form.password}`, { duration: 10000 });
+      toast.success(`Operator created. User ID: ${res.loginCode} · PIN: ${res.pin}`, { duration: 15000 });
       setIsAddOpen(false);
-      setForm({ fullName: '', phoneNumber: '', email: '', password: '', role: 'reseller_operator' });
+      setForm({ fullName: '', phoneNumber: '', email: '', role: 'reseller_operator' });
     },
     onError: (error: any) => toast.error(error.message || 'Failed to create operator'),
   });
 
+  const resetPin = useMutation({
+    mutationFn: (operatorId: string) => apiClient.resellerAdmin.resetOperatorPin(operatorId),
+    onSuccess: (res) => toast.success(`New PIN: ${res.pin}`, { duration: 15000 }),
+    onError: (error: any) => toast.error(error.message || 'Failed to reset PIN'),
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.fullName.trim() || !form.password.trim()) return;
+    if (!form.fullName.trim()) return;
     createOperator.mutate();
   };
 
@@ -298,17 +302,6 @@ function OperatorsTab({ resellerId }: { resellerId: string }) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="op-password">Temporary Password *</Label>
-                  <Input
-                    id="op-password"
-                    type="text"
-                    value={form.password}
-                    onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                    placeholder="Temp password to hand to operator"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
                   <Label htmlFor="op-role">Role</Label>
                   <Select
                     value={form.role}
@@ -330,7 +323,7 @@ function OperatorsTab({ resellerId }: { resellerId: string }) {
                   </Button>
                   <Button
                     type="submit"
-                    disabled={createOperator.isPending || !form.fullName.trim() || !form.password.trim()}
+                    disabled={createOperator.isPending || !form.fullName.trim()}
                     className="bg-gradient-to-r from-orange-600 to-amber-600 text-white hover:opacity-90"
                   >
                     {createOperator.isPending ? 'Creating…' : 'Create Operator'}
@@ -353,23 +346,30 @@ function OperatorsTab({ resellerId }: { resellerId: string }) {
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
+              <TableHead>User ID</TableHead>
               <TableHead>Contact</TableHead>
               <TableHead>Role</TableHead>
-              <TableHead>Password</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {operators.map((op) => (
               <TableRow key={op._id}>
                 <TableCell className="font-medium">{op.fullName}</TableCell>
-                <TableCell className="text-slate-600">
-                  {op.phoneNumber || op.email || '—'}
-                </TableCell>
+                <TableCell className="font-mono">{op.loginCode}</TableCell>
+                <TableCell className="text-slate-600">{op.phoneNumber || op.email || '—'}</TableCell>
                 <TableCell className="text-slate-600">{op.role}</TableCell>
                 <TableCell>
-                  {op.mustChangePassword && (
-                    <Badge variant="secondary">Must change password</Badge>
-                  )}
+                  <Badge variant={op.isActive ? 'default' : 'secondary'}>
+                    {op.isActive ? 'Active' : 'Inactive'}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right">
+                  <Button variant="outline" size="sm" disabled={resetPin.isPending}
+                    onClick={() => resetPin.mutate(op._id)}>
+                    Reset PIN
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}

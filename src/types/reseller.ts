@@ -28,11 +28,11 @@ export interface ResellerOperator {
   hubId: string;
   resellerId: string;
   fullName: string;
+  loginCode: string;
   email?: string;
   phoneNumber?: string;
   role: string;
   isActive: boolean;
-  mustChangePassword: boolean;
 }
 
 export interface ResellerSettlementPreview {

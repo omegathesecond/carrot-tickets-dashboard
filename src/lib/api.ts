@@ -708,17 +708,17 @@ class ApiClient {
 
     createOperator: async (
       hubId: string,
-      data: {
-        fullName: string;
-        phoneNumber?: string;
-        email?: string;
-        password: string;
-        role?: string;
-      }
-    ): Promise<ResellerOperator> =>
-      this.request<ResellerOperator>(`/admin/hubs/${hubId}/operators`, {
+      data: { fullName: string; phoneNumber?: string; email?: string; role: string; pin?: string }
+    ): Promise<{ operator: { _id: string; fullName: string; loginCode: string; role: string }; loginCode: string; pin: string }> =>
+      this.request(`/admin/hubs/${hubId}/operators`, {
         method: 'POST',
         body: JSON.stringify(data),
+      }),
+
+    resetOperatorPin: async (operatorId: string, pin?: string): Promise<{ operatorId: string; pin: string }> =>
+      this.request(`/admin/operators/${operatorId}/reset-pin`, {
+        method: 'POST',
+        body: JSON.stringify(pin ? { pin } : {}),
       }),
 
     getResellerSettlement: async (
