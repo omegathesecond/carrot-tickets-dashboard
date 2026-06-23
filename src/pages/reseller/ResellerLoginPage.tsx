@@ -8,8 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { toast } from 'sonner';
 
 export function ResellerLoginPage() {
-  const [identifier, setIdentifier] = useState('');
-  const [password, setPassword] = useState('');
+  const [loginCode, setLoginCode] = useState('');
+  const [pin, setPin] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -18,7 +18,7 @@ export function ResellerLoginPage() {
     setIsLoading(true);
 
     try {
-      await resellerApi.login({ identifier, password });
+      await resellerApi.login({ loginCode, pin });
       navigate('/reseller', { replace: true });
     } catch (error: any) {
       toast.error(error.message || 'Login failed');
@@ -42,23 +42,27 @@ export function ResellerLoginPage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="identifier">Email or Phone</Label>
+              <Label htmlFor="loginCode">User ID</Label>
               <Input
-                id="identifier"
-                placeholder="Enter your email or phone"
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
+                id="loginCode"
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder="6-digit user ID"
+                value={loginCode}
+                onChange={(e) => setLoginCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="pin">PIN</Label>
               <Input
-                id="password"
+                id="pin"
                 type="password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder="6-digit PIN"
+                value={pin}
+                onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 required
               />
             </div>

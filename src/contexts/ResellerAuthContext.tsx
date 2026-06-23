@@ -6,7 +6,7 @@ interface ResellerAuthContextType {
   operator: ResellerOperator | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (identifier: string, password: string) => Promise<void>;
+  login: (loginCode: string, pin: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -22,12 +22,13 @@ export function ResellerAuthProvider({ children }: { children: ReactNode }) {
     const token = resellerApi.getToken();
     if (token) {
       setIsAuthenticated(true);
+      setOperator(resellerApi.getOperator());
     }
     setIsLoading(false);
   }, []);
 
-  const login = async (identifier: string, password: string) => {
-    const result = await resellerApi.login({ identifier, password });
+  const login = async (loginCode: string, pin: string) => {
+    const result = await resellerApi.login({ loginCode, pin });
     setOperator(result.operator);
     setIsAuthenticated(true);
   };

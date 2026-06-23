@@ -1,5 +1,6 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const TOKEN_KEY = 'carrot_reseller_token';
+const OPERATOR_KEY = 'carrot_reseller_operator';
 
 export interface ResellerOperator {
   id: string;
@@ -7,7 +8,6 @@ export interface ResellerOperator {
   role: string;
   resellerId: string;
   hubId: string;
-  mustChangePassword: boolean;
 }
 
 export interface ResellerEvent {
@@ -90,22 +90,29 @@ async function request<T>(endpoint: string, options: RequestInit = {}, authentic
 }
 
 export const resellerApi = {
-  async login(payload: { identifier: string; password: string }): Promise<{ accessToken: string; operator: ResellerOperator }> {
+  async login(payload: { loginCode: string; pin: string }): Promise<{ accessToken: string; operator: ResellerOperator }> {
     const result = await request<{ accessToken: string; operator: ResellerOperator }>(
       '/reseller/auth/login',
       { method: 'POST', body: JSON.stringify(payload) },
       false
     );
     localStorage.setItem(TOKEN_KEY, result.accessToken);
+    localStorage.setItem(OPERATOR_KEY, JSON.stringify(result.operator));
     return result;
   },
 
   logout(): void {
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(OPERATOR_KEY);
   },
 
   getToken(): string | null {
     return localStorage.getItem(TOKEN_KEY);
+  },
+
+  getOperator(): ResellerOperator | null {
+    const raw = localStorage.getItem(OPERATOR_KEY);
+    return raw ? (JSON.parse(raw) as ResellerOperator) : null;
   },
 
   async getEvents(): Promise<ResellerEvent[]> {
@@ -136,4 +143,28 @@ export const resellerApi = {
   async getMySales(): Promise<ResellerSale[]> {
     return request<ResellerSale[]>('/reseller/sales');
   },
+};
+
+export interface OperatorAdminRow {
+  _id: string;
+  fullName: string;
+  loginCode: string;
+  role: string;
+  hubId: string;
+  isActive: boolean;
+}
+export type IssuedCredentials = { operator: OperatorAdminRow; loginCode: string; pin: string };
+
+export const resellerOperatorsApi = {
+  list: () => request<OperatorAdminRow[]>('/reseller/operators'),
+  create: (data: { fullName: string; role: string; hubId?: string; pin?: string }) =>
+    request<IssuedCredentials>('/reseller/operators', { method: 'POST', body: JSON.stringify(data) }),
+  resetPin: (id: string, pin?: string) =>
+    request<{ operatorId: string; pin: string }>(`/reseller/operators/${id}/reset-pin`, {
+      method: 'POST', body: JSON.stringify(pin ? { pin } : {}),
+    }),
+  setActive: (id: string, isActive: boolean) =>
+    request<OperatorAdminRow>(`/reseller/operators/${id}`, {
+      method: 'PATCH', body: JSON.stringify({ isActive }),
+    }),
 };
