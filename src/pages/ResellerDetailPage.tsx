@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { toast } from 'sonner';
-import { ArrowLeft, DollarSign, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
+import { ArrowLeft, DollarSign, Pencil, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
 import { type ResellerHub, type ResellerSettlement, type ResellerSettlementPreview } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -552,10 +552,25 @@ function SettlementTab({ resellerId }: { resellerId: string }) {
 
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
+type EditForm = {
+  businessName: string;
+  email: string;
+  phoneNumber: string;
+  commissionPercent: string;
+  status: 'active' | 'suspended';
+};
+
 export function ResellerDetailPage() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
-  const [commissionInput, setCommissionInput] = useState('');
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [form, setForm] = useState<EditForm>({
+    businessName: '',
+    email: '',
+    phoneNumber: '',
+    commissionPercent: '',
+    status: 'active',
+  });
 
   const { data: reseller, isLoading, isError: resellerError } = useQuery({
     queryKey: ['reseller', id],
@@ -567,19 +582,43 @@ export function ResellerDetailPage() {
     if (resellerError) toast.error('Failed to load reseller');
   }, [resellerError]);
 
-  const updateCommission = useMutation({
+  const openEdit = () => {
+    if (!reseller) return;
+    setForm({
+      businessName: reseller.businessName,
+      email: reseller.email ?? '',
+      phoneNumber: reseller.phoneNumber ?? '',
+      commissionPercent: reseller.commissionPercent === null ? '' : String(reseller.commissionPercent),
+      status: reseller.status,
+    });
+    setIsEditOpen(true);
+  };
+
+  const updateReseller = useMutation({
     mutationFn: () =>
       apiClient.resellerAdmin.updateReseller(id!, {
-        commissionPercent: commissionInput === '' ? null : parseFloat(commissionInput),
+        businessName: form.businessName.trim(),
+        // Blank email/phone are omitted (left unchanged) — sending '' would
+        // collide on the model's unique-sparse indexes.
+        email: form.email.trim() || undefined,
+        phoneNumber: form.phoneNumber.trim() || undefined,
+        commissionPercent: form.commissionPercent === '' ? null : parseFloat(form.commissionPercent),
+        status: form.status,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reseller', id] });
       queryClient.invalidateQueries({ queryKey: ['resellers'] });
-      toast.success('Commission updated');
-      setCommissionInput('');
+      toast.success('Reseller updated');
+      setIsEditOpen(false);
     },
-    onError: (error: any) => toast.error(error.message || 'Failed to update commission'),
+    onError: (error: any) => toast.error(error.message || 'Failed to update reseller'),
   });
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.businessName.trim()) return;
+    updateReseller.mutate();
+  };
 
   if (isLoading) {
     return (
@@ -631,38 +670,109 @@ export function ResellerDetailPage() {
               {reseller.phoneNumber && <p className="text-slate-500 text-sm">{reseller.phoneNumber}</p>}
             </div>
 
-            {/* Edit commission */}
-            <div className="flex items-end space-x-2">
-              <div className="space-y-1">
-                <Label htmlFor="commission-edit" className="text-xs text-slate-500">
-                  Commission %{' '}
-                  <span className="text-slate-400">
-                    (current: {reseller.commissionPercent === null ? 'Platform default' : `${reseller.commissionPercent}%`})
-                  </span>
-                </Label>
-                <Input
-                  id="commission-edit"
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.01"
-                  className="w-32"
-                  placeholder="blank = default"
-                  value={commissionInput}
-                  onChange={(e) => setCommissionInput(e.target.value)}
-                />
-              </div>
-              <Button
-                onClick={() => updateCommission.mutate()}
-                disabled={updateCommission.isPending}
-                className="bg-gradient-to-r from-orange-600 to-amber-600 text-white hover:opacity-90"
-              >
-                {updateCommission.isPending ? 'Saving…' : 'Save'}
+            {/* Reseller summary + edit */}
+            <div className="flex flex-col items-end gap-2">
+              <p className="text-xs text-slate-500">
+                Commission:{' '}
+                <span className="font-medium text-slate-700">
+                  {reseller.commissionPercent === null
+                    ? 'Platform default'
+                    : `${reseller.commissionPercent}%`}
+                </span>
+              </p>
+              <Button variant="outline" onClick={openEdit}>
+                <Pencil className="h-4 w-4 mr-2" />
+                Edit Reseller
               </Button>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Edit reseller dialog */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Reseller</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-business-name">Business Name *</Label>
+              <Input
+                id="edit-business-name"
+                value={form.businessName}
+                onChange={(e) => setForm((f) => ({ ...f, businessName: e.target.value }))}
+                placeholder="Acme Reseller"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-email">Email</Label>
+              <Input
+                id="edit-email"
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                placeholder="contact@business.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-phone">Phone Number</Label>
+              <Input
+                id="edit-phone"
+                value={form.phoneNumber}
+                onChange={(e) => setForm((f) => ({ ...f, phoneNumber: e.target.value }))}
+                placeholder="+268 7800 0000"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-commission">
+                Commission %{' '}
+                <span className="text-slate-400 font-normal">(blank = platform default)</span>
+              </Label>
+              <Input
+                id="edit-commission"
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                value={form.commissionPercent}
+                onChange={(e) => setForm((f) => ({ ...f, commissionPercent: e.target.value }))}
+                placeholder="blank = default"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-status">Status</Label>
+              <Select
+                value={form.status}
+                onValueChange={(val) =>
+                  setForm((f) => ({ ...f, status: val as 'active' | 'suspended' }))
+                }
+              >
+                <SelectTrigger id="edit-status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="suspended">Suspended</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end space-x-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={updateReseller.isPending || !form.businessName.trim()}
+                className="bg-gradient-to-r from-orange-600 to-amber-600 text-white hover:opacity-90"
+              >
+                {updateReseller.isPending ? 'Saving…' : 'Save Changes'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Tabs */}
       <Tabs defaultValue="hubs">
