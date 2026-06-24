@@ -299,7 +299,7 @@ export const resellerReportsApi = {
     hubId?: string; operatorId?: string; paymentMethod?: string;
   }) => request<Paginated<ManagerSale>>(`/reseller/manager/sales${toQuery(params)}`),
 
-  summary: (params: { from?: string; to?: string; hubId?: string }) =>
+  summary: (params: { from?: string; to?: string; hubId?: string; eventId?: string }) =>
     request<ReportSummary>(`/reseller/reports/summary${toQuery(params)}`),
 };
 
