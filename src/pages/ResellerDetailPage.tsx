@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '@/lib/api';
+import { apiClient, type ResellerWithdrawal } from '@/lib/api';
 import { toast } from 'sonner';
 import { ArrowLeft, DollarSign, Pencil, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
 import { type ResellerHub, type ResellerSettlement, type ResellerSettlementPreview } from '@/types';
@@ -578,6 +578,149 @@ type EditForm = {
   status: 'active' | 'suspended';
 };
 
+const WITHDRAWAL_BADGE: Record<ResellerWithdrawal['status'], string> = {
+  requested: 'bg-amber-100 text-amber-800',
+  approved: 'bg-blue-100 text-blue-800',
+  paid: 'bg-green-100 text-green-800',
+  rejected: 'bg-red-100 text-red-800',
+};
+
+function WithdrawalsTab({ resellerId }: { resellerId: string }) {
+  const queryClient = useQueryClient();
+  const [payDialog, setPayDialog] = useState<ResellerWithdrawal | null>(null);
+  const [reference, setReference] = useState('');
+
+  const { data: withdrawals = [], isLoading, isError } = useQuery({
+    queryKey: ['withdrawals', resellerId],
+    queryFn: () => apiClient.resellerAdmin.listWithdrawals(resellerId),
+  });
+
+  useEffect(() => {
+    if (isError) toast.error('Failed to load withdrawals');
+  }, [isError]);
+
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: ['withdrawals', resellerId] });
+
+  const approve = useMutation({
+    mutationFn: (id: string) => apiClient.resellerAdmin.approveWithdrawal(id),
+    onSuccess: () => { invalidate(); toast.success('Withdrawal approved'); },
+    onError: (e: any) => toast.error(e.message || 'Failed to approve'),
+  });
+
+  const reject = useMutation({
+    mutationFn: (id: string) => apiClient.resellerAdmin.rejectWithdrawal(id),
+    onSuccess: () => { invalidate(); toast.success('Withdrawal rejected'); },
+    onError: (e: any) => toast.error(e.message || 'Failed to reject'),
+  });
+
+  const markPaid = useMutation({
+    mutationFn: ({ id, ref }: { id: string; ref: string }) =>
+      apiClient.resellerAdmin.markWithdrawalPaid(id, ref.trim() || undefined),
+    onSuccess: () => {
+      invalidate();
+      toast.success('Withdrawal marked paid');
+      setPayDialog(null);
+      setReference('');
+    },
+    onError: (e: any) => toast.error(e.message || 'Failed to mark paid'),
+  });
+
+  if (isLoading) return <p className="text-slate-500">Loading withdrawals…</p>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <Wallet className="h-5 w-5 text-orange-600" />
+        <h3 className="font-semibold text-slate-900">Commission Withdrawals</h3>
+      </div>
+
+      {withdrawals.length === 0 ? (
+        <p className="py-6 text-center text-sm text-slate-400">No withdrawal requests.</p>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Amount</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Requested</TableHead>
+              <TableHead>Reference</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {withdrawals.map((w) => (
+              <TableRow key={w._id}>
+                <TableCell className="font-semibold tabular-nums">E {w.amount.toLocaleString()}</TableCell>
+                <TableCell>
+                  <Badge className={WITHDRAWAL_BADGE[w.status]}>{w.status}</Badge>
+                </TableCell>
+                <TableCell className="text-slate-600">
+                  {new Date(w.requestedAt).toLocaleDateString()}
+                </TableCell>
+                <TableCell className="text-slate-600">{w.paymentReference ?? '—'}</TableCell>
+                <TableCell className="text-right space-x-2">
+                  {w.status === 'requested' && (
+                    <>
+                      <Button size="sm" variant="outline"
+                        disabled={approve.isPending}
+                        onClick={() => approve.mutate(w._id)}>Approve</Button>
+                      <Button size="sm" variant="outline"
+                        disabled={reject.isPending}
+                        onClick={() => reject.mutate(w._id)}>Reject</Button>
+                    </>
+                  )}
+                  {w.status === 'approved' && (
+                    <>
+                      <Button size="sm"
+                        className="bg-gradient-to-r from-orange-600 to-amber-600 text-white hover:opacity-90"
+                        onClick={() => { setPayDialog(w); setReference(''); }}>Mark paid</Button>
+                      <Button size="sm" variant="outline"
+                        disabled={reject.isPending}
+                        onClick={() => reject.mutate(w._id)}>Reject</Button>
+                    </>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+
+      <Dialog open={!!payDialog} onOpenChange={(open) => !open && setPayDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mark withdrawal paid</DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (payDialog) markPaid.mutate({ id: payDialog._id, ref: reference });
+            }}
+            className="space-y-4"
+          >
+            <p className="text-sm text-slate-600">
+              Paying out <span className="font-semibold">E {payDialog?.amount.toLocaleString()}</span>.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="wd-ref">Payment reference (optional)</Label>
+              <Input id="wd-ref" value={reference} onChange={(e) => setReference(e.target.value)}
+                placeholder="e.g. MoMo TX id / bank ref" />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setPayDialog(null)}>Cancel</Button>
+              <Button type="submit" disabled={markPaid.isPending}
+                className="bg-gradient-to-r from-orange-600 to-amber-600 text-white hover:opacity-90">
+                {markPaid.isPending ? 'Saving…' : 'Confirm paid'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 export function ResellerDetailPage() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
@@ -798,6 +941,7 @@ export function ResellerDetailPage() {
           <TabsTrigger value="hubs">Hubs</TabsTrigger>
           <TabsTrigger value="operators">Operators</TabsTrigger>
           <TabsTrigger value="settlement">Settlement</TabsTrigger>
+          <TabsTrigger value="payouts">Payouts</TabsTrigger>
         </TabsList>
 
         <TabsContent value="hubs" className="mt-4">
@@ -820,6 +964,14 @@ export function ResellerDetailPage() {
           <Card>
             <CardContent className="pt-6">
               <SettlementTab resellerId={id!} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="payouts" className="mt-4">
+          <Card>
+            <CardContent className="pt-6">
+              <WithdrawalsTab resellerId={id!} />
             </CardContent>
           </Card>
         </TabsContent>
