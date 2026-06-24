@@ -8,6 +8,7 @@ export interface ResellerOperator {
   role: string;
   resellerId: string;
   hubId: string;
+  permissions: string[];
 }
 
 export interface ResellerEvent {
@@ -300,4 +301,26 @@ export const resellerReportsApi = {
 
   summary: (params: { from?: string; to?: string; hubId?: string }) =>
     request<ReportSummary>(`/reseller/reports/summary${toQuery(params)}`),
+};
+
+// ---- Commission payouts (admin only) ----
+
+export interface ResellerWithdrawal {
+  _id: string;
+  amount: number;
+  status: 'requested' | 'approved' | 'paid' | 'rejected';
+  requestedAt: string;
+  paidAt?: string;
+  paymentReference?: string;
+  createdAt: string;
+}
+
+export interface PayoutOverview {
+  available: number;
+  withdrawals: ResellerWithdrawal[];
+}
+
+export const resellerPayoutsApi = {
+  overview: () => request<PayoutOverview>('/reseller/payouts'),
+  request: () => request<ResellerWithdrawal>('/reseller/payouts', { method: 'POST' }),
 };

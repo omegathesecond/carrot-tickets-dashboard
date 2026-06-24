@@ -18,6 +18,7 @@ import { ResellerHubsPage } from '@/pages/reseller/ResellerHubsPage';
 import { ResellerHubDetailPage } from '@/pages/reseller/ResellerHubDetailPage';
 import { ResellerSalesHistoryPage } from '@/pages/reseller/ResellerSalesHistoryPage';
 import { ResellerReportsPage } from '@/pages/reseller/ResellerReportsPage';
+import { ResellerPayoutsPage } from '@/pages/reseller/ResellerPayoutsPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { SignupPage } from '@/pages/SignupPage';
 import { DashboardPage } from '@/pages/DashboardPage';
@@ -85,11 +86,24 @@ function App() {
                   }
                 >
                   <Route index element={<ResellerPosPage />} />
-                  <Route path="sales-history" element={<ResellerSalesHistoryPage />} />
-                  <Route path="reports" element={<ResellerReportsPage />} />
-                  <Route path="operators" element={<ResellerOperatorsPage />} />
-                  <Route path="hubs" element={<ResellerHubsPage />} />
-                  <Route path="hubs/:hubId" element={<ResellerHubDetailPage />} />
+                  <Route path="sales-history" element={
+                    <ResellerProtectedRoute requires="reseller:view_hub_sales"><ResellerSalesHistoryPage /></ResellerProtectedRoute>
+                  } />
+                  <Route path="reports" element={
+                    <ResellerProtectedRoute requires="reseller:view_reports"><ResellerReportsPage /></ResellerProtectedRoute>
+                  } />
+                  <Route path="operators" element={
+                    <ResellerProtectedRoute requires="reseller:manage_operators"><ResellerOperatorsPage /></ResellerProtectedRoute>
+                  } />
+                  <Route path="hubs" element={
+                    <ResellerProtectedRoute requires="reseller:view_hub_sales"><ResellerHubsPage /></ResellerProtectedRoute>
+                  } />
+                  <Route path="hubs/:hubId" element={
+                    <ResellerProtectedRoute requires="reseller:view_hub_sales"><ResellerHubDetailPage /></ResellerProtectedRoute>
+                  } />
+                  <Route path="payouts" element={
+                    <ResellerProtectedRoute requires="reseller:request_payout"><ResellerPayoutsPage /></ResellerProtectedRoute>
+                  } />
                 </Route>
               </Routes>
               <Toaster position="top-right" richColors />
