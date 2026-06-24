@@ -12,6 +12,7 @@ import { DateRangePicker, DateRange } from '@/components/DateRangePicker';
 import { Download } from 'lucide-react';
 import { format } from 'date-fns';
 import { formatCurrency } from '@/lib/chartColors';
+import { channelLabel, channelSource } from '@/lib/channel';
 import type { SalesQueryParams } from '@/types';
 
 const ALL = 'all';
@@ -25,6 +26,7 @@ export function SalesHistoryPage() {
   const [eventId, setEventId] = useState<string>(ALL);
   const [paymentMethod, setPaymentMethod] = useState<string>(ALL);
   const [paymentStatus, setPaymentStatus] = useState<string>(ALL);
+  const [channel, setChannel] = useState<string>(ALL);
 
   // Build the filter params shared by the sales list, the analytics row and the
   // CSV export so all three stay in sync.
@@ -35,6 +37,7 @@ export function SalesHistoryPage() {
     ...(eventId !== ALL ? { eventId } : {}),
     ...(paymentMethod !== ALL ? { paymentMethod: paymentMethod as SalesQueryParams['paymentMethod'] } : {}),
     ...(paymentStatus !== ALL ? { paymentStatus: paymentStatus as SalesQueryParams['paymentStatus'] } : {}),
+    ...(channel !== ALL ? { channel: channel as SalesQueryParams['channel'] } : {}),
   };
 
   const { data: salesData, isLoading } = useQuery({
@@ -94,7 +97,7 @@ export function SalesHistoryPage() {
       {/* Filters: date, event, payment type, status */}
       <Card>
         <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <div className="space-y-2">
               <Label>Date</Label>
               <DateRangePicker value={dateRange} onChange={setDateRange} />
@@ -141,6 +144,20 @@ export function SalesHistoryPage() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-2">
+              <Label>Channel</Label>
+              <Select value={channel} onValueChange={setChannel}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>All</SelectItem>
+                  <SelectItem value="online">Online</SelectItem>
+                  <SelectItem value="box_office">Organizer</SelectItem>
+                  <SelectItem value="reseller_pos">Reseller POS</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -163,6 +180,7 @@ export function SalesHistoryPage() {
                   <TableHead>Amount</TableHead>
                   <TableHead>Payment</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Where Bought</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -193,11 +211,17 @@ export function SalesHistoryPage() {
                           {sale.paymentStatus}
                         </Badge>
                       </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{channelLabel(sale.channel)}</Badge>
+                        {channelSource(sale) && (
+                          <div className="text-xs text-slate-500">{channelSource(sale)}</div>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-slate-500 py-8">
+                    <TableCell colSpan={8} className="text-center text-slate-500 py-8">
                       No sales found
                     </TableCell>
                   </TableRow>

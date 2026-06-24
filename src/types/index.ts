@@ -166,6 +166,11 @@ export interface TicketSale {
   vendorId: string;
   soldBy: string;
   soldByName?: string;
+  // "Where bought" — set by the API at sale time.
+  channel?: 'online' | 'box_office' | 'reseller_pos';
+  // Populated reseller/hub for reseller_pos sales (name only).
+  resellerId?: { _id: string; name: string } | string;
+  hubId?: { _id: string; name: string } | string;
   createdAt: string;
   refundedAt?: string;
   refundReason?: string;
@@ -326,6 +331,7 @@ export interface SalesQueryParams {
   eventId?: string;
   paymentMethod?: 'cash' | 'keshless_wallet';
   paymentStatus?: 'pending' | 'completed' | 'refunded' | 'failed';
+  channel?: 'online' | 'box_office' | 'reseller_pos';
   startDate?: string;
   endDate?: string;
   search?: string;
