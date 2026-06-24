@@ -628,6 +628,7 @@ class ApiClient {
       if (params?.startDate) query.append('startDate', params.startDate);
       if (params?.endDate) query.append('endDate', params.endDate);
       if (params?.eventId) query.append('eventId', params.eventId);
+      if (params?.channel) query.append('channel', params.channel);
 
       return this.request<RevenueStats>(
         `/tickets/stats/revenue?${query.toString()}`

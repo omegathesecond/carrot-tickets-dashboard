@@ -290,6 +290,8 @@ export interface RevenueStats {
     revenue: number;
     ticketsSold: number;
   }[];
+  revenueByChannel?: Array<{ channel: string; amount: number; count: number }>;
+  topResellerSources?: Array<{ resellerName: string; hubName: string; amount: number; count: number }>;
 }
 
 export interface EventAnalytics {
@@ -350,6 +352,7 @@ export interface StatsQueryParams {
   startDate?: string;
   endDate?: string;
   eventId?: string;
+  channel?: 'online' | 'box_office' | 'reseller_pos';
 }
 
 // Pagination
