@@ -16,7 +16,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { resellerReportsApi } from '@/lib/resellerApi';
+import { resellerReportsApi, resellerApi } from '@/lib/resellerApi';
 
 const METHOD_LABELS: Record<string, string> = {
   cash: 'Cash',
@@ -31,10 +31,21 @@ const isoTo = (d: string) => (d ? `${d}T23:59:59` : undefined);
 export function ResellerReportsPage() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [eventId, setEventId] = useState('');
+
+  const { data: events = [] } = useQuery({
+    queryKey: ['reseller-report-events'],
+    queryFn: () => resellerApi.getEvents(),
+  });
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['reseller-reports', from, to],
-    queryFn: () => resellerReportsApi.summary({ from: isoFrom(from), to: isoTo(to) }),
+    queryKey: ['reseller-reports', from, to, eventId],
+    queryFn: () =>
+      resellerReportsApi.summary({
+        from: isoFrom(from),
+        to: isoTo(to),
+        eventId: eventId || undefined,
+      }),
     placeholderData: keepPreviousData,
   });
 
@@ -68,11 +79,27 @@ export function ResellerReportsPage() {
             className="h-10 rounded-lg border border-slate-300 px-3 text-sm"
           />
         </div>
-        {(from || to) && (
+        <div>
+          <label className="block text-xs text-slate-500 mb-1">Event</label>
+          <select
+            value={eventId}
+            onChange={(e) => setEventId(e.target.value)}
+            className="h-10 rounded-lg border border-slate-300 px-3 text-sm bg-white"
+          >
+            <option value="">All events</option>
+            {events.map((ev) => (
+              <option key={ev.id} value={ev.id}>
+                {ev.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        {(from || to || eventId) && (
           <button
             onClick={() => {
               setFrom('');
               setTo('');
+              setEventId('');
             }}
             className="h-10 rounded-lg px-3 text-sm text-slate-600 hover:bg-slate-100"
           >

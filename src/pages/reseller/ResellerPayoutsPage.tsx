@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
 import { Banknote, Wallet } from 'lucide-react';
 import { resellerPayoutsApi, type ResellerWithdrawal } from '@/lib/resellerApi';
 
@@ -22,7 +23,11 @@ export function ResellerPayoutsPage() {
 
   const requestPayout = useMutation({
     mutationFn: () => resellerPayoutsApi.request(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['reseller-payouts'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['reseller-payouts'] });
+      toast.success('Payout requested');
+    },
+    onError: (e: any) => toast.error(e?.message || 'Could not request payout'),
   });
 
   const available = data?.available ?? 0;
