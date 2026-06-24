@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, Link, Navigate } from 'react-router-dom';
+import { useParams, Link, Navigate, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { ArrowLeft, DollarSign, Ticket, Receipt, Users } from 'lucide-react';
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog';
@@ -24,7 +25,14 @@ const HUB_VIEW_ROLES = ['reseller_admin', 'reseller_hub_manager'];
 export function ResellerHubDetailPage() {
   const { hubId } = useParams<{ hubId: string }>();
   const { operator } = useResellerAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+  // Hubs in scope — powers the switcher dropdown (no separate list page).
+  const { data: hubs = [] } = useQuery({
+    queryKey: ['portal-hubs'],
+    queryFn: () => resellerHubsApi.list(),
+  });
   const [range, setRange] = useState<DateRange>({ startDate: undefined, endDate: undefined });
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [fullName, setFullName] = useState('');
@@ -69,10 +77,23 @@ export function ResellerHubDetailPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 p-6 space-y-6">
-      <Link to="/reseller/hubs" className="inline-flex items-center text-sm text-slate-500 hover:text-slate-800">
-        <ArrowLeft className="h-4 w-4 mr-1" /> Back to Hubs
+      <Link to="/reseller" className="inline-flex items-center text-sm text-slate-500 hover:text-slate-800">
+        <ArrowLeft className="h-4 w-4 mr-1" /> Back to POS
       </Link>
-      <h1 className="text-2xl font-bold text-slate-900">{hub?.name ?? 'Hub'}</h1>
+      {hubs.length > 1 ? (
+        <Select value={hubId} onValueChange={(v) => navigate(`/reseller/hubs/${v}`)}>
+          <SelectTrigger className="w-full sm:w-80 h-auto py-2 text-xl font-bold text-slate-900">
+            <SelectValue placeholder={hub?.name ?? 'Select hub'} />
+          </SelectTrigger>
+          <SelectContent>
+            {hubs.map((h) => (
+              <SelectItem key={h._id} value={h._id}>{h.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ) : (
+        <h1 className="text-2xl font-bold text-slate-900">{hub?.name ?? 'Hub'}</h1>
+      )}
 
       <DateRangePicker value={range} onChange={setRange} />
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
