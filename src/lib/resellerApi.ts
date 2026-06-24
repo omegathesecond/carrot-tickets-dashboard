@@ -248,3 +248,56 @@ export const resellerHubsApi = {
     return request<HubAnalytics>(`/reseller/hubs/${hubId}/analytics${qs}`);
   },
 };
+
+// ---- Manager/admin reporting ----
+
+export interface ManagerSale {
+  id: string;
+  saleId: string;
+  eventName: string;
+  operatorName: string;
+  hubName: string;
+  quantity: number;
+  totalAmount: number;
+  paymentMethod: string;
+  paymentStatus: string;
+  customerName: string;
+  soldAt: string;
+}
+
+export interface Paginated<T> {
+  data: T[];
+  pagination: { total: number; page: number; limit: number; pages: number; hasNext: boolean; hasPrev: boolean };
+}
+
+export interface MethodStat { method: string; revenue: number; tickets: number; count: number }
+export interface DayStat { date: string; revenue: number; tickets: number; count: number }
+export interface OperatorStat { operatorId: string; fullName: string; revenue: number; tickets: number; count: number }
+export interface ReportHubStat { hubId: string; name: string; revenue: number; tickets: number; count: number }
+
+export interface ReportSummary {
+  totals: { revenue: number; tickets: number; salesCount: number };
+  byMethod: MethodStat[];
+  byDay: DayStat[];
+  byOperator: OperatorStat[];
+  byHub: ReportHubStat[];
+}
+
+function toQuery(params: Record<string, string | number | undefined>): string {
+  const qs = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== '') qs.set(k, String(v));
+  });
+  const s = qs.toString();
+  return s ? `?${s}` : '';
+}
+
+export const resellerReportsApi = {
+  managerSales: (params: {
+    page?: number; limit?: number; from?: string; to?: string;
+    hubId?: string; operatorId?: string; paymentMethod?: string;
+  }) => request<Paginated<ManagerSale>>(`/reseller/manager/sales${toQuery(params)}`),
+
+  summary: (params: { from?: string; to?: string; hubId?: string }) =>
+    request<ReportSummary>(`/reseller/reports/summary${toQuery(params)}`),
+};

@@ -10,11 +10,14 @@ import { Layout } from '@/components/layout/Layout';
 import { AdminRoute } from '@/components/AdminRoute';
 import { ResellerAuthProvider } from '@/contexts/ResellerAuthContext';
 import { ResellerProtectedRoute } from '@/components/ResellerProtectedRoute';
+import { ResellerLayout } from '@/components/layout/ResellerLayout';
 import { ResellerLoginPage } from '@/pages/reseller/ResellerLoginPage';
 import { ResellerPosPage } from '@/pages/reseller/ResellerPosPage';
 import { ResellerOperatorsPage } from '@/pages/reseller/ResellerOperatorsPage';
 import { ResellerHubsPage } from '@/pages/reseller/ResellerHubsPage';
 import { ResellerHubDetailPage } from '@/pages/reseller/ResellerHubDetailPage';
+import { ResellerSalesHistoryPage } from '@/pages/reseller/ResellerSalesHistoryPage';
+import { ResellerReportsPage } from '@/pages/reseller/ResellerReportsPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { SignupPage } from '@/pages/SignupPage';
 import { DashboardPage } from '@/pages/DashboardPage';
@@ -72,31 +75,22 @@ function App() {
                 </Route>
                 <Route path="/reseller/login" element={<ResellerLoginPage />} />
                 <Route
-                  path="/reseller/operators"
-                  element={
-                    <ResellerAuthProvider>
-                      <ResellerProtectedRoute>
-                        <ResellerOperatorsPage />
-                      </ResellerProtectedRoute>
-                    </ResellerAuthProvider>
-                  }
-                />
-                <Route path="/reseller/hubs" element={
-                  <ResellerAuthProvider><ResellerProtectedRoute><ResellerHubsPage /></ResellerProtectedRoute></ResellerAuthProvider>
-                } />
-                <Route path="/reseller/hubs/:hubId" element={
-                  <ResellerAuthProvider><ResellerProtectedRoute><ResellerHubDetailPage /></ResellerProtectedRoute></ResellerAuthProvider>
-                } />
-                <Route
                   path="/reseller"
                   element={
                     <ResellerAuthProvider>
                       <ResellerProtectedRoute>
-                        <ResellerPosPage />
+                        <ResellerLayout />
                       </ResellerProtectedRoute>
                     </ResellerAuthProvider>
                   }
-                />
+                >
+                  <Route index element={<ResellerPosPage />} />
+                  <Route path="sales-history" element={<ResellerSalesHistoryPage />} />
+                  <Route path="reports" element={<ResellerReportsPage />} />
+                  <Route path="operators" element={<ResellerOperatorsPage />} />
+                  <Route path="hubs" element={<ResellerHubsPage />} />
+                  <Route path="hubs/:hubId" element={<ResellerHubDetailPage />} />
+                </Route>
               </Routes>
               <Toaster position="top-right" richColors />
             </div>
