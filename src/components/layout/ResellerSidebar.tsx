@@ -5,9 +5,11 @@ import {
   BarChart3,
   Building2,
   Users,
+  Banknote,
   LogOut,
 } from 'lucide-react';
 import { useResellerAuth } from '@/contexts/ResellerAuthContext';
+import { hasResellerPermission, ResellerPermission } from '@/lib/resellerPermissions';
 
 const ROLE_LABELS: Record<string, string> = {
   reseller_admin: 'Admin',
@@ -26,15 +28,14 @@ interface NavItem {
 export function ResellerSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { operator, logout } = useResellerAuth();
   const navigate = useNavigate();
-  const isManager =
-    !!operator && ['reseller_admin', 'reseller_hub_manager'].includes(operator.role);
 
   const items: NavItem[] = [
-    { to: '/reseller', label: 'Sell Tickets', icon: ShoppingCart, end: true, show: true },
-    { to: '/reseller/sales-history', label: 'Sales History', icon: History, show: isManager },
-    { to: '/reseller/reports', label: 'Reports', icon: BarChart3, show: isManager },
-    { to: '/reseller/hubs', label: 'Hubs', icon: Building2, show: isManager },
-    { to: '/reseller/operators', label: 'Operators', icon: Users, show: isManager },
+    { to: '/reseller', label: 'Sell Tickets', icon: ShoppingCart, end: true, show: hasResellerPermission(operator, ResellerPermission.SELL_TICKETS) },
+    { to: '/reseller/sales-history', label: 'Sales History', icon: History, show: hasResellerPermission(operator, ResellerPermission.VIEW_HUB_SALES) },
+    { to: '/reseller/reports', label: 'Reports', icon: BarChart3, show: hasResellerPermission(operator, ResellerPermission.VIEW_REPORTS) },
+    { to: '/reseller/hubs', label: 'Hubs', icon: Building2, show: hasResellerPermission(operator, ResellerPermission.VIEW_HUB_SALES) },
+    { to: '/reseller/operators', label: 'Operators', icon: Users, show: hasResellerPermission(operator, ResellerPermission.MANAGE_OPERATORS) },
+    { to: '/reseller/payouts', label: 'Payouts', icon: Banknote, show: hasResellerPermission(operator, ResellerPermission.REQUEST_PAYOUT) },
   ];
 
   const handleLogout = () => {
