@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,28 @@ export function TicketSalesPage() {
     queryKey: ['publishedEvents'],
     queryFn: () => apiClient.events.getEvents({ status: 'published', limit: 100 }),
   });
+
+  // Payment methods come from the same config the rest of the app uses, so
+  // they stay consistent (e.g. Keshless Wallet only shows if it's enabled).
+  const { data: paymentSettings } = useQuery({
+    queryKey: ['paymentMethodSettings'],
+    queryFn: () => apiClient.settings.getPaymentMethods(),
+  });
+
+  // The organizer sell endpoint supports cash + Keshless Wallet; show whichever
+  // are enabled in settings.
+  const methods: { value: 'cash' | 'keshless_wallet'; label: string }[] = [
+    ...(paymentSettings?.cashEnabled !== false ? [{ value: 'cash' as const, label: 'Cash' }] : []),
+    ...(paymentSettings?.keshlessWalletEnabled ? [{ value: 'keshless_wallet' as const, label: 'Keshless Wallet' }] : []),
+  ];
+
+  // Keep the selected method valid as settings load.
+  useEffect(() => {
+    if (methods.length && !methods.some((m) => m.value === formData.paymentMethod)) {
+      setFormData((f) => ({ ...f, paymentMethod: methods[0].value }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentSettings]);
 
   const selectedEvent = eventsData?.data?.find(e => e._id === formData.eventId);
   const selectedTicketType = selectedEvent?.ticketTypes.find(
@@ -111,8 +133,8 @@ export function TicketSalesPage() {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2 min-w-0">
                   <Label>Customer Name</Label>
                   <Input
                     placeholder="Full name"
@@ -143,9 +165,10 @@ export function TicketSalesPage() {
               </div>
 
               <Tabs value={formData.paymentMethod} onValueChange={(v) => setFormData({ ...formData, paymentMethod: v as any })}>
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="cash">Cash</TabsTrigger>
-                  <TabsTrigger value="keshless_wallet">Keshless Wallet</TabsTrigger>
+                <TabsList className={`grid w-full ${methods.length === 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                  {methods.map((m) => (
+                    <TabsTrigger key={m.value} value={m.value}>{m.label}</TabsTrigger>
+                  ))}
                 </TabsList>
                 <TabsContent value="keshless_wallet" className="space-y-4 mt-4">
                   <div className="space-y-2">

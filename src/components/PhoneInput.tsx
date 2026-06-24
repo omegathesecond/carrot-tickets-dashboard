@@ -62,14 +62,14 @@ export function PhoneInput({
   };
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 min-w-0">
       <Label>
         {label}
         {required && <span className="text-red-600 ml-1">*</span>}
       </Label>
-      <div className="flex gap-2">
+      <div className="flex gap-2 min-w-0">
         <Select value={countryCode} onValueChange={handleCountryChange} disabled={disabled}>
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="w-[112px] shrink-0">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -90,7 +90,7 @@ export function PhoneInput({
           onChange={handleNumberChange}
           placeholder={placeholder}
           disabled={disabled}
-          className="flex-1"
+          className="flex-1 min-w-0"
         />
       </div>
       {error && (

@@ -131,27 +131,22 @@ export function DashboardPage() {
         <DateRangePicker value={dateRange} onChange={setDateRange} />
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Stats Cards — compact, matching the Events page */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {statsCards.map((stat) => (
           <Card key={stat.title}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600">
-                {stat.title}
-              </CardTitle>
-              <div className={`p-2 rounded-lg ${stat.color}`}>
-                <stat.icon className="h-4 w-4" />
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-slate-600">{stat.title}</div>
+                <stat.icon className="h-4 w-4 text-orange-500" />
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
+              <div className="text-2xl font-bold text-slate-900 mt-1">{stat.value}</div>
               {stat.change !== undefined && (
-                <div className="flex items-center text-sm mt-1">
-                  <TrendingUp className={`h-4 w-4 mr-1 ${stat.change >= 0 ? 'text-green-600' : 'text-red-600'}`} />
+                <div className="flex items-center text-xs mt-1">
+                  <TrendingUp className={`h-3.5 w-3.5 mr-1 ${stat.change >= 0 ? 'text-green-600' : 'text-red-600'}`} />
                   <span className={stat.change >= 0 ? 'text-green-600' : 'text-red-600'}>
                     {stat.change >= 0 ? '+' : ''}{stat.change}%
                   </span>
-                  <span className="text-slate-600 ml-1">from last period</span>
                 </div>
               )}
             </CardContent>
