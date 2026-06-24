@@ -2,6 +2,22 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 const TOKEN_KEY = 'carrot_reseller_token';
 const OPERATOR_KEY = 'carrot_reseller_operator';
 
+/** Decode the `permissions` claim from the stored reseller JWT (its payload
+ *  always carries them). Returns null if there is no token or it can't be read. */
+function permissionsFromToken(): string[] | null {
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) return null;
+  try {
+    const part = token.split('.')[1];
+    if (!part) return null;
+    const json = atob(part.replace(/-/g, '+').replace(/_/g, '/'));
+    const payload = JSON.parse(json);
+    return Array.isArray(payload?.permissions) ? payload.permissions : null;
+  } catch {
+    return null;
+  }
+}
+
 export interface ResellerOperator {
   id: string;
   fullName: string;
@@ -117,7 +133,17 @@ export const resellerApi = {
     const raw = localStorage.getItem(OPERATOR_KEY);
     if (!raw) return null;
     try {
-      return JSON.parse(raw) as ResellerOperator;
+      const op = JSON.parse(raw) as ResellerOperator;
+      // Sessions created before the API returned `permissions` on the operator
+      // have a stale cached object without it, which would hide every
+      // permission-gated nav item. The JWT always carries permissions, so
+      // backfill from the token — keeping nav gating in sync with what the
+      // backend actually enforces.
+      if (!op.permissions || op.permissions.length === 0) {
+        const fromToken = permissionsFromToken();
+        if (fromToken) op.permissions = fromToken;
+      }
+      return op;
     } catch {
       // Corrupt/tampered value — clear it rather than crash the portal on boot.
       localStorage.removeItem(OPERATOR_KEY);
