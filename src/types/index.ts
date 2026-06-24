@@ -157,7 +157,7 @@ export interface TicketSale {
   totalAmount: number;
   customerName: string;
   customerPhone: string;
-  paymentMethod: 'cash' | 'keshless_wallet';
+  paymentMethod: 'cash' | 'keshless_wallet' | 'mtn_momo';
   paymentStatus: 'pending' | 'paid' | 'completed' | 'refunded' | 'failed';
   tickets: Ticket[];
   // Individual tickets as populated by the sales list endpoint (each carries
@@ -195,7 +195,7 @@ export interface SellTicketsRequest {
   quantity: number;
   customerName: string;
   customerPhone: string;
-  paymentMethod: 'cash' | 'keshless_wallet';
+  paymentMethod: 'cash' | 'keshless_wallet' | 'mtn_momo';
   walletCardNumber?: string;
   walletPin?: string;
 }
@@ -281,7 +281,7 @@ export interface RevenueStats {
     ticketsSold: number;
   }[];
   revenueByPaymentMethod: {
-    method: 'cash' | 'keshless_wallet';
+    method: 'cash' | 'keshless_wallet' | 'mtn_momo';
     amount: number;
     count: number;
   }[];
@@ -331,7 +331,7 @@ export interface SalesQueryParams {
   page?: number;
   limit?: number;
   eventId?: string;
-  paymentMethod?: 'cash' | 'keshless_wallet';
+  paymentMethod?: 'cash' | 'keshless_wallet' | 'mtn_momo';
   paymentStatus?: 'pending' | 'completed' | 'refunded' | 'failed';
   channel?: 'online' | 'box_office' | 'reseller_pos';
   startDate?: string;

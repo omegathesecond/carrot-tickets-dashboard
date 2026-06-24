@@ -16,6 +16,7 @@ export const CHART_COLORS = {
   revenue: '#10b981',       // Green
   cash: '#f59e0b',          // Amber
   wallet: '#8b5cf6',        // Purple
+  momo: '#f97316',          // Orange
 
   // Status colors
   active: '#10b981',
@@ -63,6 +64,8 @@ export const PAYMENT_METHOD_COLORS: Record<string, string> = {
   cash: CHART_COLORS.cash,
   keshless_wallet: CHART_COLORS.wallet,
   wallet: CHART_COLORS.wallet,
+  mtn_momo: CHART_COLORS.momo,
+  momo: CHART_COLORS.momo,
 };
 
 // Color mapping for ticket types (will cycle through palette)

@@ -32,6 +32,7 @@ import {
   formatCurrency,
   formatNumber,
 } from '@/lib/chartColors';
+import { paymentLabel } from '@/lib/payment';
 
 export function DashboardPage() {
   const { user } = useAuth();
@@ -72,7 +73,7 @@ export function DashboardPage() {
 
   // Transform payment method data for pie chart
   const paymentMethodData = revenueStats?.revenueByPaymentMethod?.map((method) => ({
-    name: method.method === 'keshless_wallet' ? 'Wallet' : 'Cash',
+    name: paymentLabel(method.method),
     value: method.amount,
     count: method.count,
   })) || [];

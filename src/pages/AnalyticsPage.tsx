@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { CHANNEL_LABEL } from '@/lib/channel';
 import { formatCurrency } from '@/lib/chartColors';
+import { paymentLabel } from '@/lib/payment';
 
 const COLORS = ['#f97316', '#fb923c', '#fdba74', '#fed7aa'];
 
@@ -24,7 +25,7 @@ export function AnalyticsPage() {
   if (isLoading) return <div className="p-8">Loading...</div>;
 
   const paymentMethodData = revenueStats?.revenueByPaymentMethod?.map(pm => ({
-    name: pm.method === 'cash' ? 'Cash' : 'Keshless Wallet',
+    name: paymentLabel(pm.method),
     value: pm.amount,
   })) || [];
 

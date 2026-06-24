@@ -13,6 +13,7 @@ import { Download } from 'lucide-react';
 import { format } from 'date-fns';
 import { formatCurrency } from '@/lib/chartColors';
 import { channelLabel, channelSource } from '@/lib/channel';
+import { paymentLabel } from '@/lib/payment';
 import type { SalesQueryParams } from '@/types';
 
 const ALL = 'all';
@@ -126,6 +127,7 @@ export function SalesHistoryPage() {
                   <SelectItem value={ALL}>All</SelectItem>
                   <SelectItem value="cash">Cash</SelectItem>
                   <SelectItem value="keshless_wallet">Wallet</SelectItem>
+                  <SelectItem value="mtn_momo">MoMo</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -197,7 +199,7 @@ export function SalesHistoryPage() {
                       <TableCell className="font-medium">E {sale.totalAmount.toLocaleString()}</TableCell>
                       <TableCell>
                         <Badge variant={sale.paymentMethod === 'cash' ? 'secondary' : 'default'}>
-                          {sale.paymentMethod === 'cash' ? 'Cash' : 'Wallet'}
+                          {paymentLabel(sale.paymentMethod)}
                         </Badge>
                       </TableCell>
                       <TableCell>
