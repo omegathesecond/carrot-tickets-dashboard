@@ -9,8 +9,8 @@ import {
   Calendar,
   MapPin,
   Ticket,
-  Users,
   Search,
+  ArrowLeft,
 } from 'lucide-react';
 import { useResellerAuth } from '@/contexts/ResellerAuthContext';
 import {
@@ -32,6 +32,9 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
   keshless_wallet: 'Keshless Wallet',
 };
 
+// One conversational step at a time — mirrors the native POS app's wizard.
+const STEP_TITLES = ['Event', 'Tickets', 'Payment', 'Customer'] as const;
+
 const formatEventDate = (date?: string) => {
   if (!date) return null;
   const parsed = new Date(date);
@@ -51,6 +54,8 @@ export function ResellerPosPage() {
   const [momoPhone, setMomoPhone] = useState('');
   const [eventSearch, setEventSearch] = useState('');
 
+  const [step, setStep] = useState(0); // 0 Event · 1 Tickets · 2 Payment · 3 Customer
+  const [forward, setForward] = useState(true); // slide direction
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [waitingForMomo, setWaitingForMomo] = useState(false);
   const [successData, setSuccessData] = useState<SaleData | null>(null);
@@ -105,8 +110,11 @@ export function ResellerPosPage() {
     setCustomerName('');
     setCustomerPhone('');
     setMomoPhone('');
+    setEventSearch('');
     setWaitingForMomo(false);
     setIsSubmitting(false);
+    setForward(true);
+    setStep(0);
   };
 
   const selectedEvent = events.find((e) => e.id === eventId);
@@ -136,14 +144,34 @@ export function ResellerPosPage() {
     (paymentMethod !== 'mtn_momo' || !!momoPhone) &&
     !isSubmitting;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Step 0 advances on event tap; 1 needs a ticket; 2 needs a method; 3 submits.
+  const canAdvance = step === 1 ? !!ticketTypeId : step === 2 ? !!paymentMethod : false;
+  const isLast = step === STEP_TITLES.length - 1;
+
+  const pickEvent = (ev: ResellerEvent) => {
+    setEventId(ev.id);
+    setTicketTypeId('');
+    setForward(true);
+    setStep(1);
+  };
+  const next = () => {
+    if (!canAdvance) return;
+    setForward(true);
+    setStep((s) => s + 1);
+  };
+  const back = () => {
+    if (step === 0) return;
+    setForward(false);
+    setStep((s) => s - 1);
+  };
+
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
 
     if (!eventId || !ticketTypeId || !customerName || !customerPhone) {
       toast.error('Please fill all required fields');
       return;
     }
-
     if (paymentMethod === 'mtn_momo' && !momoPhone) {
       toast.error('Please fill all required fields');
       return;
@@ -165,7 +193,6 @@ export function ResellerPosPage() {
       const response = await resellerApi.createSale(payload);
 
       if (paymentMethod !== 'mtn_momo') {
-        // Cash or keshless_wallet — should be completed immediately
         if (response.status === 'completed') {
           const ticketIds =
             response.tickets?.map((t) => t.ticketId) || response.ticketIds || [];
@@ -210,7 +237,6 @@ export function ResellerPosPage() {
       stopPolling();
       intervalRef.current = setInterval(async () => {
         try {
-          // Check timeout
           const timedOutByDuration = Date.now() - pollStart >= MAX_POLL_MS;
           const timedOutByExpiry = expiresAt ? new Date() > new Date(expiresAt) : false;
 
@@ -267,222 +293,258 @@ export function ResellerPosPage() {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-orange-50">
-      {/* Header */}
-      <header className="sticky top-0 z-30 bg-white/90 backdrop-blur border-b border-orange-100 shadow-sm">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <img src="/carrot_tickets_icon.png" alt="Carrot Tickets" className="h-8 w-8 shrink-0" />
-            <div className="min-w-0">
-              <p className="font-semibold text-slate-900 leading-tight truncate">Sell Tickets</p>
-              {operator?.fullName && (
-                <p className="text-xs text-slate-500 leading-tight truncate">{operator.fullName}</p>
-              )}
+  // ── MoMo waiting takes over the whole panel ──────────────────────────────
+  if (waitingForMomo) {
+    return (
+      <div className="mx-auto max-w-lg px-4 py-10">
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center gap-4 py-16">
+            <div className="relative">
+              <span className="absolute inset-0 animate-ping rounded-full bg-orange-200/60" />
+              <Loader2 className="relative h-12 w-12 animate-spin text-orange-500" />
             </div>
-          </div>
-        </div>
-      </header>
+            <p className="px-4 text-center font-semibold text-slate-800">
+              Waiting for the buyer to approve on their phone…
+            </p>
+            <p className="text-sm text-slate-500">This can take up to 2 minutes.</p>
+            <Button variant="outline" onClick={resetForm} className="mt-2">
+              Cancel sale
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
-      {/* Main */}
-      <div className="max-w-5xl mx-auto px-4 pt-5 pb-32 lg:pb-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          {waitingForMomo ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-16 gap-4">
-                <div className="relative">
-                  <span className="absolute inset-0 rounded-full bg-orange-200/60 animate-ping" />
-                  <Loader2 className="h-12 w-12 animate-spin text-orange-500 relative" />
+  return (
+    <div className="mx-auto flex min-h-full max-w-lg flex-col px-4 py-4">
+      {/* Title + back */}
+      <div className="mb-3 flex items-center gap-2">
+        {step > 0 && (
+          <button
+            onClick={back}
+            className="-ml-1.5 rounded-lg p-1.5 text-slate-700 hover:bg-slate-100"
+            aria-label="Back"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+        )}
+        <div className="min-w-0">
+          <h1 className="font-semibold leading-tight text-slate-900">Sell Tickets</h1>
+          {operator?.fullName && (
+            <p className="truncate text-xs text-slate-500">{operator.fullName}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Progress header */}
+      <div className="mb-4">
+        <div className="flex gap-1.5">
+          {STEP_TITLES.map((t, i) => (
+            <div
+              key={t}
+              className={`h-1.5 flex-1 rounded-full transition-colors ${i <= step ? 'bg-orange-500' : 'bg-slate-200'}`}
+            />
+          ))}
+        </div>
+        <div className="mt-2 flex items-center justify-between">
+          <span className="text-xs text-slate-500">
+            Step {step + 1} of {STEP_TITLES.length}
+          </span>
+          <span className="text-sm font-bold text-slate-900">{STEP_TITLES[step]}</span>
+        </div>
+      </div>
+
+      {/* Step content — keyed so each step animates in */}
+      <div className="flex-1">
+        <div
+          key={step}
+          className={`animate-in fade-in duration-200 ${forward ? 'slide-in-from-right-6' : 'slide-in-from-left-6'}`}
+        >
+          {/* Context banner of choices so far (steps 1-3) */}
+          {step > 0 && selectedEvent && (
+            <Card className="mb-4 border-orange-200 bg-orange-50/70">
+              <CardContent className="flex items-center gap-3 p-3">
+                <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-orange-100">
+                  {selectedEvent.thumbnailUrl ? (
+                    <img
+                      src={selectedEvent.thumbnailUrl}
+                      alt=""
+                      className="h-full w-full object-cover"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                  ) : (
+                    <span className="flex h-full w-full items-center justify-center text-orange-400">
+                      <Ticket className="h-5 w-5" />
+                    </span>
+                  )}
                 </div>
-                <p className="text-slate-800 font-semibold text-center px-4">
-                  Waiting for the buyer to approve on their phone…
-                </p>
-                <p className="text-sm text-slate-500">This can take up to 2 minutes.</p>
-                <Button variant="outline" onClick={resetForm} className="mt-2">
-                  Cancel sale
-                </Button>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-semibold text-slate-900">{selectedEvent.name}</p>
+                  {formatEventDate(selectedEvent.date) && (
+                    <p className="text-xs text-slate-500">{formatEventDate(selectedEvent.date)}</p>
+                  )}
+                  {(selectedTicketType || (step >= 2 && paymentMethod)) && (
+                    <p className="truncate text-xs text-slate-700">
+                      {[
+                        selectedTicketType ? `${selectedTicketType.name} ×${quantity}` : null,
+                        step >= 2 && paymentMethod ? PAYMENT_METHOD_LABELS[paymentMethod] ?? paymentMethod : null,
+                      ].filter(Boolean).join('  •  ')}
+                    </p>
+                  )}
+                </div>
               </CardContent>
             </Card>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Step 1 — Event */}
-              <section className="space-y-3">
-                <StepLabel index={1} icon={<Calendar className="h-4 w-4" />} title="Choose event" />
-                {events.length === 0 ? (
-                  <Card>
-                    <CardContent className="py-8 text-center text-sm text-slate-500">
-                      No published events available right now.
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-                      <Input
-                        type="search"
-                        value={eventSearch}
-                        onChange={(e) => setEventSearch(e.target.value)}
-                        placeholder="Search events by name or venue"
-                        className="h-11 pl-9"
-                        aria-label="Search events"
-                      />
-                    </div>
-                    {filteredEvents.length === 0 ? (
-                      <Card className="border-dashed">
-                        <CardContent className="py-6 text-center text-sm text-slate-400">
-                          No events match “{eventSearch.trim()}”.
-                        </CardContent>
-                      </Card>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[22rem] overflow-y-auto pr-1">
-                        {filteredEvents.map((ev) => {
-                          const active = !!eventId && ev.id === eventId;
-                          const dateLabel = formatEventDate(ev.date);
-                          return (
-                            <button
-                              key={ev.id}
-                              type="button"
-                              onClick={() => {
-                                setEventId(ev.id);
-                                setTicketTypeId('');
-                              }}
-                              className={`group relative flex gap-3 text-left rounded-xl border-2 p-2.5 transition-all ${
-                                active
-                                  ? 'border-orange-500 bg-orange-50 shadow-sm'
-                                  : 'border-slate-200 bg-white hover:border-orange-300'
-                              }`}
-                            >
-                              <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-orange-100">
-                                {ev.thumbnailUrl ? (
-                                  <img
-                                    src={ev.thumbnailUrl}
-                                    alt=""
-                                    loading="lazy"
-                                    className="h-full w-full object-cover"
-                                    onError={(e) => {
-                                      e.currentTarget.style.display = 'none';
-                                    }}
-                                  />
-                                ) : (
-                                  <span className="flex h-full w-full items-center justify-center text-orange-400">
-                                    <Ticket className="h-6 w-6" />
-                                  </span>
-                                )}
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <p className="font-semibold text-slate-900 pr-6 leading-snug line-clamp-2">
-                                  {ev.name}
-                                </p>
-                                <div className="mt-1 space-y-0.5 text-xs text-slate-500">
-                                  {ev.venue && (
-                                    <p className="flex items-center gap-1 truncate">
-                                      <MapPin className="h-3 w-3 shrink-0" />
-                                      <span className="truncate">{ev.venue}</span>
-                                    </p>
-                                  )}
-                                  {dateLabel && (
-                                    <p className="flex items-center gap-1">
-                                      <Calendar className="h-3 w-3 shrink-0" /> {dateLabel}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                              {active && (
-                                <span className="absolute top-2.5 right-2.5 flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-white">
-                                  <Check className="h-3.5 w-3.5" />
+          )}
+
+          {/* ── Step 0: Event ── */}
+          {step === 0 && (
+            <div className="space-y-3">
+              {events.length === 0 ? (
+                <Card>
+                  <CardContent className="py-8 text-center text-sm text-slate-500">
+                    No published events available right now.
+                  </CardContent>
+                </Card>
+              ) : (
+                <>
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Input
+                      type="search"
+                      value={eventSearch}
+                      onChange={(e) => setEventSearch(e.target.value)}
+                      placeholder="Search events by name or venue"
+                      className="h-11 pl-9"
+                      aria-label="Search events"
+                    />
+                  </div>
+                  {filteredEvents.length === 0 ? (
+                    <Card className="border-dashed">
+                      <CardContent className="py-6 text-center text-sm text-slate-400">
+                        No events match “{eventSearch.trim()}”.
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {filteredEvents.map((ev) => {
+                        const dateLabel = formatEventDate(ev.date);
+                        return (
+                          <button
+                            key={ev.id}
+                            type="button"
+                            onClick={() => pickEvent(ev)}
+                            className="group flex w-full gap-3 rounded-xl border-2 border-slate-200 bg-white p-2.5 text-left transition-all hover:border-orange-300 hover:shadow-sm"
+                          >
+                            <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-orange-100">
+                              {ev.thumbnailUrl ? (
+                                <img
+                                  src={ev.thumbnailUrl}
+                                  alt=""
+                                  loading="lazy"
+                                  className="h-full w-full object-cover"
+                                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                />
+                              ) : (
+                                <span className="flex h-full w-full items-center justify-center text-orange-400">
+                                  <Ticket className="h-6 w-6" />
                                 </span>
                               )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </>
-                )}
-              </section>
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="line-clamp-2 font-semibold leading-snug text-slate-900">{ev.name}</p>
+                              <div className="mt-1 space-y-0.5 text-xs text-slate-500">
+                                {ev.venue && (
+                                  <p className="flex items-center gap-1 truncate">
+                                    <MapPin className="h-3 w-3 shrink-0" />
+                                    <span className="truncate">{ev.venue}</span>
+                                  </p>
+                                )}
+                                {dateLabel && (
+                                  <p className="flex items-center gap-1">
+                                    <Calendar className="h-3 w-3 shrink-0" /> {dateLabel}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
-              {/* Step 2 — Ticket type */}
-              <section className="space-y-3">
-                <StepLabel
-                  index={2}
-                  icon={<Ticket className="h-4 w-4" />}
-                  title="Choose ticket type"
-                  muted={!eventId}
-                />
-                {!eventId ? (
-                  <Card className="border-dashed">
-                    <CardContent className="py-6 text-center text-sm text-slate-400">
-                      Select an event first.
-                    </CardContent>
-                  </Card>
-                ) : ticketTypes.length === 0 ? (
+          {/* ── Step 1: Tickets (type + quantity) ── */}
+          {step === 1 && (
+            <div className="space-y-5">
+              <div className="space-y-2.5">
+                <p className="font-semibold text-slate-900">Ticket type</p>
+                {ticketTypes.length === 0 ? (
                   <Card>
                     <CardContent className="py-6 text-center text-sm text-slate-500">
-                      No ticket types for this event.
+                      Loading ticket types…
                     </CardContent>
                   </Card>
                 ) : (
-                  <div className="space-y-2.5">
-                    {ticketTypes.map((tt) => {
-                      const active = tt.id === ticketTypeId;
-                      const soldOut = tt.available <= 0;
-                      return (
-                        <button
-                          key={tt.id}
-                          type="button"
-                          disabled={soldOut}
-                          onClick={() => setTicketTypeId(tt.id)}
-                          className={`w-full flex items-center justify-between gap-3 rounded-xl border-2 p-3.5 text-left transition-all ${
-                            soldOut
-                              ? 'border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed'
-                              : active
-                                ? 'border-orange-500 bg-orange-50 shadow-sm'
-                                : 'border-slate-200 bg-white hover:border-orange-300'
-                          }`}
-                        >
-                          <div className="min-w-0">
-                            <p className="font-semibold text-slate-900 leading-snug">{tt.name}</p>
-                            <p className={`text-xs mt-0.5 ${soldOut ? 'text-red-500' : 'text-slate-500'}`}>
-                              {soldOut ? 'Sold out' : `${tt.available} left`}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className="font-bold text-slate-900">E {tt.price.toLocaleString()}</span>
-                            {active && (
-                              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-white">
-                                <Check className="h-3.5 w-3.5" />
-                              </span>
-                            )}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
+                  ticketTypes.map((tt) => {
+                    const active = tt.id === ticketTypeId;
+                    const soldOut = tt.available <= 0;
+                    return (
+                      <button
+                        key={tt.id}
+                        type="button"
+                        disabled={soldOut}
+                        onClick={() => setTicketTypeId(tt.id)}
+                        className={`flex w-full items-center justify-between gap-3 rounded-xl border-2 p-3.5 text-left transition-all ${
+                          soldOut
+                            ? 'cursor-not-allowed border-slate-100 bg-slate-50 opacity-60'
+                            : active
+                              ? 'border-orange-500 bg-orange-50 shadow-sm'
+                              : 'border-slate-200 bg-white hover:border-orange-300'
+                        }`}
+                      >
+                        <div className="min-w-0">
+                          <p className="font-semibold leading-snug text-slate-900">{tt.name}</p>
+                          <p className={`mt-0.5 text-xs ${soldOut ? 'text-red-500' : 'text-slate-500'}`}>
+                            {soldOut ? 'Sold out' : `${tt.available} left`}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <span className="font-bold text-slate-900">E {tt.price.toLocaleString()}</span>
+                          {active && (
+                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-white">
+                              <Check className="h-3.5 w-3.5" />
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })
                 )}
-              </section>
+              </div>
 
-              {/* Step 3 — Quantity */}
-              <section className="space-y-3">
-                <StepLabel index={3} icon={<Plus className="h-4 w-4" />} title="Quantity" />
+              <div className="space-y-2.5">
+                <p className="font-semibold text-slate-900">Quantity</p>
                 <div className="flex items-center gap-4">
-                  <div className="flex items-center rounded-xl border-2 border-slate-200 bg-white overflow-hidden">
+                  <div className="flex items-center overflow-hidden rounded-xl border-2 border-slate-200 bg-white">
                     <button
                       type="button"
                       onClick={() => setQuantity((q) => Math.max(1, q - 1))}
                       disabled={quantity <= 1}
-                      className="h-12 w-12 flex items-center justify-center text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+                      className="flex h-12 w-12 items-center justify-center text-slate-600 hover:bg-slate-50 disabled:opacity-40"
                       aria-label="Decrease quantity"
                     >
                       <Minus className="h-5 w-5" />
                     </button>
-                    <span className="w-14 text-center text-lg font-bold text-slate-900 tabular-nums">
-                      {quantity}
-                    </span>
+                    <span className="w-14 text-center text-lg font-bold tabular-nums text-slate-900">{quantity}</span>
                     <button
                       type="button"
                       onClick={() => setQuantity((q) => Math.min(10, q + 1))}
                       disabled={quantity >= 10}
-                      className="h-12 w-12 flex items-center justify-center text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+                      className="flex h-12 w-12 items-center justify-center text-slate-600 hover:bg-slate-50 disabled:opacity-40"
                       aria-label="Increase quantity"
                     >
                       <Plus className="h-5 w-5" />
@@ -490,149 +552,118 @@ export function ResellerPosPage() {
                   </div>
                   <p className="text-xs text-slate-500">Up to 10 tickets per sale.</p>
                 </div>
-              </section>
-
-              {/* Step 4 — Payment method */}
-              <section className="space-y-3">
-                <StepLabel index={4} icon={<Check className="h-4 w-4" />} title="Payment method" />
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                  {enabledPaymentMethods.length === 0 ? (
-                    <p className="col-span-full text-sm text-slate-400">No payment methods enabled.</p>
-                  ) : (
-                    enabledPaymentMethods.map((method) => (
-                      <button
-                        key={method}
-                        type="button"
-                        onClick={() => setPaymentMethod(method)}
-                        className={`rounded-xl border-2 px-3 py-3.5 text-sm font-semibold transition-all ${
-                          paymentMethod === method
-                            ? 'border-orange-500 bg-orange-50 text-orange-700'
-                            : 'border-slate-200 bg-white text-slate-700 hover:border-orange-300'
-                        }`}
-                      >
-                        {PAYMENT_METHOD_LABELS[method] ?? method}
-                      </button>
-                    ))
-                  )}
-                </div>
-              </section>
-
-              {/* Step 5 — Customer */}
-              <section className="space-y-3">
-                <StepLabel index={5} icon={<Users className="h-4 w-4" />} title="Customer details" />
-                <Card>
-                  <CardContent className="pt-6 space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="customerName">Full name</Label>
-                      <Input
-                        id="customerName"
-                        placeholder="Full name"
-                        value={customerName}
-                        onChange={(e) => setCustomerName(e.target.value)}
-                        className="h-12"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="customerPhone">Phone number</Label>
-                      <Input
-                        id="customerPhone"
-                        type="tel"
-                        inputMode="tel"
-                        placeholder="+268…"
-                        value={customerPhone}
-                        onChange={(e) => setCustomerPhone(e.target.value)}
-                        className="h-12"
-                        required
-                      />
-                    </div>
-                    {paymentMethod === 'mtn_momo' && (
-                      <div className="space-y-2">
-                        <Label htmlFor="momoPhone">MoMo phone number</Label>
-                        <Input
-                          id="momoPhone"
-                          type="tel"
-                          inputMode="tel"
-                          placeholder="Number registered with MTN MoMo"
-                          value={momoPhone}
-                          onChange={(e) => setMomoPhone(e.target.value)}
-                          className="h-12"
-                        />
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </section>
-
-              {/* Desktop submit lives in the summary sidebar; this keeps Enter-to-submit working. */}
-              <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
-            </form>
+              </div>
+            </div>
           )}
-        </div>
 
-        {/* Desktop order summary */}
-        {!waitingForMomo && (
-          <div className="hidden lg:block">
-            <Card className="sticky top-20">
-              <CardContent className="pt-6 space-y-3 text-sm">
-                <p className="font-semibold text-slate-900">Order summary</p>
-                <SummaryRow label="Event" value={selectedEvent?.name} />
-                <SummaryRow label="Ticket" value={selectedTicketType?.name} />
-                <SummaryRow
-                  label="Unit price"
-                  value={selectedTicketType ? `E ${selectedTicketType.price.toLocaleString()}` : undefined}
-                />
-                <SummaryRow label="Quantity" value={String(quantity)} />
-                <SummaryRow
-                  label="Payment"
-                  value={paymentMethod ? PAYMENT_METHOD_LABELS[paymentMethod] ?? paymentMethod : undefined}
-                />
-                <div className="border-t border-slate-200 pt-3 flex items-center justify-between">
-                  <span className="font-semibold text-slate-700">Total</span>
-                  <span className="font-bold text-orange-600 text-xl tabular-nums">
-                    {selectedTicketType ? `E ${total.toLocaleString()}` : '—'}
-                  </span>
+          {/* ── Step 2: Payment ── */}
+          {step === 2 && (
+            <div className="space-y-2.5">
+              <p className="font-semibold text-slate-900">Payment method</p>
+              {enabledPaymentMethods.length === 0 ? (
+                <p className="text-sm text-slate-400">No payment methods enabled.</p>
+              ) : (
+                enabledPaymentMethods.map((method) => {
+                  const active = paymentMethod === method;
+                  return (
+                    <button
+                      key={method}
+                      type="button"
+                      onClick={() => setPaymentMethod(method)}
+                      className={`flex w-full items-center justify-between rounded-xl border-2 px-4 py-3.5 text-left font-semibold transition-all ${
+                        active
+                          ? 'border-orange-500 bg-orange-50 text-orange-700'
+                          : 'border-slate-200 bg-white text-slate-700 hover:border-orange-300'
+                      }`}
+                    >
+                      {PAYMENT_METHOD_LABELS[method] ?? method}
+                      {active && (
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-white">
+                          <Check className="h-3.5 w-3.5" />
+                        </span>
+                      )}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          )}
+
+          {/* ── Step 3: Customer ── */}
+          {step === 3 && (
+            <Card>
+              <CardContent className="space-y-4 pt-6">
+                <div className="space-y-2">
+                  <Label htmlFor="customerName">Full name</Label>
+                  <Input
+                    id="customerName"
+                    placeholder="Full name"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    className="h-12"
+                    required
+                  />
                 </div>
-                <Button
-                  onClick={handleSubmit}
-                  disabled={!canSubmit}
-                  className="w-full h-12 text-base font-semibold bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700"
-                >
-                  {isSubmitting ? (
-                    <span className="flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" /> Processing…
-                    </span>
-                  ) : (
-                    'Sell tickets'
-                  )}
-                </Button>
+                <div className="space-y-2">
+                  <Label htmlFor="customerPhone">Phone number</Label>
+                  <Input
+                    id="customerPhone"
+                    type="tel"
+                    inputMode="tel"
+                    placeholder="+268…"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    className="h-12"
+                    required
+                  />
+                </div>
+                {paymentMethod === 'mtn_momo' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="momoPhone">MoMo phone number</Label>
+                    <Input
+                      id="momoPhone"
+                      type="tel"
+                      inputMode="tel"
+                      placeholder="Number registered with MTN MoMo"
+                      value={momoPhone}
+                      onChange={(e) => setMomoPhone(e.target.value)}
+                      className="h-12"
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      {/* Mobile sticky action bar — the signature, thumb-reachable total + sell */}
-      {!waitingForMomo && (
-        <div className="lg:hidden fixed bottom-0 inset-x-0 z-30 border-t border-orange-100 bg-white/95 backdrop-blur px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
-          <div className="max-w-5xl mx-auto flex items-center gap-3">
-            <div className="min-w-0">
-              <p className="text-xs text-slate-500 leading-tight">Total</p>
-              <p className="text-xl font-bold text-orange-600 tabular-nums leading-tight">
-                {selectedTicketType ? `E ${total.toLocaleString()}` : 'E 0'}
-              </p>
-            </div>
+      {/* Bottom action bar — Total + Next/Sell. Step 0 advances on event tap. */}
+      {step > 0 && (
+        <div className="sticky bottom-0 -mx-4 mt-4 border-t border-orange-100 bg-white/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
+          <div className="flex items-center gap-3">
+            {selectedTicketType && (
+              <div className="min-w-0">
+                <p className="text-xs leading-tight text-slate-500">Total</p>
+                <p className="text-xl font-bold leading-tight tabular-nums text-orange-600">
+                  E {total.toLocaleString()}
+                </p>
+              </div>
+            )}
             <Button
-              onClick={handleSubmit}
-              disabled={!canSubmit}
-              className="flex-1 h-12 text-base font-semibold bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700"
+              onClick={isLast ? () => handleSubmit() : next}
+              disabled={isLast ? !canSubmit : !canAdvance}
+              className="h-12 flex-1 bg-gradient-to-r from-orange-600 to-amber-600 text-base font-semibold hover:from-orange-700 hover:to-amber-700"
             >
-              {isSubmitting ? (
-                <span className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Processing…
-                </span>
+              {isLast ? (
+                isSubmitting ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Processing…
+                  </span>
+                ) : (
+                  'Sell tickets'
+                )
               ) : (
-                'Sell tickets'
+                'Next'
               )}
             </Button>
           </div>
@@ -649,43 +680,6 @@ export function ResellerPosPage() {
           saleData={successData}
         />
       )}
-    </div>
-  );
-}
-
-function StepLabel({
-  index,
-  icon,
-  title,
-  muted,
-}: {
-  index: number;
-  icon: React.ReactNode;
-  title: string;
-  muted?: boolean;
-}) {
-  return (
-    <div className="flex items-center gap-2.5">
-      <span
-        className={`flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold ${
-          muted ? 'bg-slate-100 text-slate-400' : 'bg-orange-100 text-orange-700'
-        }`}
-      >
-        {index}
-      </span>
-      <span className={`inline-flex items-center gap-1.5 font-semibold ${muted ? 'text-slate-400' : 'text-slate-900'}`}>
-        {icon}
-        {title}
-      </span>
-    </div>
-  );
-}
-
-function SummaryRow({ label, value }: { label: string; value?: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="text-slate-500">{label}</span>
-      <span className="font-medium text-slate-900 text-right truncate max-w-[60%]">{value || '—'}</span>
     </div>
   );
 }
