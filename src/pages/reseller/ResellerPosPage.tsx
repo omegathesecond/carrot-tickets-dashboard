@@ -322,7 +322,7 @@ export function ResellerPosPage() {
   }
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-lg flex-col px-4 py-4 sm:py-6 lg:max-w-3xl">
+    <div className="w-full px-4 py-4 sm:px-6 sm:py-6">
       {/* Title + back */}
       <div className="mb-4 flex items-center gap-2">
         {step > 0 && (
@@ -342,8 +342,10 @@ export function ResellerPosPage() {
         </div>
       </div>
 
+      {/* Full-width two-pane on the web: wizard fills the space, summary on the right. */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
       {/* Card panel — gives the wizard a proper surface on the web */}
-      <div className="rounded-2xl border border-orange-100 bg-white p-4 shadow-sm sm:p-6">
+      <div className="min-w-0 rounded-2xl border border-orange-100 bg-white p-4 shadow-sm sm:p-6">
         {/* Progress header */}
         <div className="mb-5">
           <div className="flex gap-1.5">
@@ -426,7 +428,7 @@ export function ResellerPosPage() {
                       No events match “{eventSearch.trim()}”.
                     </div>
                   ) : (
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                       {filteredEvents.map((ev) => {
                         const dateLabel = formatEventDate(ev.date);
                         return (
@@ -642,9 +644,54 @@ export function ResellerPosPage() {
         </div>
       </div>
 
-      {/* Bottom action bar — Total + Next/Sell. Step 0 advances on event tap. */}
+        {/* Desktop order summary — fills the right side on the web. */}
+        <aside className="hidden lg:block">
+          <div className="sticky top-6 rounded-2xl border border-orange-100 bg-white p-5 shadow-sm">
+            <p className="mb-3 font-semibold text-slate-900">Order summary</p>
+            <div className="space-y-2.5 text-sm">
+              <SummaryRow label="Event" value={selectedEvent?.name} />
+              <SummaryRow label="Ticket" value={selectedTicketType?.name} />
+              <SummaryRow
+                label="Unit price"
+                value={selectedTicketType ? `E ${selectedTicketType.price.toLocaleString()}` : undefined}
+              />
+              <SummaryRow label="Quantity" value={String(quantity)} />
+              <SummaryRow label="Payment" value={paymentMethod ? paymentLabel(paymentMethod) : undefined} />
+            </div>
+            <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-3">
+              <span className="font-semibold text-slate-700">Total</span>
+              <span className="text-xl font-bold tabular-nums text-orange-600">
+                {selectedTicketType ? `E ${total.toLocaleString()}` : '—'}
+              </span>
+            </div>
+            {step === 0 ? (
+              <p className="mt-4 text-center text-xs text-slate-400">Pick an event to begin.</p>
+            ) : (
+              <Button
+                onClick={isLast ? () => handleSubmit() : next}
+                disabled={isLast ? !canSubmit : !canAdvance}
+                className="mt-4 h-12 w-full bg-gradient-to-r from-orange-600 to-amber-600 text-base font-semibold hover:from-orange-700 hover:to-amber-700"
+              >
+                {isLast ? (
+                  isSubmitting ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Processing…
+                    </span>
+                  ) : (
+                    'Sell tickets'
+                  )
+                ) : (
+                  'Next'
+                )}
+              </Button>
+            )}
+          </div>
+        </aside>
+      </div>
+
+      {/* Mobile/tablet bottom action bar (hidden on lg — summary handles it there). */}
       {step > 0 && (
-        <div className="sticky bottom-0 z-10 -mx-4 mt-4 border-t border-orange-100 bg-white/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:mx-0 sm:rounded-xl sm:border sm:px-4 sm:shadow-sm">
+        <div className="sticky bottom-0 z-10 -mx-4 mt-4 border-t border-orange-100 bg-white/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:-mx-6 sm:px-6 lg:hidden">
           <div className="flex items-center gap-3">
             {selectedTicketType && (
               <div className="min-w-0">
@@ -685,6 +732,15 @@ export function ResellerPosPage() {
           saleData={successData}
         />
       )}
+    </div>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value?: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-slate-500">{label}</span>
+      <span className="max-w-[60%] truncate text-right font-medium text-slate-900">{value || '—'}</span>
     </div>
   );
 }
