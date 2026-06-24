@@ -34,8 +34,12 @@ const BUCKET_TABS: { value: Bucket; label: string }[] = [
   { value: 'past', label: 'Past Events' },
 ];
 
-function classifyEvent(e: Event): Exclude<Bucket, 'all'> {
-  const now = Date.now();
+// Pure: `now` is passed in (never read from the clock inside) so every consumer
+// classifies against the SAME instant. Reading Date.now() here caused the tab
+// counts and the filtered grid — memoized separately, computed at different
+// times — to disagree for an event sitting on a start/end boundary (e.g. one
+// that starts while the page is open): counted as "approved", shown as "ongoing".
+function classifyEvent(e: Event, now: number): Exclude<Bucket, 'all'> {
   if (e.status === 'cancelled') return 'cancelled';
   // Drafts and events submitted-but-not-yet-approved both sit under "Pending".
   if (e.status === 'draft' || e.status === 'pending_approval') return 'pending';
@@ -99,27 +103,37 @@ export function EventsPage() {
 
   const allEvents = useMemo(() => eventsData?.data ?? [], [eventsData]);
 
+  // Classify every event ONCE against a single `now`. The tab counts and the
+  // filtered grid are both derived from this one result, so they can never
+  // disagree (previously each called Date.now() separately and a boundary event
+  // could be counted "approved" yet hidden from the list).
+  const classified = useMemo(() => {
+    const now = Date.now();
+    return allEvents.map((e) => ({ event: e, bucket: classifyEvent(e, now) }));
+  }, [allEvents]);
+
   // Analytics roll-up across every event (shown for admins & organizers alike).
   const analytics = useMemo(() => {
     const ticketsSold = allEvents.reduce((s, e) => s + (e.totalTicketsSold || 0), 0);
     const revenue = allEvents.reduce((s, e) => s + (e.totalRevenue || 0), 0);
-    const active = allEvents.filter((e) => {
-      const b = classifyEvent(e);
-      return b === 'approved' || b === 'ongoing';
-    }).length;
+    const active = classified.filter((c) => c.bucket === 'approved' || c.bucket === 'ongoing').length;
     return { totalEvents: allEvents.length, ticketsSold, revenue, active };
-  }, [allEvents]);
+  }, [allEvents, classified]);
 
-  // Count per bucket for the tab labels, and the filtered list for the grid.
+  // Count per bucket for the tab labels, and the filtered list for the grid —
+  // both read from the single `classified` pass above.
   const counts = useMemo(() => {
     const c: Record<Bucket, number> = { all: allEvents.length, pending: 0, approved: 0, ongoing: 0, cancelled: 0, past: 0 };
-    for (const e of allEvents) c[classifyEvent(e)] += 1;
+    for (const { bucket } of classified) c[bucket] += 1;
     return c;
-  }, [allEvents]);
+  }, [allEvents, classified]);
 
   const filteredEvents = useMemo(
-    () => (activeTab === 'all' ? allEvents : allEvents.filter((e) => classifyEvent(e) === activeTab)),
-    [allEvents, activeTab]
+    () =>
+      activeTab === 'all'
+        ? allEvents
+        : classified.filter((c) => c.bucket === activeTab).map((c) => c.event),
+    [allEvents, classified, activeTab]
   );
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
