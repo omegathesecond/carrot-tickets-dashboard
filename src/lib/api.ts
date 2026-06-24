@@ -800,6 +800,25 @@ class ApiClient {
           body: JSON.stringify(paymentReference ? { paymentReference } : {}),
         }
       ),
+
+    // ── Reseller commission withdrawals ──
+    listWithdrawals: async (resellerId: string): Promise<ResellerWithdrawal[]> =>
+      this.request<ResellerWithdrawal[]>(`/admin/resellers/${resellerId}/withdrawals`),
+
+    approveWithdrawal: async (id: string): Promise<ResellerWithdrawal> =>
+      this.request<ResellerWithdrawal>(`/admin/withdrawals/${id}/approve`, { method: 'POST' }),
+
+    markWithdrawalPaid: async (id: string, paymentReference?: string): Promise<ResellerWithdrawal> =>
+      this.request<ResellerWithdrawal>(`/admin/withdrawals/${id}/mark-paid`, {
+        method: 'POST',
+        body: JSON.stringify(paymentReference ? { paymentReference } : {}),
+      }),
+
+    rejectWithdrawal: async (id: string, notes?: string): Promise<ResellerWithdrawal> =>
+      this.request<ResellerWithdrawal>(`/admin/withdrawals/${id}/reject`, {
+        method: 'POST',
+        body: JSON.stringify(notes ? { notes } : {}),
+      }),
   };
 
   // Export endpoints
@@ -836,6 +855,20 @@ class ApiClient {
       window.URL.revokeObjectURL(downloadUrl);
     },
   };
+}
+
+export interface ResellerWithdrawal {
+  _id: string;
+  resellerId: string;
+  amount: number;
+  status: 'requested' | 'approved' | 'paid' | 'rejected';
+  requestedBy: string;
+  requestedAt: string;
+  approvedBy?: string;
+  paidAt?: string;
+  paymentReference?: string;
+  notes?: string;
+  createdAt: string;
 }
 
 export const apiClient = new ApiClient(API_BASE_URL);
