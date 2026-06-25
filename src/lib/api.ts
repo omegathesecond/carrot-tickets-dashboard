@@ -822,6 +822,35 @@ class ApiClient {
       }),
   };
 
+  // Gate Operators endpoints
+  gateOperators = {
+    list: async (): Promise<GateOperatorRow[]> =>
+      this.request<GateOperatorRow[]>(`/tickets/gate-operators`),
+
+    create: async (data: {
+      fullName: string;
+      phoneNumber?: string;
+      scope?: 'platform' | 'organizer';
+      vendorId?: string;
+    }): Promise<IssuedGateCredentials> =>
+      this.request<IssuedGateCredentials>(`/tickets/gate-operators`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    resetPin: async (id: string, pin?: string): Promise<{ operatorId: string; pin: string }> =>
+      this.request<{ operatorId: string; pin: string }>(`/tickets/gate-operators/${id}/reset-pin`, {
+        method: 'POST',
+        body: JSON.stringify(pin ? { pin } : {}),
+      }),
+
+    setActive: async (id: string, isActive: boolean): Promise<GateOperatorRow> =>
+      this.request<GateOperatorRow>(`/tickets/gate-operators/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ isActive }),
+      }),
+  };
+
   // Export endpoints
   exports = {
     exportSalesCSV: async (params?: SalesQueryParams): Promise<void> => {
@@ -870,6 +899,23 @@ export interface ResellerWithdrawal {
   paymentReference?: string;
   notes?: string;
   createdAt: string;
+}
+
+export interface GateOperatorRow {
+  _id: string;
+  fullName: string;
+  phoneNumber?: string;
+  scope: 'platform' | 'organizer';
+  vendorId?: string | null;
+  isActive: boolean;
+  loginCode: string;
+  createdAt: string;
+}
+
+export interface IssuedGateCredentials {
+  operator: GateOperatorRow;
+  loginCode: string;
+  pin: string;
 }
 
 export const apiClient = new ApiClient(API_BASE_URL);

@@ -9,11 +9,12 @@ import {
   Settings2,
   Users,
   Banknote,
+  ShieldCheck,
   X,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { BRAND_NAME } from '@/lib/brand';
-import { TicketsPermission, hasPermission, canManageEvents } from '@/lib/permissions';
+import { TicketsPermission, hasPermission, canManageEvents, canManageAccess } from '@/lib/permissions';
 
 interface NavigationItem {
   name: string;
@@ -63,6 +64,12 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       href: '/entry-scan',
       icon: ScanLine,
       show: hasPermission(user, TicketsPermission.SCAN_TICKETS),
+    },
+    {
+      name: 'Gate Operators',
+      href: '/gate-operators',
+      icon: ShieldCheck,
+      show: canManageAccess(user),
     },
     {
       name: 'Analytics',

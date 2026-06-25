@@ -14,6 +14,7 @@ export const TicketsPermission = {
   SCAN_TICKETS: 'tickets:scan_tickets',
   VIEW_SCANS: 'tickets:view_scans',
   VIEW_STATS: 'tickets:view_stats',
+  MANAGE_ACCESS: 'tickets:manage_access',
 } as const;
 
 export type TicketsPermissionValue =
@@ -42,4 +43,14 @@ export function canManageEvents(user: AuthUser | null | undefined): boolean {
     hasPermission(user, TicketsPermission.CREATE_EVENT) ||
     hasPermission(user, TicketsPermission.EDIT_EVENT)
   );
+}
+
+/**
+ * Gate-operator management — super-admins always have this; vendor users only
+ * if the API has issued the `tickets:manage_access` permission in their token.
+ */
+export function canManageAccess(user: AuthUser | null | undefined): boolean {
+  if (!user) return false;
+  if (user.isSuperAdmin) return true;
+  return hasPermission(user, TicketsPermission.MANAGE_ACCESS);
 }
