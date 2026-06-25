@@ -74,7 +74,7 @@ export function SettingsPage() {
       </div>
     );
 
-  const toggle = (key: 'keshlessWalletEnabled' | 'mtnMomoEnabled' | 'cashEnabled') => {
+  const toggle = (key: 'keshlessWalletEnabled' | 'mtnMomoEnabled' | 'cashEnabled' | 'cardEnabled') => {
     const feeVal = parseFloat(feeInput);
     const commVal = parseFloat(commInput);
     mutation.mutate({
@@ -136,6 +136,18 @@ export function SettingsPage() {
             <Switch
               checked={data.mtnMomoEnabled}
               onCheckedChange={() => toggle('mtnMomoEnabled')}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <Label className="text-base">Card payments (Peach)</Label>
+              <p className="text-sm text-muted-foreground">
+                Pay by Visa/Mastercard. Leave OFF until Peach activation is confirmed.
+              </p>
+            </div>
+            <Switch
+              checked={data.cardEnabled}
+              onCheckedChange={() => toggle('cardEnabled')}
             />
           </div>
           <div className="flex items-center justify-between">

@@ -49,6 +49,7 @@ export interface PaymentMethodSettings {
   keshlessWalletEnabled: boolean;
   mtnMomoEnabled: boolean;
   cashEnabled: boolean;
+  cardEnabled: boolean;
   defaultResellerCommissionPercent: number;
   platformFeePercent: number;
 }
