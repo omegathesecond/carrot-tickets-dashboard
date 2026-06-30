@@ -29,7 +29,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import type { SaleData } from '@/lib/saleData';
-import { friendlyMessage } from '@/lib/errors';
+import { friendlyMessage, momoFailureMessage } from '@/lib/errors';
 
 const PAYMENT_META: Record<string, { label: string; icon: LucideIcon; tint: string }> = {
   cash: { label: 'Cash', icon: Banknote, tint: 'bg-green-50 text-green-600' },
@@ -283,7 +283,7 @@ export function ResellerPosPage() {
             resetForm();
           } else if (result.status === 'failed') {
             stopPolling();
-            toast.error('Payment failed or was declined. Please try again.');
+            toast.error(momoFailureMessage(result.reason));
             resetForm();
           }
           // status === 'pending' → keep polling

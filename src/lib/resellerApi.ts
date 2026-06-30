@@ -70,6 +70,7 @@ export type CreateSaleResponse = {
 export type FinalizeSaleResponse = {
   status: 'completed' | 'pending' | 'failed';
   saleId?: string;
+  reason?: string; // MTN failure reason enum (e.g. NOT_ENOUGH_FUNDS) on a failed status
   tickets?: Array<{ ticketId: string }>;
   ticketIds?: string[];
 };
