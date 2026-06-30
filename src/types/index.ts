@@ -1,3 +1,5 @@
+export * from './reseller';
+
 // Authentication Types
 export interface LoginCredentials {
   identifier: string; // email or phone
@@ -38,6 +40,9 @@ export interface AuthUser {
 export interface PaymentMethodSettings {
   keshlessWalletEnabled: boolean;
   mtnMomoEnabled: boolean;
+  cashEnabled: boolean;
+  defaultResellerCommissionPercent: number;
+  platformFeePercent: number;
 }
 
 // Event Types
