@@ -1,7 +1,7 @@
 // Public customer-facing Carrot Tickets site (where buyers browse + buy).
 // Used by the auth pages' top bar to let organizers get back to the landing
 // page. Override per-environment via VITE_LANDING_URL if needed.
-export const LANDING_URL = import.meta.env.VITE_LANDING_URL || 'https://tickets.keshless.com';
+export const LANDING_URL = import.meta.env.VITE_LANDING_URL || 'https://www.carrottickets.com';
 
 export interface Country {
   name: string;

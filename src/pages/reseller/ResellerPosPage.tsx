@@ -29,6 +29,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import type { SaleData } from '@/lib/saleData';
+import { friendlyMessage } from '@/lib/errors';
 
 const PAYMENT_META: Record<string, { label: string; icon: LucideIcon; tint: string }> = {
   cash: { label: 'Cash', icon: Banknote, tint: 'bg-green-50 text-green-600' },
@@ -288,12 +289,12 @@ export function ResellerPosPage() {
           // status === 'pending' → keep polling
         } catch (err: any) {
           stopPolling();
-          toast.error(err.message || 'Error checking payment status');
+          toast.error(friendlyMessage(err, 'Could not check the payment status. Please try again.'));
           resetForm();
         }
       }, 3000);
     } catch (err: any) {
-      toast.error(err.message || 'Failed to create sale');
+      toast.error(friendlyMessage(err, 'Could not complete the sale. Please make sure the buyer’s MoMo wallet has enough balance, then try again.'));
       setIsSubmitting(false);
     }
   };

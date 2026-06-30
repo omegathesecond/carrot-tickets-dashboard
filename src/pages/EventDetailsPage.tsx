@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
+import { LANDING_URL } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -625,7 +626,7 @@ export function EventDetailsPage() {
             <CardContent className="flex flex-col items-center">
               <div className="bg-white p-4 rounded-lg border-2 border-slate-200">
                 <QRCodeSVG
-                  value={`https://tickets.keshless.app/events/${event._id}`}
+                  value={`${LANDING_URL}/event/${event._id}`}
                   size={180}
                   level="H"
                 />
