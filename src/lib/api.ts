@@ -31,6 +31,8 @@ import type {
   OrganizerPayoutPreview,
   OrganizerPayout,
   HubAnalytics,
+  UsersListResponse,
+  UserAnalytics,
 } from '@/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -644,6 +646,20 @@ class ApiClient {
         `/tickets/stats/events/${eventId}?${query.toString()}`
       );
     },
+  };
+
+  // Platform Users endpoints (super-admin or tickets:view_users)
+  users = {
+    list: async (params?: { search?: string; page?: number; limit?: number }): Promise<UsersListResponse> => {
+      const query = new URLSearchParams();
+      if (params?.search) query.append('search', params.search);
+      if (params?.page) query.append('page', String(params.page));
+      if (params?.limit) query.append('limit', String(params.limit));
+      return this.request<UsersListResponse>(`/tickets/admin/users?${query.toString()}`);
+    },
+
+    analytics: async (): Promise<UserAnalytics> =>
+      this.request<UserAnalytics>(`/tickets/admin/users/analytics`),
   };
 
   // Settings endpoints (super-admin only)

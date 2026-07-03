@@ -15,6 +15,7 @@ export const TicketsPermission = {
   VIEW_SCANS: 'tickets:view_scans',
   VIEW_STATS: 'tickets:view_stats',
   MANAGE_ACCESS: 'tickets:manage_access',
+  VIEW_USERS: 'tickets:view_users',
 } as const;
 
 export type TicketsPermissionValue =
@@ -53,4 +54,19 @@ export function canManageAccess(user: AuthUser | null | undefined): boolean {
   if (!user) return false;
   if (user.isSuperAdmin) return true;
   return hasPermission(user, TicketsPermission.MANAGE_ACCESS);
+}
+
+/**
+ * Platform Users tab (registered buyers + signup analytics) — Carrot staff only.
+ * Super-admins always; other team members only with the explicit
+ * `tickets:view_users` permission. Regular organizers never qualify.
+ *
+ * NOTE: unlike hasPermission's "empty array = full access" default, this must
+ * fail closed for owner accounts that carry no permissions array — so we check
+ * membership explicitly rather than via hasPermission.
+ */
+export function canViewUsers(user: AuthUser | null | undefined): boolean {
+  if (!user) return false;
+  if (user.isSuperAdmin) return true;
+  return (user.permissions ?? []).includes(TicketsPermission.VIEW_USERS);
 }

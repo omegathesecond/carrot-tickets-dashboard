@@ -373,3 +373,28 @@ export interface ApiError {
   code?: string;
   errors?: Record<string, string[]>;
 }
+
+// Platform Users (registered buyers) — admin Users tab
+export interface PlatformUser {
+  id: string;
+  name: string | null;
+  phone: string;
+  createdAt: string;
+  lastLoginAt: string | null;
+  ticketsBought: number;
+  totalSpent: number;
+  lastPurchaseAt: string | null;
+}
+
+export interface UsersListResponse {
+  users: PlatformUser[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
+}
+
+export interface UserAnalytics {
+  totalUsers: number;
+  newThisWeek: number;
+  newThisMonth: number;
+  activeBuyers: number;
+  signups: { date: string; count: number }[];
+}

@@ -8,13 +8,14 @@ import {
   BarChart3,
   Settings2,
   Users,
+  UsersRound,
   Banknote,
   ShieldCheck,
   X,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { BRAND_NAME } from '@/lib/brand';
-import { TicketsPermission, hasPermission, canManageEvents, canManageAccess } from '@/lib/permissions';
+import { TicketsPermission, hasPermission, canManageEvents, canManageAccess, canViewUsers } from '@/lib/permissions';
 
 interface NavigationItem {
   name: string;
@@ -76,6 +77,12 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       href: '/analytics',
       icon: BarChart3,
       show: hasPermission(user, TicketsPermission.VIEW_STATS),
+    },
+    {
+      name: 'Users',
+      href: '/users',
+      icon: UsersRound,
+      show: canViewUsers(user),
     },
     ...(user?.isSuperAdmin ? [
       { name: 'Settings', href: '/settings', icon: Settings2, show: true },

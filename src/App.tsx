@@ -28,6 +28,8 @@ import { TicketSalesPage } from '@/pages/TicketSalesPage';
 import { SalesHistoryPage } from '@/pages/SalesHistoryPage';
 import { EntryScanPage } from '@/pages/EntryScanPage';
 import { AnalyticsPage } from '@/pages/AnalyticsPage';
+import { UsersPage } from '@/pages/UsersPage';
+import { ViewUsersRoute } from '@/components/ViewUsersRoute';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { ResellersPage } from '@/pages/ResellersPage';
 import { ResellerDetailPage } from '@/pages/ResellerDetailPage';
@@ -69,6 +71,7 @@ function App() {
                   <Route path="sales-history" element={<SalesHistoryPage />} />
                   <Route path="entry-scan" element={<EntryScanPage />} />
                   <Route path="analytics" element={<AnalyticsPage />} />
+                  <Route path="users" element={<ViewUsersRoute><UsersPage /></ViewUsersRoute>} />
                   <Route path="settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
                   <Route path="resellers" element={<AdminRoute><ResellersPage /></AdminRoute>} />
                   <Route path="resellers/:id" element={<AdminRoute><ResellerDetailPage /></AdminRoute>} />
