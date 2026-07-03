@@ -18,6 +18,9 @@ export function SettingsPage() {
   const qc = useQueryClient();
   const [feeInput, setFeeInput] = useState('');
   const [commInput, setCommInput] = useState('');
+  const [keshFeeInput, setKeshFeeInput] = useState('');
+  const [momoFeeInput, setMomoFeeInput] = useState('');
+  const [cardFeeInput, setCardFeeInput] = useState('');
   const [feesInitialised, setFeesInitialised] = useState(false);
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -30,6 +33,9 @@ export function SettingsPage() {
     if (data && !feesInitialised) {
       setFeeInput(String(data.platformFeePercent));
       setCommInput(String(data.defaultResellerCommissionPercent));
+      setKeshFeeInput(String(data.keshlessServiceFee ?? 0));
+      setMomoFeeInput(String(data.momoServiceFee ?? 0));
+      setCardFeeInput(String(data.cardServiceFee ?? 0));
       setFeesInitialised(true);
     }
   }, [data, feesInitialised]);
@@ -102,6 +108,34 @@ export function SettingsPage() {
       ...data,
       platformFeePercent: feeVal,
       defaultResellerCommissionPercent: commVal,
+    });
+  };
+
+  // Buyer-paid service fees (per online method).
+  const serviceFeesMutation = useMutation({
+    mutationFn: (patch: Parameters<typeof apiClient.settings.updatePaymentMethods>[0]) =>
+      apiClient.settings.updatePaymentMethods(patch),
+    onSuccess: (d) => {
+      qc.setQueryData(['payment-methods'], d);
+      toast.success('Service fees updated');
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : 'Update failed'),
+  });
+
+  const keshFeeVal = parseFloat(keshFeeInput);
+  const momoFeeVal = parseFloat(momoFeeInput);
+  const cardFeeVal = parseFloat(cardFeeInput);
+  const inRange = (v: number) => !isNaN(v) && v >= 0 && v <= 100000;
+  const serviceFeesValid =
+    keshFeeInput !== '' && momoFeeInput !== '' && cardFeeInput !== '' &&
+    inRange(keshFeeVal) && inRange(momoFeeVal) && inRange(cardFeeVal);
+
+  const saveServiceFees = () => {
+    serviceFeesMutation.mutate({
+      ...data,
+      keshlessServiceFee: keshFeeVal,
+      momoServiceFee: momoFeeVal,
+      cardServiceFee: cardFeeVal,
     });
   };
 
@@ -205,6 +239,62 @@ export function SettingsPage() {
             className="bg-gradient-to-r from-orange-600 to-amber-600 text-white hover:opacity-90"
           >
             {feesMutation.isPending ? 'Saving…' : 'Save Fees'}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Service Fees</CardTitle>
+          <CardDescription>
+            Flat buyer-paid fee (in E) added on top of the ticket price at online
+            checkout, per payment method. Set 0 for no fee. Does not apply to
+            POS/reseller sales.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="kesh-fee">Keshless Wallet service fee (E)</Label>
+            <Input
+              id="kesh-fee"
+              type="number"
+              min="0"
+              step="0.01"
+              value={keshFeeInput}
+              onChange={(e) => setKeshFeeInput(e.target.value)}
+              placeholder="e.g. 0"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="momo-fee">MTN MoMo service fee (E)</Label>
+            <Input
+              id="momo-fee"
+              type="number"
+              min="0"
+              step="0.01"
+              value={momoFeeInput}
+              onChange={(e) => setMomoFeeInput(e.target.value)}
+              placeholder="e.g. 5"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="card-fee">Card service fee (E)</Label>
+            <Input
+              id="card-fee"
+              type="number"
+              min="0"
+              step="0.01"
+              value={cardFeeInput}
+              onChange={(e) => setCardFeeInput(e.target.value)}
+              placeholder="e.g. 10"
+            />
+          </div>
+          <Button
+            onClick={saveServiceFees}
+            disabled={!serviceFeesValid || serviceFeesMutation.isPending}
+            className="bg-gradient-to-r from-orange-600 to-amber-600 text-white hover:opacity-90"
+          >
+            {serviceFeesMutation.isPending ? 'Saving…' : 'Save Service Fees'}
           </Button>
         </CardContent>
       </Card>
