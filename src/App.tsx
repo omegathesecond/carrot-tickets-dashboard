@@ -31,6 +31,7 @@ import { AnalyticsPage } from '@/pages/AnalyticsPage';
 import { UsersPage } from '@/pages/UsersPage';
 import { ViewUsersRoute } from '@/components/ViewUsersRoute';
 import { SettingsPage } from '@/pages/SettingsPage';
+import { OrganizersPage } from '@/pages/OrganizersPage';
 import { ResellersPage } from '@/pages/ResellersPage';
 import { ResellerDetailPage } from '@/pages/ResellerDetailPage';
 import { HubDetailPage } from '@/pages/HubDetailPage';
@@ -73,6 +74,7 @@ function App() {
                   <Route path="analytics" element={<AnalyticsPage />} />
                   <Route path="users" element={<ViewUsersRoute><UsersPage /></ViewUsersRoute>} />
                   <Route path="settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
+                  <Route path="organizers" element={<AdminRoute><OrganizersPage /></AdminRoute>} />
                   <Route path="resellers" element={<AdminRoute><ResellersPage /></AdminRoute>} />
                   <Route path="resellers/:id" element={<AdminRoute><ResellerDetailPage /></AdminRoute>} />
                   <Route path="resellers/:id/hubs/:hubId" element={<AdminRoute><HubDetailPage /></AdminRoute>} />

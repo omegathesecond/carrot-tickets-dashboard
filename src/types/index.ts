@@ -402,3 +402,29 @@ export interface UserAnalytics {
   activeBuyers: number;
   signups: { date: string; count: number }[];
 }
+
+// Organizers (vendors) — admin Organizers tab
+export type OrganizerVerificationStatus = 'pending' | 'verified' | 'rejected' | 'suspended';
+
+export interface Organizer {
+  id: string;
+  businessName: string;
+  email: string | null;
+  phoneNumber: string | null;
+  primaryContact: string | null;
+  businessType: string | null;
+  verificationStatus: OrganizerVerificationStatus;
+  verifiedAt: string | null;
+  rejectionReason: string | null;
+  isActive: boolean;
+  createdAt: string;
+  eventCount: number;
+  ticketsSold: number;
+  revenue: number;
+}
+
+export interface OrganizersListResponse {
+  organizers: Organizer[];
+  statusCounts: Partial<Record<OrganizerVerificationStatus, number>>;
+  pagination: { page: number; limit: number; total: number; totalPages: number };
+}

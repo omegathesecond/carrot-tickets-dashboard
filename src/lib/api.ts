@@ -33,6 +33,9 @@ import type {
   HubAnalytics,
   UsersListResponse,
   UserAnalytics,
+  Organizer,
+  OrganizersListResponse,
+  OrganizerVerificationStatus,
 } from '@/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -660,6 +663,27 @@ class ApiClient {
 
     analytics: async (): Promise<UserAnalytics> =>
       this.request<UserAnalytics>(`/tickets/admin/users/analytics`),
+  };
+
+  // Organizers admin endpoints (super-admin only)
+  organizers = {
+    list: async (params?: { search?: string; status?: string; page?: number; limit?: number }): Promise<OrganizersListResponse> => {
+      const query = new URLSearchParams();
+      if (params?.search) query.append('search', params.search);
+      if (params?.status) query.append('status', params.status);
+      if (params?.page) query.append('page', String(params.page));
+      if (params?.limit) query.append('limit', String(params.limit));
+      return this.request<OrganizersListResponse>(`/tickets/admin/organizers?${query.toString()}`);
+    },
+
+    updateVerification: async (
+      id: string,
+      data: { status: OrganizerVerificationStatus; rejectionReason?: string },
+    ): Promise<Pick<Organizer, 'id' | 'verificationStatus' | 'verifiedAt' | 'rejectionReason'>> =>
+      this.request(`/tickets/admin/organizers/${id}/verification`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
   };
 
   // Settings endpoints (super-admin only)

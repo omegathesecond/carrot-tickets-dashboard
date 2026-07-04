@@ -11,6 +11,7 @@ import {
   UsersRound,
   Banknote,
   ShieldCheck,
+  Building2,
   X,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -85,6 +86,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       show: canViewUsers(user),
     },
     ...(user?.isSuperAdmin ? [
+      { name: 'Organizers', href: '/organizers', icon: Building2, show: true },
       { name: 'Settings', href: '/settings', icon: Settings2, show: true },
       { name: 'Resellers', href: '/resellers', icon: Users, show: true },
       { name: 'Payouts', href: '/payouts', icon: Banknote, show: true },
