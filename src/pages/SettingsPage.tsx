@@ -60,6 +60,19 @@ export function SettingsPage() {
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : 'Update failed'),
   });
 
+  // Buyer-paid service fees (per online method). Declared BEFORE the early
+  // returns below — hooks must run on every render or React throws
+  // "Rendered more hooks than during the previous render" once data loads.
+  const serviceFeesMutation = useMutation({
+    mutationFn: (patch: Parameters<typeof apiClient.settings.updatePaymentMethods>[0]) =>
+      apiClient.settings.updatePaymentMethods(patch),
+    onSuccess: (d) => {
+      qc.setQueryData(['payment-methods'], d);
+      toast.success('Service fees updated');
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : 'Update failed'),
+  });
+
   if (isLoading) return <div className="p-6">Loading…</div>;
   if (isError || !data)
     return (
@@ -110,17 +123,6 @@ export function SettingsPage() {
       defaultResellerCommissionPercent: commVal,
     });
   };
-
-  // Buyer-paid service fees (per online method).
-  const serviceFeesMutation = useMutation({
-    mutationFn: (patch: Parameters<typeof apiClient.settings.updatePaymentMethods>[0]) =>
-      apiClient.settings.updatePaymentMethods(patch),
-    onSuccess: (d) => {
-      qc.setQueryData(['payment-methods'], d);
-      toast.success('Service fees updated');
-    },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : 'Update failed'),
-  });
 
   const keshFeeVal = parseFloat(keshFeeInput);
   const momoFeeVal = parseFloat(momoFeeInput);
