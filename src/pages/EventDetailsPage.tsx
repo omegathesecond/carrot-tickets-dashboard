@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
-import { LANDING_URL } from '@/lib/constants';
+import { publicEventUrl } from '@/lib/eventUrl';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -18,7 +18,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getSaleTicketType, getSaleTicketCodes } from '@/lib/sales';
 import {
   ArrowLeft, Calendar, MapPin, Users, CheckCircle, Clock,
-  Edit, Trash2, Eye, EyeOff, QrCode, Plus, TrendingUp, TrendingDown, Image, BarChart3, UserCircle
+  Edit, Trash2, Eye, EyeOff, QrCode, Plus, TrendingUp, TrendingDown, Image, BarChart3, UserCircle,
+  Share2, Link as LinkIcon
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -202,6 +203,35 @@ export function EventDetailsPage() {
     isPublished ? 'default' : isPending ? 'secondary' : 'secondary';
   const totalCapacity = event.capacity || event.ticketTypes.reduce((sum, tt) => sum + tt.quantity, 0);
   const soldPercentage = totalCapacity > 0 ? (event.totalTicketsSold / totalCapacity) * 100 : 0;
+
+  // Public buyer-facing page: slugged URL, resolved by the trailing _id
+  // (same URL the QR code encodes).
+  const eventShareUrl = publicEventUrl(event);
+
+  const handleCopyPublicLink = async () => {
+    try {
+      await navigator.clipboard.writeText(eventShareUrl);
+      toast.success('Event link copied to clipboard');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to copy link');
+    }
+  };
+
+  const handleSharePublicLink = async () => {
+    const shareText = `Check out ${event.name} at ${event.venue} — get your tickets here:`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: event.name, text: shareText, url: eventShareUrl });
+      } catch (err: any) {
+        // User dismissing the share sheet is not an error.
+        if (err?.name !== 'AbortError') toast.error(err?.message || 'Failed to share link');
+      }
+    } else {
+      // No native share sheet on this browser — copy instead.
+      await handleCopyPublicLink();
+    }
+  };
+
 
   return (
     <div className="p-8 space-y-6">
@@ -626,7 +656,7 @@ export function EventDetailsPage() {
             <CardContent className="flex flex-col items-center">
               <div className="bg-white p-4 rounded-lg border-2 border-slate-200">
                 <QRCodeSVG
-                  value={`${LANDING_URL}/event/${event._id}`}
+                  value={eventShareUrl}
                   size={180}
                   level="H"
                 />
@@ -634,9 +664,31 @@ export function EventDetailsPage() {
               <p className="text-xs text-slate-600 text-center mt-3">
                 Scan to view event details
               </p>
-              <Button variant="outline" className="mt-3 w-full" size="sm">
-                Download QR Code
-              </Button>
+              <div className="mt-3 w-full">
+                <div className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-md px-3 py-2 break-all">
+                  {eventShareUrl}
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    size="sm"
+                    onClick={handleCopyPublicLink}
+                  >
+                    <LinkIcon className="h-4 w-4 mr-2" />
+                    Copy Link
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    size="sm"
+                    onClick={handleSharePublicLink}
+                  >
+                    <Share2 className="h-4 w-4 mr-2" />
+                    Share
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
