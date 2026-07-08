@@ -110,6 +110,11 @@ export function createQrElement(partial: Partial<QrElement> = {}): QrElement {
   return { ...BASE(), type: 'qr', sizeMm: 15, ...partial };
 }
 
+/** True when the design can carry a per-band QR — used to block QR print modes otherwise. */
+export function hasVisibleQrElement(elements: WristbandElement[]): boolean {
+  return elements.some((e) => e.type === 'qr' && e.visible);
+}
+
 /** New image element scaled to fit the band height, aspect preserved. */
 export function createImageElement(
   url: string, naturalWidth: number, naturalHeight: number, bandHeightMm: number

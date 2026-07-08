@@ -21,9 +21,10 @@ export function ProgressBar({ done, total }: { done: number; total: number }) {
 
 /** Reprintable history for the "New batch" tab — the recovery path when a
  *  batch was issued but its PDF failed to render. */
-export function RecentBatches({ batches, busy, onReprint }: {
+export function RecentBatches({ batches, busy, qrReady, onReprint }: {
   batches: WristbandBatch[];
   busy: boolean;
+  qrReady: boolean;
   onReprint: (b: WristbandBatch) => void;
 }) {
   return (
@@ -33,7 +34,11 @@ export function RecentBatches({ batches, busy, onReprint }: {
         {batches.map((b) => (
           <div key={b._id} className="flex items-center justify-between rounded border px-2 py-1 text-sm">
             <span>{b.ticketType} × {b.quantity} — {new Date(b.soldAt).toLocaleString()}</span>
-            <Button size="sm" variant="outline" disabled={busy} onClick={() => onReprint(b)}>
+            <Button
+              size="sm" variant="outline" disabled={busy || !qrReady}
+              title={qrReady ? undefined : 'This design has no visible QR element'}
+              onClick={() => onReprint(b)}
+            >
               <Printer className="mr-1 h-3.5 w-3.5" /> Print
             </Button>
           </div>

@@ -5,6 +5,7 @@ import { Loader2 } from 'lucide-react';
 import { apiClient, type WristbandBatch } from '@/lib/api';
 import type { Event } from '@/types';
 import { loadCalibration, type SheetTemplate } from '@/lib/wristband/templates';
+import { hasVisibleQrElement } from '@/lib/wristband/design';
 import type { EditorState } from '@/lib/wristband/editorState';
 import { planPages, runPrintJob } from '@/lib/wristband/printJob';
 import { openPdf } from '@/lib/wristband/pdf';
@@ -23,6 +24,7 @@ type Mode = 'noqr' | 'newbatch' | 'existing';
 type Progress = { done: number; total: number };
 
 const SUCCESS_TOAST = 'PDF ready — print at Actual size with photo quality settings';
+const NO_QR_WARNING = 'This design has no visible QR element — add one in the editor before printing scannable wristbands.';
 
 /**
  * Print flow — three ways to get ticketIds onto real bands (or none, for a
@@ -65,6 +67,7 @@ export function PrintDialog({ open, onOpenChange, eventId, event, template, stat
   });
 
   const busy = progress !== null;
+  const qrReady = hasVisibleQrElement(state.elements);
 
   /** Plan → render every band → assemble. Throws; callers own the toasting
    *  so each mode can report failure in its own words (e.g. new-batch needs
@@ -110,6 +113,7 @@ export function PrintDialog({ open, onOpenChange, eventId, event, template, stat
   });
 
   async function handleIssueAndPrint() {
+    if (!qrReady) { toast.error(NO_QR_WARNING); return; }
     if (!ticketTypeId) { toast.error('Choose a ticket type'); return; }
     if (quantity < 1) { toast.error('Quantity must be at least 1'); return; }
     let ticketIds: string[];
@@ -130,6 +134,7 @@ export function PrintDialog({ open, onOpenChange, eventId, event, template, stat
   }
 
   function handleReprintBatch(batch: WristbandBatch) {
+    if (!qrReady) { toast.error(NO_QR_WARNING); return; }
     void printAndOpen(batch.tickets.map((t) => t.ticketId));
   }
 
@@ -142,6 +147,7 @@ export function PrintDialog({ open, onOpenChange, eventId, event, template, stat
   }
 
   async function handlePrintSelected() {
+    if (!qrReady) { toast.error(NO_QR_WARNING); return; }
     if (selectedIds.size === 0) { toast.error('Select at least one ticket'); return; }
     const ok = await printAndOpen([...selectedIds]);
     if (ok) setSelectedIds(new Set());
@@ -198,12 +204,17 @@ export function PrintDialog({ open, onOpenChange, eventId, event, template, stat
               <Label>Quantity</Label>
               <Input type="number" min={1} value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} />
             </div>
-            <Button disabled={busy || issueMutation.isPending} onClick={handleIssueAndPrint}>
+            {!qrReady && (
+              <p className="rounded border border-amber-300 bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
+                {NO_QR_WARNING}
+              </p>
+            )}
+            <Button disabled={busy || issueMutation.isPending || !qrReady} onClick={handleIssueAndPrint}>
               {(busy || issueMutation.isPending) && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
               Issue &amp; print
             </Button>
 
-            <RecentBatches batches={batchesQuery.data ?? []} busy={busy} onReprint={handleReprintBatch} />
+            <RecentBatches batches={batchesQuery.data ?? []} busy={busy} qrReady={qrReady} onReprint={handleReprintBatch} />
           </TabsContent>
 
           <TabsContent value="existing" className="space-y-3">
@@ -227,7 +238,12 @@ export function PrintDialog({ open, onOpenChange, eventId, event, template, stat
                 <p className="text-xs text-muted-foreground">No matching tickets.</p>
               )}
             </div>
-            <Button disabled={busy || selectedIds.size === 0} onClick={handlePrintSelected}>
+            {!qrReady && (
+              <p className="rounded border border-amber-300 bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
+                {NO_QR_WARNING}
+              </p>
+            )}
+            <Button disabled={busy || selectedIds.size === 0 || !qrReady} onClick={handlePrintSelected}>
               {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
               Print{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
             </Button>

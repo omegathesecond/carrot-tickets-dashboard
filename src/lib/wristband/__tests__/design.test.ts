@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   imageEffectiveDpi, LOW_DPI_THRESHOLD, createImageElement, createTextElement,
-  createQrElement, FONT_FAMILIES,
+  createQrElement, FONT_FAMILIES, hasVisibleQrElement,
 } from '../design';
 
 describe('imageEffectiveDpi', () => {
@@ -36,5 +36,20 @@ describe('factories', () => {
     const q = createQrElement();
     expect(q.type).toBe('qr');
     expect(q.sizeMm).toBeGreaterThan(0);
+  });
+});
+
+describe('hasVisibleQrElement', () => {
+  it('true when a visible qr element is present', () => {
+    const elements = [createTextElement(), createQrElement()];
+    expect(hasVisibleQrElement(elements)).toBe(true);
+  });
+  it('false when there is no qr element at all', () => {
+    const elements = [createTextElement()];
+    expect(hasVisibleQrElement(elements)).toBe(false);
+  });
+  it('false when the qr element is toggled invisible', () => {
+    const elements = [createQrElement({ visible: false })];
+    expect(hasVisibleQrElement(elements)).toBe(false);
   });
 });

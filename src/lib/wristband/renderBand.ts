@@ -89,6 +89,9 @@ export async function renderBandPng(opts: {
   qr?: { ticketId: string };
 }): Promise<Uint8Array> {
   const { template, background, elements, images, qr } = opts;
+  if (qr && !elements.some((e) => e.type === 'qr' && e.visible)) {
+    throw new Error('Design has no visible QR element to carry the ticket code');
+  }
   const widthPx = mmToPrintPx(template.bandWidthMm);
   const heightPx = mmToPrintPx(template.bandHeightMm);
   const pxPerMm = PRINT_DPI / 25.4;
