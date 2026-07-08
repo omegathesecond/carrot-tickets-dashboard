@@ -12,11 +12,12 @@ import {
   Banknote,
   ShieldCheck,
   Building2,
+  Ticket,
   X,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { BRAND_NAME } from '@/lib/brand';
-import { TicketsPermission, hasPermission, canManageEvents, canManageAccess, canViewUsers } from '@/lib/permissions';
+import { TicketsPermission, hasPermission, canManageEvents, canManageAccess, canViewUsers, canPrintWristbands } from '@/lib/permissions';
 
 interface NavigationItem {
   name: string;
@@ -84,6 +85,12 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       href: '/users',
       icon: UsersRound,
       show: canViewUsers(user),
+    },
+    {
+      name: 'Wristbands',
+      href: '/wristbands',
+      icon: Ticket,
+      show: canPrintWristbands(user),
     },
     ...(user?.isSuperAdmin ? [
       { name: 'Organizers', href: '/organizers', icon: Building2, show: true },
