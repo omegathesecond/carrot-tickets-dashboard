@@ -54,6 +54,15 @@ export const DEFAULT_TEMPLATES: SheetTemplate[] = [
     pageWidthMm: 279.4, pageHeightMm: 266.7, bandWidthMm: 254, bandHeightMm: 25.4,
     marginTopMm: 6.35, marginLeftMm: 12.7, gapYMm: 0, bandsPerSheet: 10, tabZoneMm: 20,
   },
+  {
+    // Measured from the office Tyvek stock (2026-07-08): 254×254mm sheet,
+    // bands full-bleed edge to edge (10 × 25.4mm fills the height exactly,
+    // no margins, no gaps), 30mm white adhesive/tab zone at the band end.
+    // Full-bleed edges may need the printer's borderless mode.
+    key: 'tyvek-10up-25mm-10x10', name: '10″×10″ sheet · 10-up · 1" bands · 30mm tab',
+    pageWidthMm: 254, pageHeightMm: 254, bandWidthMm: 254, bandHeightMm: 25.4,
+    marginTopMm: 0, marginLeftMm: 0, gapYMm: 0, bandsPerSheet: 10, tabZoneMm: 30,
+  },
 ];
 
 const CAL_KEY = 'carrot.wristband.calibration';
