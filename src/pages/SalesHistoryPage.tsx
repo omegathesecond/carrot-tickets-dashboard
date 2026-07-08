@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +20,11 @@ import type { SalesQueryParams } from '@/types';
 const ALL = 'all';
 
 export function SalesHistoryPage() {
+  // The API only ever returns completed sales to organizers — failed/pending
+  // payment attempts are visible to Carrot super-admins only — so the payment
+  // status filter is meaningless (and misleading) for everyone else.
+  const { user } = useAuth();
+  const canFilterPaymentStatus = Boolean(user?.isSuperAdmin);
   const [dateRange, setDateRange] = useState<DateRange>({
     startDate: undefined,
     endDate: undefined,
@@ -37,7 +43,9 @@ export function SalesHistoryPage() {
     ...(dateRange.endDate ? { endDate: dateRange.endDate } : {}),
     ...(eventId !== ALL ? { eventId } : {}),
     ...(paymentMethod !== ALL ? { paymentMethod: paymentMethod as SalesQueryParams['paymentMethod'] } : {}),
-    ...(paymentStatus !== ALL ? { paymentStatus: paymentStatus as SalesQueryParams['paymentStatus'] } : {}),
+    ...(canFilterPaymentStatus && paymentStatus !== ALL
+      ? { paymentStatus: paymentStatus as SalesQueryParams['paymentStatus'] }
+      : {}),
     ...(channel !== ALL ? { channel: channel as SalesQueryParams['channel'] } : {}),
   };
 
@@ -98,7 +106,7 @@ export function SalesHistoryPage() {
       {/* Filters: date, event, payment type, status */}
       <Card>
         <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 ${canFilterPaymentStatus ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}>
             <div className="space-y-2">
               <Label>Date</Label>
               <DateRangePicker value={dateRange} onChange={setDateRange} />
@@ -131,21 +139,23 @@ export function SalesHistoryPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <Select value={paymentStatus} onValueChange={setPaymentStatus}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL}>All</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="refunded">Refunded</SelectItem>
-                  <SelectItem value="failed">Failed</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {canFilterPaymentStatus && (
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select value={paymentStatus} onValueChange={setPaymentStatus}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL}>All</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="refunded">Refunded</SelectItem>
+                    <SelectItem value="failed">Failed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Channel</Label>
               <Select value={channel} onValueChange={setChannel}>
