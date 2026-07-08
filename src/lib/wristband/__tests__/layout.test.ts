@@ -32,6 +32,13 @@ describe('bandRectsPt', () => {
     expect(rects[0].yPt - rects[1].yPt).toBeCloseTo(mmToPt(T.bandHeightMm + T.gapYMm), 6);
   });
 
+  it('includes a nonzero gap in the band spacing', () => {
+    const G = DEFAULT_TEMPLATES.find((t) => t.key === 'a4l-10up-19mm')!;
+    expect(G.gapYMm).toBeGreaterThan(0); // guard: template must exercise the gap term
+    const rects = bandRectsPt(G, { dxMm: 0, dyMm: 0 });
+    expect(rects[0].yPt - rects[1].yPt).toBeCloseTo(mmToPt(G.bandHeightMm + G.gapYMm), 6);
+  });
+
   it('applies calibration: +dx shifts right, +dy shifts DOWN the printed page', () => {
     const base = bandRectsPt(T, { dxMm: 0, dyMm: 0 });
     const nudged = bandRectsPt(T, { dxMm: 2, dyMm: 3 });
