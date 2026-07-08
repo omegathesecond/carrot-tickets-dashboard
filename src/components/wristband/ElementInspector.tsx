@@ -30,25 +30,39 @@ export function ElementInspector({ state, dispatch, template, eventId }: {
     dispatch({ type: 'update', id: el.id, patch });
   };
 
+  const addImageFromUrl = async (url: string) => {
+    const natural = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+      const img = new window.Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+      img.onerror = () => reject(new Error(`Failed to load image: ${url}`));
+      img.src = url;
+    });
+    dispatch({
+      type: 'add',
+      element: createImageElement(url, natural.width, natural.height, template.bandHeightMm),
+    });
+  };
+
   const handleAddImageFile = async (file: File) => {
     setUploading(true);
     try {
       const { url } = await apiClient.wristbands.uploadArtwork(eventId, file);
-      const natural = await new Promise<{ width: number; height: number }>((resolve, reject) => {
-        const img = new window.Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
-        img.onerror = () => reject(new Error('Failed to read the uploaded image dimensions'));
-        img.src = url;
-      });
-      dispatch({
-        type: 'add',
-        element: createImageElement(url, natural.width, natural.height, template.bandHeightMm),
-      });
+      await addImageFromUrl(url);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to upload artwork');
     } finally {
       setUploading(false);
+    }
+  };
+
+  // Carrot brand stamps served from the dashboard's own /brand/ folder —
+  // stable relative URLs, so saved designs survive redeploys.
+  const handleAddBrand = async (asset: 'carrot-mark.png' | 'carrot-lockup-domain.png') => {
+    try {
+      await addImageFromUrl(`/brand/${asset}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to load brand asset');
     }
   };
 
@@ -90,6 +104,15 @@ export function ElementInspector({ state, dispatch, template, eventId }: {
           if (file) void handleAddImageFile(file);
         }}
       />
+      <h3 className="mt-3 text-sm font-semibold">Brand</h3>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <Button variant="outline" size="sm" onClick={() => void handleAddBrand('carrot-mark.png')}>
+          <img src="/brand/carrot-mark.png" alt="" className="mr-1.5 h-4 w-auto" /> Logo
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => void handleAddBrand('carrot-lockup-domain.png')}>
+          <img src="/brand/carrot-mark.png" alt="" className="mr-1.5 h-4 w-auto" /> Logo + name
+        </Button>
+      </div>
     </div>
   );
 
