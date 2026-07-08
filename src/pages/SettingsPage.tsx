@@ -93,7 +93,7 @@ export function SettingsPage() {
       </div>
     );
 
-  const toggle = (key: 'keshlessWalletEnabled' | 'mtnMomoEnabled' | 'cashEnabled' | 'cardEnabled') => {
+  const toggle = (key: 'keshlessWalletEnabled' | 'mtnMomoEnabled' | 'cashEnabled' | 'peachCardEnabled') => {
     const feeVal = parseFloat(feeInput);
     const commVal = parseFloat(commInput);
     mutation.mutate({
@@ -182,8 +182,8 @@ export function SettingsPage() {
               </p>
             </div>
             <Switch
-              checked={data.cardEnabled}
-              onCheckedChange={() => toggle('cardEnabled')}
+              checked={data.peachCardEnabled}
+              onCheckedChange={() => toggle('peachCardEnabled')}
             />
           </div>
           <div className="flex items-center justify-between">

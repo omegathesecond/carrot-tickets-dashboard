@@ -49,7 +49,7 @@ export interface PaymentMethodSettings {
   keshlessWalletEnabled: boolean;
   mtnMomoEnabled: boolean;
   cashEnabled: boolean;
-  cardEnabled: boolean;
+  peachCardEnabled: boolean;
   defaultResellerCommissionPercent: number;
   platformFeePercent: number;
   // Buyer-paid FLAT service fee (E) per online method (added on top at checkout).
