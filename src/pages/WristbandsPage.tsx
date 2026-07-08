@@ -1,12 +1,11 @@
-import { useEffect, useReducer, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Undo2, Redo2, Printer } from 'lucide-react';
+import { Undo2, Redo2, Printer, SlidersHorizontal, Plus } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { editorReducer, initialEditorState } from '@/lib/wristband/editorState';
+import { editorReducer, initialEditorState, type EditorAction } from '@/lib/wristband/editorState';
 import { allTemplates, DEFAULT_TEMPLATES, type SheetTemplate } from '@/lib/wristband/templates';
 import type { WristbandDesignDoc } from '@/lib/wristband/design';
 import { EditorCanvas } from '@/components/wristband/EditorCanvas';
@@ -14,6 +13,9 @@ import { ElementInspector } from '@/components/wristband/ElementInspector';
 import { LayersPanel } from '@/components/wristband/LayersPanel';
 import { SheetPreview } from '@/components/wristband/SheetPreview';
 import { DesignManagerBar } from '@/components/wristband/DesignManagerBar';
+import { PrintDialog } from '@/components/wristband/PrintDialog';
+import { CalibrationDialog } from '@/components/wristband/CalibrationDialog';
+import { TemplateEditorDialog } from '@/components/wristband/TemplateEditorDialog';
 
 // Picked by KEY, not array index — DEFAULT_TEMPLATES has been reordered
 // before and will likely be again.
@@ -31,9 +33,20 @@ export function WristbandsPage() {
   const [current, setCurrent] = useState<WristbandDesignDoc | null>(null);
   const [state, dispatch] = useReducer(editorReducer, undefined, initialEditorState);
   const [printOpen, setPrintOpen] = useState(false);
-  // state.past.length recorded at the moment of the last save/load — the
-  // Save button's dirty dot lights up once history has advanced past this.
-  const [savedAt, setSavedAt] = useState(0);
+  const [calibrationOpen, setCalibrationOpen] = useState(false);
+  const [templateEditorOpen, setTemplateEditorOpen] = useState(false);
+
+  // Dirty tracking: a monotonic serial bumped on every mutating dispatch (and
+  // on template swaps), compared against the serial at the last load/save.
+  // History DEPTH (state.past.length) is not a safe proxy — undo followed by
+  // a different edit can return to the same depth and falsely read as clean.
+  const [editSerial, setEditSerial] = useState(0);
+  const [savedSerial, setSavedSerial] = useState(0);
+
+  const trackedDispatch = useCallback((action: EditorAction) => {
+    dispatch(action);
+    if (action.type !== 'select') setEditSerial((s) => s + 1);
+  }, []);
 
   const { data: eventsPage, error } = useQuery({
     queryKey: ['wristbands-events'],
@@ -51,12 +64,25 @@ export function WristbandsPage() {
     setCurrent(d);
     setTemplate(d.sheetTemplate);
     dispatch({ type: 'load', background: d.designJson.background, elements: d.designJson.elements });
-    setSavedAt(0); // 'load' always resets history to []
+    setSavedSerial(editSerial); // 'load' matches its own saved state — not dirty
   };
 
   const onSaved = (d: WristbandDesignDoc) => {
     setCurrent(d);
-    setSavedAt(state.past.length);
+    setSavedSerial(editSerial);
+  };
+
+  const handleTemplateChange = (key: string) => {
+    const t = allTemplates().find((x) => x.key === key);
+    if (t) {
+      setTemplate(t);
+      setEditSerial((s) => s + 1); // template is part of the saved doc too
+    }
+  };
+
+  const handleTemplateCreated = (t: SheetTemplate) => {
+    setTemplate(t);
+    setEditSerial((s) => s + 1);
   };
 
   // Designs are per-event — switching events must not carry over the
@@ -65,27 +91,29 @@ export function WristbandsPage() {
     setEventId(id);
     setCurrent(null);
     dispatch({ type: 'load', background: '#ffffff', elements: [] });
-    setSavedAt(0);
+    setSavedSerial(editSerial);
   };
 
-  // Delete removes the selection; Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z redo —
-  // skipped whenever focus is in a form control so typing isn't hijacked.
+  // Delete/Backspace removes the selection; Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z
+  // redo — skipped whenever focus is in a form control so typing isn't hijacked.
+  const selectedIdRef = useRef(state.selectedId);
+  selectedIdRef.current = state.selectedId;
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName;
       if (target?.isContentEditable || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      if (e.key === 'Delete' && state.selectedId) {
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIdRef.current) {
         e.preventDefault();
-        dispatch({ type: 'remove', id: state.selectedId });
+        trackedDispatch({ type: 'remove', id: selectedIdRef.current });
       } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
-        dispatch(e.shiftKey ? { type: 'redo' } : { type: 'undo' });
+        trackedDispatch(e.shiftKey ? { type: 'redo' } : { type: 'undo' });
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [state.selectedId]);
+  }, [trackedDispatch]);
 
   if (error) {
     return <div className="p-6 text-destructive">Failed to load events: {(error as Error).message}</div>;
@@ -93,7 +121,8 @@ export function WristbandsPage() {
 
   const events = eventsPage?.data ?? [];
   const templates = allTemplates();
-  const dirty = state.past.length !== savedAt;
+  const dirty = editSerial !== savedSerial;
+  const selectedEvent = events.find((e) => e._id === eventId);
 
   return (
     <div className="flex h-full flex-col gap-4 p-6">
@@ -102,15 +131,20 @@ export function WristbandsPage() {
           <h1 className="text-2xl font-bold">Wristbands</h1>
           <p className="text-muted-foreground">Design and print Tyvek wristbands on the office printer.</p>
         </div>
-        <div className="w-72">
-          <Select value={eventId} onValueChange={handleEventChange}>
-            <SelectTrigger><SelectValue placeholder="Select an event" /></SelectTrigger>
-            <SelectContent>
-              {events.map((e) => (
-                <SelectItem key={e._id} value={e._id}>{e.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" onClick={() => setCalibrationOpen(true)}>
+            <SlidersHorizontal className="mr-1.5 h-4 w-4" /> Calibrate…
+          </Button>
+          <div className="w-72">
+            <Select value={eventId} onValueChange={handleEventChange}>
+              <SelectTrigger><SelectValue placeholder="Select an event" /></SelectTrigger>
+              <SelectContent>
+                {events.map((e) => (
+                  <SelectItem key={e._id} value={e._id}>{e.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
@@ -125,13 +159,7 @@ export function WristbandsPage() {
             />
 
             <div className="w-56">
-              <Select
-                value={template.key}
-                onValueChange={(key) => {
-                  const t = templates.find((x) => x.key === key);
-                  if (t) setTemplate(t);
-                }}
-              >
+              <Select value={template.key} onValueChange={handleTemplateChange}>
                 <SelectTrigger><SelectValue placeholder="Sheet template" /></SelectTrigger>
                 <SelectContent>
                   {templates.map((t) => (
@@ -140,6 +168,9 @@ export function WristbandsPage() {
                 </SelectContent>
               </Select>
             </div>
+            <Button variant="outline" size="sm" onClick={() => setTemplateEditorOpen(true)}>
+              <Plus className="mr-1.5 h-4 w-4" /> New template…
+            </Button>
 
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Zoom</span>
@@ -154,23 +185,21 @@ export function WristbandsPage() {
             <div className="flex items-center gap-1">
               <Button
                 variant="outline" size="icon" title="Undo" disabled={state.past.length === 0}
-                onClick={() => dispatch({ type: 'undo' })}
+                onClick={() => trackedDispatch({ type: 'undo' })}
               >
                 <Undo2 className="h-4 w-4" />
               </Button>
               <Button
                 variant="outline" size="icon" title="Redo" disabled={state.future.length === 0}
-                onClick={() => dispatch({ type: 'redo' })}
+                onClick={() => trackedDispatch({ type: 'redo' })}
               >
                 <Redo2 className="h-4 w-4" />
               </Button>
             </div>
 
-            <span className="ml-auto" title="Print — coming in the next step">
-              <Button variant="outline" disabled>
-                <Printer className="mr-1.5 h-4 w-4" /> Print…
-              </Button>
-            </span>
+            <Button variant="outline" className="ml-auto" onClick={() => setPrintOpen(true)}>
+              <Printer className="mr-1.5 h-4 w-4" /> Print…
+            </Button>
           </div>
 
           <Tabs defaultValue="design" className="flex-1">
@@ -180,11 +209,11 @@ export function WristbandsPage() {
             </TabsList>
             <TabsContent value="design">
               <div className="flex overflow-hidden rounded-lg border">
-                <LayersPanel state={state} dispatch={dispatch} />
+                <LayersPanel state={state} dispatch={trackedDispatch} />
                 <div className="flex-1 overflow-auto">
-                  <EditorCanvas template={template} state={state} dispatch={dispatch} zoom={zoom} />
+                  <EditorCanvas template={template} state={state} dispatch={trackedDispatch} zoom={zoom} />
                 </div>
-                <ElementInspector state={state} dispatch={dispatch} template={template} eventId={eventId} />
+                <ElementInspector state={state} dispatch={trackedDispatch} template={template} eventId={eventId} />
               </div>
             </TabsContent>
             <TabsContent value="sheet">
@@ -192,18 +221,17 @@ export function WristbandsPage() {
             </TabsContent>
           </Tabs>
 
-          {/* Placeholder mount point — Task 17 wires the real print flow onto
-              printOpen/setPrintOpen and enables the button above. */}
-          <Dialog open={printOpen} onOpenChange={setPrintOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Print sheet</DialogTitle>
-                <DialogDescription>Coming in the next step.</DialogDescription>
-              </DialogHeader>
-            </DialogContent>
-          </Dialog>
+          <PrintDialog
+            open={printOpen} onOpenChange={setPrintOpen} eventId={eventId} event={selectedEvent}
+            template={template} state={state}
+          />
         </>
       )}
+
+      <CalibrationDialog open={calibrationOpen} onOpenChange={setCalibrationOpen} template={template} />
+      <TemplateEditorDialog
+        open={templateEditorOpen} onOpenChange={setTemplateEditorOpen} onSaved={handleTemplateCreated}
+      />
     </div>
   );
 }
