@@ -37,6 +37,7 @@ import type {
   OrganizersListResponse,
   OrganizerVerificationStatus,
 } from '@/types';
+import type { WristbandDesignDoc } from '@/lib/wristband/design';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const APP_API_KEY = import.meta.env.VITE_APP_API_KEY || '';
@@ -891,6 +892,69 @@ class ApiClient {
       }),
   };
 
+  // Wristband design + batch-issue endpoints
+  wristbands = {
+    listDesigns: async (eventId: string): Promise<WristbandDesignDoc[]> =>
+      this.request<WristbandDesignDoc[]>(`/tickets/wristband-designs?eventId=${eventId}`),
+
+    createDesign: async (d: Omit<WristbandDesignDoc, '_id'>): Promise<WristbandDesignDoc> =>
+      this.request<WristbandDesignDoc>(`/tickets/wristband-designs`, {
+        method: 'POST',
+        body: JSON.stringify(d),
+      }),
+
+    updateDesign: async (id: string, patch: Partial<WristbandDesignDoc>): Promise<WristbandDesignDoc> =>
+      this.request<WristbandDesignDoc>(`/tickets/wristband-designs/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(patch),
+      }),
+
+    deleteDesign: async (id: string): Promise<void> =>
+      this.request<void>(`/tickets/wristband-designs/${id}`, { method: 'DELETE' }),
+
+    batchIssue: async (d: {
+      eventId: string;
+      ticketTypeId: string;
+      quantity: number;
+    }): Promise<{ tickets: { ticketId: string; ticketType: string }[] }> =>
+      this.request<{ tickets: { ticketId: string; ticketType: string }[] }>(
+        `/tickets/wristbands/batch-issue`,
+        { method: 'POST', body: JSON.stringify(d) }
+      ),
+
+    listBatches: async (eventId: string): Promise<WristbandBatch[]> =>
+      this.request<WristbandBatch[]>(`/tickets/wristbands/batches?eventId=${eventId}`),
+
+    searchTickets: async (eventId: string, search = ''): Promise<PickerTicket[]> => {
+      const query = new URLSearchParams({ eventId, ...(search ? { search } : {}) });
+      return this.request<PickerTicket[]>(`/tickets/wristbands/tickets?${query.toString()}`);
+    },
+
+    // Bypasses this.request (multipart body) — mirrors events.uploadPoster's fetch/header/envelope pattern.
+    uploadArtwork: async (eventId: string, file: File): Promise<{ url: string }> => {
+      const formData = new FormData();
+      formData.append('artwork', file);
+
+      const token = this.getToken();
+      const uploadHeaders: Record<string, string> = {};
+      if (token) uploadHeaders['Authorization'] = `Bearer ${token}`;
+      if (APP_API_KEY) uploadHeaders['x-api-key'] = APP_API_KEY;
+      const response = await fetch(`${this.baseUrl}/media/events/${eventId}/wristband`, {
+        method: 'POST',
+        headers: uploadHeaders,
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: 'Upload failed' }));
+        throw new Error(error.message || 'Failed to upload wristband artwork');
+      }
+
+      const data = await response.json();
+      return data.data;
+    },
+  };
+
   // Export endpoints
   exports = {
     exportSalesCSV: async (params?: SalesQueryParams): Promise<void> => {
@@ -956,6 +1020,23 @@ export interface IssuedGateCredentials {
   operator: GateOperatorRow;
   loginCode: string;
   pin: string;
+}
+
+export interface WristbandBatch {
+  _id: string;
+  saleId: string;
+  quantity: number;
+  soldAt: string;
+  ticketType: string;
+  tickets: { ticketId: string; status: string }[];
+}
+
+export interface PickerTicket {
+  ticketId: string;
+  ticketType: string;
+  customerName?: string;
+  customerPhone?: string;
+  status: string;
 }
 
 export const apiClient = new ApiClient(API_BASE_URL);

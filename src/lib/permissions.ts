@@ -16,6 +16,7 @@ export const TicketsPermission = {
   VIEW_STATS: 'tickets:view_stats',
   MANAGE_ACCESS: 'tickets:manage_access',
   VIEW_USERS: 'tickets:view_users',
+  PRINT_WRISTBANDS: 'tickets:print_wristbands',
 } as const;
 
 export type TicketsPermissionValue =
@@ -69,4 +70,16 @@ export function canViewUsers(user: AuthUser | null | undefined): boolean {
   if (!user) return false;
   if (user.isSuperAdmin) return true;
   return (user.permissions ?? []).includes(TicketsPermission.VIEW_USERS);
+}
+
+/**
+ * Wristband designer/printing — Carrot staff only (office printer + Tyvek
+ * stock). Super-admins always; team members only with the explicit
+ * `tickets:print_wristbands` permission. Fail-closed like canViewUsers: an
+ * owner account with no permissions array must NOT qualify.
+ */
+export function canPrintWristbands(user: AuthUser | null | undefined): boolean {
+  if (!user) return false;
+  if (user.isSuperAdmin) return true;
+  return (user.permissions ?? []).includes(TicketsPermission.PRINT_WRISTBANDS);
 }

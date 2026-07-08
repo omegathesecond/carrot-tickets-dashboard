@@ -4,6 +4,7 @@ export const CHANNEL_LABEL: Record<string, string> = {
   online: 'Online',
   box_office: 'Organizer', // organizer/vendor + staff selling directly; stored value stays box_office
   reseller_pos: 'Reseller POS',
+  wristband: 'Wristband', // platform-printed zero-amount batches
 };
 
 /** Human label for a sale's channel, '—' when unknown (legacy/unset). */
