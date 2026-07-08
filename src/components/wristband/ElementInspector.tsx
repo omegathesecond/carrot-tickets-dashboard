@@ -52,45 +52,51 @@ export function ElementInspector({ state, dispatch, template, eventId }: {
     }
   };
 
+  // The Add section stays visible regardless of selection — adding an element
+  // auto-selects it, and users add several in a row (text, then QR, then art).
+  const addSection = (
+    <div>
+      <h3 className="text-sm font-semibold">Add element</h3>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <Button
+          variant="outline" size="sm"
+          onClick={() => dispatch({ type: 'add', element: createTextElement() })}
+        >
+          <Type className="mr-1.5 h-4 w-4" /> Text
+        </Button>
+        <Button variant="outline" size="sm" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
+          <ImageIcon className="mr-1.5 h-4 w-4" /> Image
+        </Button>
+        <Button
+          variant="outline" size="sm"
+          onClick={() => dispatch({ type: 'add', element: createShapeElement() })}
+        >
+          <Square className="mr-1.5 h-4 w-4" /> Shape
+        </Button>
+        <Button
+          variant="outline" size="sm" disabled={hasQr}
+          title={hasQr ? 'Only one QR code per design' : undefined}
+          onClick={() => dispatch({ type: 'add', element: createQrElement() })}
+        >
+          <QrCode className="mr-1.5 h-4 w-4" /> QR
+        </Button>
+      </div>
+      <input
+        ref={fileInputRef} type="file" className="hidden"
+        accept="image/png,image/jpeg,image/webp"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (file) void handleAddImageFile(file);
+        }}
+      />
+    </div>
+  );
+
   if (!el) {
     return (
       <div className="w-72 shrink-0 space-y-4 border-l p-4">
-        <div>
-          <h3 className="text-sm font-semibold">Add element</h3>
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            <Button
-              variant="outline" size="sm"
-              onClick={() => dispatch({ type: 'add', element: createTextElement() })}
-            >
-              <Type className="mr-1.5 h-4 w-4" /> Text
-            </Button>
-            <Button variant="outline" size="sm" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
-              <ImageIcon className="mr-1.5 h-4 w-4" /> Image
-            </Button>
-            <Button
-              variant="outline" size="sm"
-              onClick={() => dispatch({ type: 'add', element: createShapeElement() })}
-            >
-              <Square className="mr-1.5 h-4 w-4" /> Shape
-            </Button>
-            <Button
-              variant="outline" size="sm" disabled={hasQr}
-              title={hasQr ? 'Only one QR code per design' : undefined}
-              onClick={() => dispatch({ type: 'add', element: createQrElement() })}
-            >
-              <QrCode className="mr-1.5 h-4 w-4" /> QR
-            </Button>
-          </div>
-          <input
-            ref={fileInputRef} type="file" className="hidden"
-            accept="image/png,image/jpeg,image/webp"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              e.target.value = '';
-              if (file) void handleAddImageFile(file);
-            }}
-          />
-        </div>
+        {addSection}
         <Field label="Background color">
           <Input
             type="color" value={state.background}
@@ -103,7 +109,9 @@ export function ElementInspector({ state, dispatch, template, eventId }: {
 
   return (
     <div className="w-72 shrink-0 space-y-4 border-l p-4">
-      <div className="flex items-center justify-between">
+      {addSection}
+
+      <div className="flex items-center justify-between border-t pt-3">
         <h3 className="text-sm font-semibold capitalize">{el.type} properties</h3>
         <Button
           variant="ghost" size="icon"
