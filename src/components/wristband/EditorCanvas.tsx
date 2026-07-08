@@ -9,6 +9,7 @@ import type {
   WristbandElement, ImageElement, ShapeElement, TextElement, QrElement,
 } from '@/lib/wristband/design';
 import { elementNodeAttrs } from '@/lib/wristband/renderBand';
+import { findNodeById } from '@/lib/wristband/findNode';
 import { useImage } from './useImage';
 
 const BASE_PX_PER_MM = 4;
@@ -46,7 +47,7 @@ export function EditorCanvas({ template, state, dispatch, zoom }: {
   useEffect(() => {
     const tr = trRef.current, stage = stageRef.current;
     if (!tr || !stage) return;
-    const node = state.selectedId ? stage.findOne(`#${CSS.escape(state.selectedId)}`) : null;
+    const node = state.selectedId ? findNodeById(stage, state.selectedId) : null;
     tr.nodes(node ? [node] : []);
     tr.getLayer()?.batchDraw();
   }, [state.selectedId, state.elements]);
