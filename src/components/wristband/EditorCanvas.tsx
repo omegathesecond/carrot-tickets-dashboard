@@ -53,8 +53,19 @@ export function EditorCanvas({ template, state, dispatch, zoom }: {
 
   const select = (id: string | null) => dispatch({ type: 'select', id });
 
+  // Ellipses are center-positioned/center-pivoted, matching the print
+  // renderer (renderBand.ts) exactly — node x/y is the CENTER, so drag/
+  // transform handlers convert back to the model's top-left mm convention.
+  const isEllipse = (el: WristbandElement): el is ShapeElement =>
+    el.type === 'shape' && (el as ShapeElement).shape === 'ellipse';
+
   const onDragEnd = (el: WristbandElement) => (e: Konva.KonvaEventObject<DragEvent>) => {
-    dispatch({ type: 'update', id: el.id, patch: { x: e.target.x() / pxPerMm, y: e.target.y() / pxPerMm } });
+    const halfX = isEllipse(el) ? el.width / 2 : 0;
+    const halfY = isEllipse(el) ? el.height / 2 : 0;
+    dispatch({
+      type: 'update', id: el.id,
+      patch: { x: e.target.x() / pxPerMm - halfX, y: e.target.y() / pxPerMm - halfY },
+    });
   };
 
   const onTransformEnd = (el: WristbandElement) => (e: Konva.KonvaEventObject<Event>) => {
@@ -72,6 +83,12 @@ export function EditorCanvas({ template, state, dispatch, zoom }: {
     } else {
       patch.width = (el as ImageElement | ShapeElement).width * scaleX;
       patch.height = (el as ImageElement | ShapeElement).height * scaleY;
+      if (isEllipse(el)) {
+        // node.x/y is the (possibly moved) center — model x/y is the
+        // top-left of the NEW bounding box.
+        patch.x = node.x() / pxPerMm - patch.width / 2;
+        patch.y = node.y() / pxPerMm - patch.height / 2;
+      }
     }
     dispatch({ type: 'update', id: el.id, patch: patch as Partial<WristbandElement> });
   };
@@ -95,6 +112,7 @@ export function EditorCanvas({ template, state, dispatch, zoom }: {
   };
 
   const tabLineX = (template.bandWidthMm - template.tabZoneMm) * pxPerMm;
+  const selectedLocked = !!state.elements.find((e) => e.id === state.selectedId)?.locked;
 
   return (
     <div className="flex items-center justify-center overflow-auto rounded-lg bg-slate-100 p-6">
@@ -150,7 +168,8 @@ export function EditorCanvas({ template, state, dispatch, zoom }: {
 
           <Transformer
             ref={trRef}
-            rotateEnabled
+            rotateEnabled={!selectedLocked}
+            resizeEnabled={!selectedLocked}
             keepRatio={false}
             boundBoxFunc={(oldBox, newBox) => (
               Math.abs(newBox.width) < 4 || Math.abs(newBox.height) < 4 ? oldBox : newBox
@@ -169,9 +188,9 @@ function ImageNode({ el, common, attrs }: {
   return <KImage {...common} image={image} width={attrs.width as number} height={attrs.height as number} />;
 }
 
-/** Shape elements pivot on their top-left corner (mm x/y), like text/image —
- *  Ellipse's local origin is its own center, so we counter-offset it back to
- *  top-left via offsetX/offsetY, keeping onDragEnd/onTransformEnd uniform. */
+/** Rect/line pivot on their top-left corner (mm x/y), like text/image.
+ *  Ellipse mirrors the print renderer instead: positioned AND pivoted at its
+ *  center; the drag/transform handlers convert back to top-left mm. */
 function ShapeNode({ el, common, attrs }: {
   el: ShapeElement; common: CommonAttrs; attrs: Record<string, unknown>;
 }) {
@@ -192,11 +211,15 @@ function ShapeNode({ el, common, attrs }: {
     );
   }
   if (el.shape === 'ellipse') {
+    // Center-positioned, center-pivoted — the exact convention the print
+    // renderer uses (renderBand.ts: x = attrs.x + w/2, y = attrs.y + h/2),
+    // so rotation produces identical geometry on screen and in print.
+    // onDragEnd/onTransformEnd convert the center back to top-left mm.
     return (
       <Ellipse
         {...common}
-        offsetX={-(width / 2)}
-        offsetY={-(height / 2)}
+        x={common.x + width / 2}
+        y={common.y + height / 2}
         radiusX={width / 2}
         radiusY={height / 2}
         fill={fill}
