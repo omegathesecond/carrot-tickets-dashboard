@@ -57,8 +57,9 @@ export function ElementInspector({ state, dispatch, template, eventId }: {
   };
 
   // Carrot brand stamps served from the dashboard's own /brand/ folder —
-  // stable relative URLs, so saved designs survive redeploys.
-  const handleAddBrand = async (asset: 'carrot-mark.png' | 'carrot-lockup-domain.png') => {
+  // stable relative URLs, so saved designs survive redeploys. Black variants
+  // are knockouts (white details transparent) for monochrome printing.
+  const handleAddBrand = async (asset: string) => {
     try {
       await addImageFromUrl(`/brand/${asset}`);
     } catch (err) {
@@ -111,6 +112,12 @@ export function ElementInspector({ state, dispatch, template, eventId }: {
         </Button>
         <Button variant="outline" size="sm" onClick={() => void handleAddBrand('carrot-lockup-domain.png')}>
           <img src="/brand/carrot-mark.png" alt="" className="mr-1.5 h-4 w-auto" /> Logo + name
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => void handleAddBrand('carrot-mark-black.png')}>
+          <img src="/brand/carrot-mark-black.png" alt="" className="mr-1.5 h-4 w-auto" /> Logo (black)
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => void handleAddBrand('carrot-lockup-domain-black.png')}>
+          <img src="/brand/carrot-mark-black.png" alt="" className="mr-1.5 h-4 w-auto" /> Name (black)
         </Button>
       </div>
     </div>
