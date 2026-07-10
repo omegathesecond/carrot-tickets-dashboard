@@ -30,6 +30,8 @@ import { EntryScanPage } from '@/pages/EntryScanPage';
 import { AnalyticsPage } from '@/pages/AnalyticsPage';
 import { UsersPage } from '@/pages/UsersPage';
 import { ViewUsersRoute } from '@/components/ViewUsersRoute';
+import { ReportsPage } from '@/pages/ReportsPage';
+import { ModerateSocialRoute } from '@/components/ModerateSocialRoute';
 import { WristbandsPage } from '@/pages/WristbandsPage';
 import { WristbandsRoute } from '@/components/WristbandsRoute';
 import { SettingsPage } from '@/pages/SettingsPage';
@@ -75,6 +77,7 @@ function App() {
                   <Route path="entry-scan" element={<EntryScanPage />} />
                   <Route path="analytics" element={<AnalyticsPage />} />
                   <Route path="users" element={<ViewUsersRoute><UsersPage /></ViewUsersRoute>} />
+                  <Route path="reports" element={<ModerateSocialRoute><ReportsPage /></ModerateSocialRoute>} />
                   <Route path="wristbands" element={<WristbandsRoute><WristbandsPage /></WristbandsRoute>} />
                   <Route path="settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
                   <Route path="organizers" element={<AdminRoute><OrganizersPage /></AdminRoute>} />
