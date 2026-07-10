@@ -14,12 +14,16 @@ import { GalleryManager } from '@/components/GalleryManager';
 import { EventAnalyticsTab } from '@/components/EventAnalyticsTab';
 import { EventCreatorTab } from '@/components/EventCreatorTab';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { ChannelsManager } from '@/components/community/ChannelsManager';
+import { AnnouncementComposer } from '@/components/community/AnnouncementComposer';
+import { MembersModeration } from '@/components/community/MembersModeration';
 import { useAuth } from '@/contexts/AuthContext';
+import { canManageEvents } from '@/lib/permissions';
 import { getSaleTicketType, getSaleTicketCodes } from '@/lib/sales';
 import {
   ArrowLeft, Calendar, MapPin, Users, CheckCircle, Clock,
   Edit, Trash2, Eye, EyeOff, QrCode, Plus, TrendingUp, TrendingDown, Image, BarChart3, UserCircle,
-  Share2, Link as LinkIcon
+  Share2, Link as LinkIcon, MessagesSquare
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -38,6 +42,9 @@ export function EventDetailsPage() {
   // Keshless admins approve events (publish them live) and can unpublish/delete
   // even after tickets sell. Organizers instead SUBMIT events for approval.
   const isAdmin = !!user?.isSuperAdmin;
+  // Community management (channels/announcements/moderation) needs the same
+  // create/edit-event capability as the rest of this page's editing affordances.
+  const canManageCommunity = canManageEvents(user);
 
   const { data: event, isLoading } = useQuery({
     queryKey: ['event', id],
@@ -311,7 +318,7 @@ export function EventDetailsPage() {
 
       {/* Tabs */}
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full max-w-lg grid-cols-3">
+        <TabsList className={`grid w-full max-w-lg ${canManageCommunity ? 'grid-cols-4' : 'grid-cols-3'}`}>
           <TabsTrigger value="overview" className="flex items-center gap-2">
             <Calendar className="h-4 w-4" />
             Overview
@@ -324,6 +331,12 @@ export function EventDetailsPage() {
             <UserCircle className="h-4 w-4" />
             Creator
           </TabsTrigger>
+          {canManageCommunity && (
+            <TabsTrigger value="community" className="flex items-center gap-2">
+              <MessagesSquare className="h-4 w-4" />
+              Community
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="overview" className="mt-6">
@@ -727,6 +740,18 @@ export function EventDetailsPage() {
         <TabsContent value="creator" className="mt-6">
           <EventCreatorTab eventId={id!} />
         </TabsContent>
+
+        {/* Community Tab — channels, announcements, member moderation.
+            "Recent messages" (per-channel delete/pin panel) is deferred to
+            Task 8, when messages first render anywhere in the dashboard;
+            the pin/unpin api.ts methods are already wired for it. */}
+        {canManageCommunity && (
+          <TabsContent value="community" className="mt-6 space-y-6">
+            <AnnouncementComposer eventId={id!} />
+            <ChannelsManager eventId={id!} />
+            <MembersModeration eventId={id!} />
+          </TabsContent>
+        )}
       </Tabs>
 
       {/* Ticket Type Dialog */}

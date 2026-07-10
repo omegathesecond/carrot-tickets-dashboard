@@ -13,11 +13,20 @@ import {
   ShieldCheck,
   Building2,
   Ticket,
+  Flag,
   X,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { BRAND_NAME } from '@/lib/brand';
-import { TicketsPermission, hasPermission, canManageEvents, canManageAccess, canViewUsers, canPrintWristbands } from '@/lib/permissions';
+import {
+  TicketsPermission,
+  hasPermission,
+  canManageEvents,
+  canManageAccess,
+  canViewUsers,
+  canPrintWristbands,
+  canModerateSocial,
+} from '@/lib/permissions';
 
 interface NavigationItem {
   name: string;
@@ -91,6 +100,12 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       href: '/wristbands',
       icon: Ticket,
       show: canPrintWristbands(user),
+    },
+    {
+      name: 'Reports',
+      href: '/reports',
+      icon: Flag,
+      show: canModerateSocial(user),
     },
     ...(user?.isSuperAdmin ? [
       { name: 'Organizers', href: '/organizers', icon: Building2, show: true },

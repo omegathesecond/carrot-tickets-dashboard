@@ -955,6 +955,120 @@ class ApiClient {
     },
   };
 
+  // Community management endpoints (organizer/admin) — channels, announcements,
+  // member moderation, and message pins. Mirrors the api's
+  // channelAdmin/announcement/moderation controllers 1:1
+  // (api/src/controllers/{channelAdmin,announcement,moderation}.controller.ts).
+  // All require the vendor JWT + tickets:edit_event permission.
+  community = {
+    listChannels: async (eventId: string): Promise<ChannelAdminListView> =>
+      this.request<ChannelAdminListView>(`/tickets/events/${eventId}/channels`),
+
+    createChannel: async (
+      eventId: string,
+      data: { name: string; gated?: boolean; postPolicy?: ChannelPostPolicy }
+    ): Promise<ChannelAdminView> =>
+      this.request<ChannelAdminView>(`/tickets/events/${eventId}/channels`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    updateChannel: async (
+      channelId: string,
+      patch: { name?: string; gated?: boolean; postPolicy?: ChannelPostPolicy; archived?: boolean }
+    ): Promise<ChannelAdminView> =>
+      this.request<ChannelAdminView>(`/tickets/channels/${channelId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(patch),
+      }),
+
+    // API field is `body` (community.validator.ts announcementSchema), not `text`.
+    postAnnouncement: async (eventId: string, body: string): Promise<void> => {
+      await this.request<void>(`/tickets/events/${eventId}/announcements`, {
+        method: 'POST',
+        body: JSON.stringify({ body }),
+      });
+    },
+
+    listMembers: async (
+      communityId: string,
+      params?: { before?: string; limit?: number }
+    ): Promise<AdminMemberView[]> => {
+      const query = new URLSearchParams();
+      if (params?.before) query.append('before', params.before);
+      if (params?.limit) query.append('limit', String(params.limit));
+      const qs = query.toString();
+      return this.request<AdminMemberView[]>(
+        `/tickets/communities/${communityId}/members${qs ? `?${qs}` : ''}`
+      );
+    },
+
+    muteMember: async (
+      communityId: string,
+      buyerId: string,
+      minutes: number
+    ): Promise<{ mutedUntil: string }> =>
+      this.request(`/tickets/communities/${communityId}/members/${buyerId}/mute`, {
+        method: 'POST',
+        body: JSON.stringify({ minutes }),
+      }),
+
+    unmuteMember: async (communityId: string, buyerId: string): Promise<{ mutedUntil: null }> =>
+      this.request(`/tickets/communities/${communityId}/members/${buyerId}/mute`, {
+        method: 'DELETE',
+      }),
+
+    banMember: async (communityId: string, buyerId: string): Promise<{ banned: true }> =>
+      this.request(`/tickets/communities/${communityId}/members/${buyerId}/ban`, {
+        method: 'POST',
+      }),
+
+    unbanMember: async (communityId: string, buyerId: string): Promise<{ banned: false }> =>
+      this.request(`/tickets/communities/${communityId}/members/${buyerId}/ban`, {
+        method: 'DELETE',
+      }),
+
+    // Not surfaced in this task's UI (message panel deferred — see
+    // task-6-report.md), but wired up for completeness so Task 8's message
+    // views can call straight into these.
+    pinMessage: async (messageId: string): Promise<{ pinned: true }> =>
+      this.request(`/tickets/messages/${messageId}/pin`, { method: 'POST' }),
+
+    unpinMessage: async (messageId: string): Promise<{ pinned: false }> =>
+      this.request(`/tickets/messages/${messageId}/pin`, { method: 'DELETE' }),
+
+    deleteMessage: async (messageId: string): Promise<{ deleted: true }> =>
+      this.request(`/tickets/messages/${messageId}`, { method: 'DELETE' }),
+  };
+
+  // Platform social moderation queue (buyer-filed reports against messages/
+  // buyers) — mirrors the api's ReportController/ReportService 1:1
+  // (api/src/controllers/report.controller.ts, api/src/services/report.service.ts).
+  // Requires the vendor JWT + requireSuperAdminOrPermission(tickets:moderate_social).
+  reports = {
+    list: async (params?: {
+      status?: ReportStatus;
+      before?: string;
+      limit?: number;
+    }): Promise<ReportAdminView[]> => {
+      const query = new URLSearchParams();
+      if (params?.status) query.append('status', params.status);
+      if (params?.before) query.append('before', params.before);
+      if (params?.limit) query.append('limit', String(params.limit));
+      const qs = query.toString();
+      return this.request<ReportAdminView[]>(`/tickets/reports${qs ? `?${qs}` : ''}`);
+    },
+
+    resolve: async (
+      reportId: string,
+      body: { action: ReportResolveAction; note?: string }
+    ): Promise<ReportAdminView> =>
+      this.request<ReportAdminView>(`/tickets/reports/${reportId}/resolve`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+  };
+
   // Export endpoints
   exports = {
     exportSalesCSV: async (params?: SalesQueryParams): Promise<void> => {
@@ -1037,6 +1151,89 @@ export interface PickerTicket {
   customerName?: string;
   customerPhone?: string;
   status: string;
+}
+
+// ── Community management types ──
+// Mirror api/src/services/channelAdmin.service.ts and
+// api/src/services/moderation.service.ts view shapes exactly.
+
+export type ChannelPostPolicy = 'all' | 'organizer';
+
+export interface ChannelAdminView {
+  id: string;
+  name: string;
+  slug: string;
+  gated: boolean;
+  postPolicy: ChannelPostPolicy;
+  archived: boolean;
+  isDefault: boolean;
+  createdAt: string;
+}
+
+export interface ChannelAdminListView {
+  communityId: string;
+  channels: ChannelAdminView[];
+}
+
+export interface AdminMemberView {
+  id: string;
+  username: string | null;
+  name: string | null;
+  avatarUrl: string | null;
+  role: 'member' | 'moderator' | 'organizer';
+  ticketVerified: boolean;
+  mutedUntil: string | null;
+  bannedAt: string | null;
+  joinedAt: string;
+  cursor: string;
+}
+
+// ── Platform report queue types ──
+// Mirror api/src/services/report.service.ts's ReportAdminView/
+// ReportAdminMessageView shapes exactly (toAdminView), and
+// api/src/utils/buyerSummary.util.ts's BuyerSummary. Pagination has no
+// separate `cursor` field like AdminMemberView — the `before` cursor for the
+// next page is a report's own `id` (the service sorts/paginates by `_id`).
+
+export type ReportTargetType = 'message' | 'buyer';
+export type ReportStatus = 'open' | 'resolved' | 'dismissed';
+export type ReportResolveAction = 'delete_message' | 'suspend_buyer' | 'unsuspend_buyer' | 'dismiss';
+
+export interface ReportBuyerSummary {
+  id: string;
+  username: string | null;
+  name: string | null;
+  avatarUrl: string | null;
+}
+
+// Admin-only message context — the body is UNMASKED even when the message
+// was already soft-deleted (admins need it as evidence). Never reuse this
+// shape for a buyer-facing read.
+export interface ReportAdminMessageView {
+  id: string;
+  channelId: string;
+  body: string;
+  deleted: boolean;
+  senderId: string | null;
+  createdAt: string;
+  channelName: string | null;
+  communityId: string | null;
+  eventId: string | null;
+  eventName: string | null;
+}
+
+export interface ReportAdminView {
+  id: string;
+  targetType: ReportTargetType;
+  reason: string;
+  status: ReportStatus;
+  reporter: ReportBuyerSummary;
+  message: ReportAdminMessageView | null;
+  targetBuyer: ReportBuyerSummary | null;
+  resolvedBy: string | null;
+  resolvedAt: string | null;
+  resolutionNote: string | null;
+  createdAt: string;
 }
 
 export const apiClient = new ApiClient(API_BASE_URL);

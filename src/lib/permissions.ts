@@ -17,6 +17,7 @@ export const TicketsPermission = {
   MANAGE_ACCESS: 'tickets:manage_access',
   VIEW_USERS: 'tickets:view_users',
   PRINT_WRISTBANDS: 'tickets:print_wristbands',
+  MODERATE_SOCIAL: 'tickets:moderate_social',
 } as const;
 
 export type TicketsPermissionValue =
@@ -82,4 +83,17 @@ export function canPrintWristbands(user: AuthUser | null | undefined): boolean {
   if (!user) return false;
   if (user.isSuperAdmin) return true;
   return (user.permissions ?? []).includes(TicketsPermission.PRINT_WRISTBANDS);
+}
+
+/**
+ * Platform social moderation queue (buyer-filed reports against messages/
+ * buyers) — Carrot staff only. Super-admins always; other team members only
+ * with the explicit `tickets:moderate_social` permission. Fail-closed like
+ * canViewUsers/canPrintWristbands: an owner account with no permissions
+ * array must NOT qualify.
+ */
+export function canModerateSocial(user: AuthUser | null | undefined): boolean {
+  if (!user) return false;
+  if (user.isSuperAdmin) return true;
+  return (user.permissions ?? []).includes(TicketsPermission.MODERATE_SOCIAL);
 }
