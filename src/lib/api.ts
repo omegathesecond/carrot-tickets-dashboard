@@ -1036,6 +1036,9 @@ class ApiClient {
 
     unpinMessage: async (messageId: string): Promise<{ pinned: false }> =>
       this.request(`/tickets/messages/${messageId}/pin`, { method: 'DELETE' }),
+
+    deleteMessage: async (messageId: string): Promise<{ deleted: true }> =>
+      this.request(`/tickets/messages/${messageId}`, { method: 'DELETE' }),
   };
 
   // Export endpoints
