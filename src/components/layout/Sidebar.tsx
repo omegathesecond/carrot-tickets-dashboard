@@ -14,6 +14,7 @@ import {
   Building2,
   Ticket,
   Flag,
+  Video,
   X,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -57,6 +58,12 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       name: 'Events',
       href: '/events',
       icon: Calendar,
+      show: canManageEvents(user),
+    },
+    {
+      name: 'Updates',
+      href: '/updates',
+      icon: Video,
       show: canManageEvents(user),
     },
     {
