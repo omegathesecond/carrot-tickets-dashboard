@@ -42,7 +42,7 @@ import type { WristbandDesignDoc } from '@/lib/wristband/design';
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const APP_API_KEY = import.meta.env.VITE_APP_API_KEY || '';
 
-class ApiClient {
+export class ApiClient {
   private baseUrl: string;
   private token: string | null;
   private refreshToken: string | null;
@@ -1067,6 +1067,54 @@ class ApiClient {
         method: 'POST',
         body: JSON.stringify(body),
       }),
+  };
+
+  // Organizer "update" composer (short video/image posts into the public
+  // Discover feed). Mirrors the api's updates controller 1:1
+  // (api/src/controllers/updates.controller.ts). init/finalize require the
+  // vendor JWT; getPublic is the same read buyers use to poll transcode
+  // status, reused here so the composer can poll without a separate route.
+  updates = {
+    // Requests a presigned R2 upload slot for the media file.
+    init: async (data: {
+      kind: 'video' | 'image';
+      caption: string;
+      eventId?: string;
+      ext: string;
+      contentType: string;
+    }): Promise<{ updateId: string; uploadUrl: string }> =>
+      this.request<{ updateId: string; uploadUrl: string }>('/tickets/updates', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    // Uploads the raw file bytes straight to the presigned R2 URL. This is a
+    // BARE fetch — no Authorization/x-api-key headers, those would break the
+    // signed URL — so it deliberately does not go through this.request().
+    uploadToR2: async (uploadUrl: string, file: File): Promise<void> => {
+      const response = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type },
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to upload media (HTTP ${response.status})`);
+      }
+    },
+
+    // Tells the api the R2 upload is complete. Images come back ready
+    // immediately; videos come back with media.status === 'processing' while
+    // the transcoder runs, and the caller polls getPublic until it settles.
+    finalize: async (updateId: string): Promise<{ media: { status: string; error?: string } }> =>
+      this.request<{ media: { status: string; error?: string } }>(
+        `/tickets/updates/${updateId}/finalize`,
+        { method: 'POST' }
+      ),
+
+    // Public read (same endpoint buyers use) — polled after finalize for
+    // videos until media.status is 'ready' or 'failed'.
+    getPublic: async (updateId: string): Promise<{ media: { status: string; error?: string } }> =>
+      this.request<{ media: { status: string; error?: string } }>(`/public/updates/${updateId}`),
   };
 
   // Export endpoints

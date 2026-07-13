@@ -24,6 +24,7 @@ import { SignupPage } from '@/pages/SignupPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { EventsPage } from '@/pages/EventsPage';
 import { EventDetailsPage } from '@/pages/EventDetailsPage';
+import { UpdatesPage } from '@/pages/UpdatesPage';
 import { TicketSalesPage } from '@/pages/TicketSalesPage';
 import { SalesHistoryPage } from '@/pages/SalesHistoryPage';
 import { EntryScanPage } from '@/pages/EntryScanPage';
@@ -72,6 +73,7 @@ function App() {
                   <Route index element={<DashboardPage />} />
                   <Route path="events" element={<EventsPage />} />
                   <Route path="events/:id" element={<EventDetailsPage />} />
+                  <Route path="updates" element={<UpdatesPage />} />
                   <Route path="sell-tickets" element={<TicketSalesPage />} />
                   <Route path="sales-history" element={<SalesHistoryPage />} />
                   <Route path="entry-scan" element={<EntryScanPage />} />
