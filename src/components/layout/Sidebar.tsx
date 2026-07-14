@@ -198,7 +198,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       >
         {/* Logo + mobile close */}
         <div className="p-6 border-b border-slate-200 flex items-center justify-between">
-          <NavLink to="/" onClick={onClose} className="flex items-center space-x-3 group min-w-0">
+          <NavLink to={homePath} onClick={onClose} className="flex items-center space-x-3 group min-w-0">
             <img src="/carrot_tickets_icon.png" alt={BRAND_NAME} className="h-12 w-12 shrink-0" />
             <div className="space-y-0 min-w-0">
               <h2 className="text-lg font-bold text-slate-900">{BRAND_NAME}</h2>
