@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
+import { apiClient } from '@/lib/api';
 import {
   LayoutDashboard,
   Calendar,
@@ -26,7 +28,8 @@ import {
 
 // The organizer's brand social feed lives on the consumer site (same login).
 // This is the single door from the dashboard so organizers don't need a 2nd URL.
-const SOCIAL_FEED_URL = 'https://carrottickets.com/brand/login';
+const SOCIAL_LOGIN_URL = 'https://carrottickets.com/brand/login';
+const SOCIAL_SSO_URL = 'https://carrottickets.com/brand/sso';
 import { useAuth } from '@/contexts/AuthContext';
 import { BRAND_NAME } from '@/lib/brand';
 import {
@@ -54,6 +57,22 @@ interface SidebarProps {
 
 export function Sidebar({ open, onClose }: SidebarProps) {
   const { user } = useAuth();
+  const [openingSocial, setOpeningSocial] = useState(false);
+
+  // Mint a one-time SSO handoff so the organizer lands in the social feed
+  // already signed in (no second login). Falls back to the social login page.
+  async function openSocialFeed() {
+    onClose();
+    setOpeningSocial(true);
+    try {
+      const { handoff } = await apiClient.auth.socialHandoff();
+      window.open(`${SOCIAL_SSO_URL}#h=${encodeURIComponent(handoff)}`, '_blank', 'noopener');
+    } catch {
+      window.open(SOCIAL_LOGIN_URL, '_blank', 'noopener');
+    } finally {
+      setOpeningSocial(false);
+    }
+  }
 
   // Sales-only accounts (e.g. a reseller like PicknPay) lack event-management
   // and scanning permissions, so the Events and Entry Scan tabs are hidden —
@@ -199,19 +218,18 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           {/* Brand social feed — the consumer-app social experience for this
               brand (post/like/follow/DM). Opens the same-login social site. */}
           {canManageEvents(user) && (
-            <a
-              href={SOCIAL_FEED_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={onClose}
-              className="flex items-center justify-between px-3 py-2.5 mb-1 rounded-lg text-sm font-semibold text-white bg-gradient-to-r from-orange-500 to-amber-500 shadow-sm hover:from-orange-600 hover:to-amber-600 transition-colors"
+            <button
+              type="button"
+              onClick={openSocialFeed}
+              disabled={openingSocial}
+              className="w-full flex items-center justify-between px-3 py-2.5 mb-1 rounded-lg text-sm font-semibold text-white bg-gradient-to-r from-orange-500 to-amber-500 shadow-sm hover:from-orange-600 hover:to-amber-600 transition-colors disabled:opacity-70"
             >
               <span className="flex items-center space-x-3">
                 <Sparkles className="h-5 w-5" />
-                <span>Brand social feed</span>
+                <span>{openingSocial ? 'Opening…' : 'Brand social feed'}</span>
               </span>
               <ExternalLink className="h-4 w-4 opacity-80" />
-            </a>
+            </button>
           )}
           {navigation.map((item) => (
             <NavLink

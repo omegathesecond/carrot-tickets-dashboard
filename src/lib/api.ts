@@ -269,6 +269,11 @@ export class ApiClient {
       return response;
     },
 
+    /** Mint a one-time handoff to sign into the brand social site seamlessly. */
+    socialHandoff: async (): Promise<{ handoff: string }> => {
+      return this.request<{ handoff: string }>(`/tickets/auth/handoff`, { method: 'POST' });
+    },
+
     logout: async (): Promise<void> => {
       const refreshToken = this.getRefreshToken();
       await this.request(`/tickets/auth/logout`, {
