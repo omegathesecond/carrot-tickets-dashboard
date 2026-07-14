@@ -15,8 +15,14 @@ import {
   Ticket,
   Flag,
   Video,
+  Sparkles,
+  ExternalLink,
   X,
 } from 'lucide-react';
+
+// The organizer's brand social feed lives on the consumer site (same login).
+// This is the single door from the dashboard so organizers don't need a 2nd URL.
+const SOCIAL_FEED_URL = 'https://carrottickets.com/brand/login';
 import { useAuth } from '@/contexts/AuthContext';
 import { BRAND_NAME } from '@/lib/brand';
 import {
@@ -161,6 +167,23 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
         {/* Navigation — tapping a link closes the drawer on mobile. */}
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+          {/* Brand social feed — the consumer-app social experience for this
+              brand (post/like/follow/DM). Opens the same-login social site. */}
+          {canManageEvents(user) && (
+            <a
+              href={SOCIAL_FEED_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={onClose}
+              className="flex items-center justify-between px-3 py-2.5 mb-1 rounded-lg text-sm font-semibold text-white bg-gradient-to-r from-orange-500 to-amber-500 shadow-sm hover:from-orange-600 hover:to-amber-600 transition-colors"
+            >
+              <span className="flex items-center space-x-3">
+                <Sparkles className="h-5 w-5" />
+                <span>Brand social feed</span>
+              </span>
+              <ExternalLink className="h-4 w-4 opacity-80" />
+            </a>
+          )}
           {navigation.map((item) => (
             <NavLink
               key={item.name}
