@@ -428,3 +428,106 @@ export interface OrganizersListResponse {
   statusCounts: Partial<Record<OrganizerVerificationStatus, number>>;
   pagination: { page: number; limit: number; total: number; totalPages: number };
 }
+
+// ── Transport (bus) module — mirrors the Events management shapes above.
+// Vehicle types define the seat layout; routes are origin→destination fare
+// templates; trips are scheduled runs of a route on a vehicle type; bookings
+// are individual seat purchases against a trip.
+
+export type SeatScheme = 'sequential' | 'row_letter' | 'passenger_count';
+
+export interface VehicleType {
+  _id: string;
+  name: string;
+  totalSeats: number;
+  seatScheme: SeatScheme;
+  layoutJson?: { rows: number; seatsPerRow: number } | null;
+  registrations: string[];
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface VehicleTypeFormData {
+  name: string;
+  totalSeats: number;
+  seatScheme: SeatScheme;
+  layoutJson?: { rows: number; seatsPerRow: number } | null;
+  registrations?: string[];
+}
+
+export interface TransportRoute {
+  _id: string;
+  name: string;
+  originCity: string;
+  destinationCity: string;
+  stops?: string[];
+  farePerSeat: number;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface RouteFormData {
+  name: string;
+  originCity: string;
+  destinationCity: string;
+  stops?: string[];
+  farePerSeat: number;
+}
+
+export type TripStatus = 'scheduled' | 'boarding' | 'departed' | 'completed' | 'cancelled';
+
+// route/vehicleType come back populated in list/get responses.
+export interface Trip {
+  _id: string;
+  routeId: string | { _id: string; name: string; originCity: string; destinationCity: string; farePerSeat: number };
+  vehicleTypeId: string | { _id: string; name: string; seatScheme: SeatScheme };
+  departureTime: string;
+  arrivalTime?: string;
+  vehicleReg?: string;
+  totalSeats: number;
+  soldCount: number;
+  reservedCount: number;
+  seatScheme: SeatScheme;
+  status: TripStatus;
+  createdAt?: string;
+}
+
+export interface TripFormData {
+  routeId: string;
+  vehicleTypeId: string;
+  departureTime: string;
+  arrivalTime?: string;
+  vehicleReg?: string;
+  reservedSeatNumbers?: string[];
+  reservedCount?: number;
+  reservedNote?: string;
+}
+
+export interface TransportSeat {
+  _id?: string;
+  seatNumber: string;
+  isBooked: boolean;
+  isReserved: boolean;
+}
+
+export interface TripDetail {
+  trip: Trip;
+  availableSeats: number;
+  seats: TransportSeat[];
+}
+
+export interface TransportBooking {
+  _id: string;
+  bookingRef: string;
+  qrCode?: string;
+  tripId: string | { _id: string };
+  passengerName: string;
+  passengerPhone: string;
+  seatNumber?: string;
+  fareAmount: number;
+  totalAmount: number;
+  status: string;
+  createdAt?: string;
+}

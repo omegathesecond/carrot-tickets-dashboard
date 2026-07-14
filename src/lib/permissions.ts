@@ -18,6 +18,8 @@ export const TicketsPermission = {
   VIEW_USERS: 'tickets:view_users',
   PRINT_WRISTBANDS: 'tickets:print_wristbands',
   MODERATE_SOCIAL: 'tickets:moderate_social',
+  VIEW_TRANSPORT: 'tickets:view_transport',
+  MANAGE_TRANSPORT: 'tickets:manage_transport',
 } as const;
 
 export type TicketsPermissionValue =
@@ -96,4 +98,12 @@ export function canModerateSocial(user: AuthUser | null | undefined): boolean {
   if (!user) return false;
   if (user.isSuperAdmin) return true;
   return (user.permissions ?? []).includes(TicketsPermission.MODERATE_SOCIAL);
+}
+
+/** Transport (bus) management capability — drives the Transport tab. */
+export function canManageTransport(user: AuthUser | null | undefined): boolean {
+  return (
+    hasPermission(user, TicketsPermission.MANAGE_TRANSPORT) ||
+    hasPermission(user, TicketsPermission.VIEW_TRANSPORT)
+  );
 }

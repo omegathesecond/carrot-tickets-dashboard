@@ -36,6 +36,15 @@ import type {
   Organizer,
   OrganizersListResponse,
   OrganizerVerificationStatus,
+  VehicleType,
+  VehicleTypeFormData,
+  TransportRoute,
+  RouteFormData,
+  Trip,
+  TripFormData,
+  TripStatus,
+  TripDetail,
+  TransportBooking,
 } from '@/types';
 import type { WristbandDesignDoc } from '@/lib/wristband/design';
 
@@ -1115,6 +1124,84 @@ export class ApiClient {
     // videos until media.status is 'ready' or 'failed'.
     getPublic: async (updateId: string): Promise<{ media: { status: string; error?: string } }> =>
       this.request<{ media: { status: string; error?: string } }>(`/public/updates/${updateId}`),
+  };
+
+  // Transport (bus) endpoints — mirrors the events group's style. List
+  // endpoints return a bare array (controllers call ApiResponseUtil.success
+  // with an array, not a paginated envelope), so this.request<T[]>(...)
+  // resolves to the array directly after the `.data` unwrap.
+  transport = {
+    listVehicleTypes: async (): Promise<VehicleType[]> =>
+      this.request<VehicleType[]>(`/tickets/transport/vehicle-types`),
+
+    createVehicleType: async (data: VehicleTypeFormData): Promise<VehicleType> =>
+      this.request<VehicleType>(`/tickets/transport/vehicle-types`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    updateVehicleType: async (
+      id: string,
+      data: Partial<VehicleTypeFormData>
+    ): Promise<VehicleType> =>
+      this.request<VehicleType>(`/tickets/transport/vehicle-types/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+
+    deleteVehicleType: async (id: string): Promise<void> =>
+      this.request<void>(`/tickets/transport/vehicle-types/${id}`, {
+        method: 'DELETE',
+      }),
+
+    listRoutes: async (): Promise<TransportRoute[]> =>
+      this.request<TransportRoute[]>(`/tickets/transport/routes`),
+
+    createRoute: async (data: RouteFormData): Promise<TransportRoute> =>
+      this.request<TransportRoute>(`/tickets/transport/routes`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    updateRoute: async (id: string, data: Partial<RouteFormData>): Promise<TransportRoute> =>
+      this.request<TransportRoute>(`/tickets/transport/routes/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+
+    deleteRoute: async (id: string): Promise<void> =>
+      this.request<void>(`/tickets/transport/routes/${id}`, {
+        method: 'DELETE',
+      }),
+
+    listTrips: async (routeId?: string): Promise<Trip[]> =>
+      this.request<Trip[]>(
+        `/tickets/transport/trips${routeId ? `?routeId=${routeId}` : ''}`
+      ),
+
+    getTrip: async (id: string): Promise<TripDetail> =>
+      this.request<TripDetail>(`/tickets/transport/trips/${id}`),
+
+    createTrip: async (data: TripFormData): Promise<Trip> =>
+      this.request<Trip>(`/tickets/transport/trips`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    updateTripStatus: async (id: string, status: TripStatus): Promise<Trip> =>
+      this.request<Trip>(`/tickets/transport/trips/${id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      }),
+
+    setReservedCount: async (id: string, reservedCount: number): Promise<Trip> =>
+      this.request<Trip>(`/tickets/transport/trips/${id}/reserved-count`, {
+        method: 'PATCH',
+        body: JSON.stringify({ reservedCount }),
+      }),
+
+    listBookings: async (): Promise<TransportBooking[]> =>
+      this.request<TransportBooking[]>(`/tickets/transport/bookings`),
   };
 
   // Export endpoints
