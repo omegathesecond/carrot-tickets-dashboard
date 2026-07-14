@@ -32,6 +32,7 @@ const SOCIAL_LOGIN_URL = 'https://carrottickets.com/brand/login';
 const SOCIAL_SSO_URL = 'https://carrottickets.com/brand/sso';
 import { useAuth } from '@/contexts/AuthContext';
 import { BRAND_NAME } from '@/lib/brand';
+import { getOperatorContext, operatorLabel, operatorHomePath } from '@/lib/operatorContext';
 import {
   TicketsPermission,
   hasPermission,
@@ -58,6 +59,8 @@ interface SidebarProps {
 export function Sidebar({ open, onClose }: SidebarProps) {
   const { user } = useAuth();
   const [openingSocial, setOpeningSocial] = useState(false);
+  const ctx = getOperatorContext(user);
+  const homePath = operatorHomePath(ctx);
 
   // Mint a one-time SSO handoff so the organizer lands in the social feed
   // already signed in (no second login). Falls back to the social login page.
@@ -80,7 +83,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const navigation: NavigationItem[] = [
     {
       name: 'Dashboard',
-      href: '/',
+      href: homePath,
       icon: LayoutDashboard,
       show: true,
     },
@@ -195,12 +198,12 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       >
         {/* Logo + mobile close */}
         <div className="p-6 border-b border-slate-200 flex items-center justify-between">
-          <NavLink to="/" onClick={onClose} className="flex items-center space-x-3 group min-w-0">
+          <NavLink to={homePath} onClick={onClose} className="flex items-center space-x-3 group min-w-0">
             <img src="/carrot_tickets_icon.png" alt={BRAND_NAME} className="h-12 w-12 shrink-0" />
             <div className="space-y-0 min-w-0">
               <h2 className="text-lg font-bold text-slate-900">{BRAND_NAME}</h2>
               <p className="text-xs text-slate-500 truncate">
-                {user?.businessName || 'Event Management'}
+                {user?.businessName || operatorLabel(ctx)}
               </p>
             </div>
           </NavLink>
@@ -261,6 +264,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                 {user.role === 'admin' ? '👑 Admin' : '🎫 Vendor'}
               </p>
             )}
+            <p className="text-orange-600 font-medium mt-2">{operatorLabel(ctx)}</p>
           </div>
         </div>
       </div>

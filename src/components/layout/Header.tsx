@@ -1,4 +1,5 @@
 import { useAuth } from '@/contexts/AuthContext';
+import { getOperatorContext, operatorLabel } from '@/lib/operatorContext';
 import { LogOut, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,6 +18,7 @@ interface HeaderProps {
 
 export function Header({ onMenuClick }: HeaderProps) {
   const { user, logout } = useAuth();
+  const operatorTypeLabel = operatorLabel(getOperatorContext(user));
 
   const getInitials = () => {
     if (user?.firstName && user?.lastName) {
@@ -54,9 +56,14 @@ export function Header({ onMenuClick }: HeaderProps) {
           <Menu className="h-5 w-5" />
         </Button>
         <div className="min-w-0">
-          <h1 className="text-base sm:text-lg font-semibold text-slate-900 truncate">
-            {user?.businessName || 'Event Ticketing'}
-          </h1>
+          <div className="flex items-center gap-2 min-w-0">
+            <h1 className="text-base sm:text-lg font-semibold text-slate-900 truncate">
+              {user?.businessName || operatorTypeLabel}
+            </h1>
+            <span className="hidden sm:inline shrink-0 rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-600">
+              {operatorTypeLabel}
+            </span>
+          </div>
           <p className="hidden sm:block text-xs text-slate-500">
             {new Date().toLocaleDateString('en-US', {
               weekday: 'long',

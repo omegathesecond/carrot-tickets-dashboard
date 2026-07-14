@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { Building2, BadgeCheck, Clock3, Ban } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api';
-import type { Organizer, OrganizerVerificationStatus } from '@/types';
+import type { CreateOrganizerData, Organizer, OrganizerVerificationStatus } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -45,6 +45,21 @@ const STATUS_BADGE: Record<OrganizerVerificationStatus, string> = {
   suspended: 'bg-slate-200 text-slate-700 border-slate-300',
 };
 
+const OPERATOR_TYPES: { value: CreateOrganizerData['operatorType']; label: string }[] = [
+  { value: 'events', label: 'Event Organizer' },
+  { value: 'transport', label: 'Bus Operator' },
+  { value: 'both', label: 'Events & Bus' },
+];
+
+const EMPTY_CREATE_FORM: CreateOrganizerData = {
+  businessName: '',
+  operatorType: 'transport',
+  email: '',
+  phoneNumber: '',
+  password: '',
+  primaryContact: '',
+};
+
 function formatDate(value: string | null): string {
   if (!value) return '—';
   return new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -60,6 +75,10 @@ export function OrganizersPage() {
   // "Reject / suspend needs a reason" dialog state.
   const [reasonTarget, setReasonTarget] = useState<{ organizer: Organizer; status: OrganizerVerificationStatus } | null>(null);
   const [reason, setReason] = useState('');
+
+  // "Add Operator" create dialog state.
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState<CreateOrganizerData>(EMPTY_CREATE_FORM);
 
   // Debounce the search box so we don't refetch on every keystroke, and reset
   // to page 1 whenever the query changes.
@@ -92,6 +111,34 @@ export function OrganizersPage() {
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : 'Update failed'),
   });
 
+  const createOrganizer = useMutation({
+    mutationFn: (data: CreateOrganizerData) => apiClient.organizers.create(data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['organizers'] });
+      toast.success('Operator created');
+      setCreateOpen(false);
+      setCreateForm(EMPTY_CREATE_FORM);
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : 'Create failed'),
+  });
+
+  const submitCreateOrganizer = () => {
+    const payload: CreateOrganizerData = {
+      businessName: createForm.businessName.trim(),
+      operatorType: createForm.operatorType,
+      password: createForm.password,
+    };
+    if (createForm.email?.trim()) payload.email = createForm.email.trim();
+    if (createForm.phoneNumber?.trim()) payload.phoneNumber = createForm.phoneNumber.trim();
+    if (createForm.primaryContact?.trim()) payload.primaryContact = createForm.primaryContact.trim();
+    createOrganizer.mutate(payload);
+  };
+
+  const canSubmitCreate =
+    createForm.businessName.trim().length > 0 &&
+    createForm.password.trim().length > 0 &&
+    (!!createForm.email?.trim() || !!createForm.phoneNumber?.trim());
+
   const setVerificationStatus = (organizer: Organizer, next: OrganizerVerificationStatus) => {
     if (next === 'rejected' || next === 'suspended') {
       // Collect a reason first — it's shown back to the organizer.
@@ -109,9 +156,12 @@ export function OrganizersPage() {
 
   return (
     <div className="p-4 md:p-8 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Organizers</h1>
-        <p className="text-sm text-slate-500">Event organizer accounts and their verification status.</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Organizers</h1>
+          <p className="text-sm text-slate-500">Event organizer accounts and their verification status.</p>
+        </div>
+        <Button onClick={() => setCreateOpen(true)}>Add Operator</Button>
       </div>
 
       {/* KPI cards */}
@@ -343,6 +393,95 @@ export function OrganizersPage() {
                 : reasonTarget?.status === 'rejected'
                   ? 'Reject organizer'
                   : 'Suspend organizer'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Operator create dialog */}
+      <Dialog
+        open={createOpen}
+        onOpenChange={(open) => {
+          setCreateOpen(open);
+          if (!open) setCreateForm(EMPTY_CREATE_FORM);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Operator</DialogTitle>
+            <DialogDescription>
+              Create a new organizer account. Bus operators get the transport dashboard on login.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="create-business-name">Business name</Label>
+              <Input
+                id="create-business-name"
+                value={createForm.businessName}
+                onChange={(e) => setCreateForm({ ...createForm, businessName: e.target.value })}
+                placeholder="e.g. Sunshine Coaches"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="create-operator-type">Operator type</Label>
+              <select
+                id="create-operator-type"
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                value={createForm.operatorType}
+                onChange={(e) =>
+                  setCreateForm({ ...createForm, operatorType: e.target.value as CreateOrganizerData['operatorType'] })
+                }
+              >
+                {OPERATOR_TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="create-email">Email</Label>
+              <Input
+                id="create-email"
+                type="email"
+                value={createForm.email}
+                onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
+                placeholder="operator@example.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="create-phone">Phone number</Label>
+              <Input
+                id="create-phone"
+                value={createForm.phoneNumber}
+                onChange={(e) => setCreateForm({ ...createForm, phoneNumber: e.target.value })}
+                placeholder="e.g. +26876543210"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="create-primary-contact">Primary contact (optional)</Label>
+              <Input
+                id="create-primary-contact"
+                value={createForm.primaryContact}
+                onChange={(e) => setCreateForm({ ...createForm, primaryContact: e.target.value })}
+                placeholder="e.g. Jane Dlamini"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="create-password">Password</Label>
+              <Input
+                id="create-password"
+                type="password"
+                value={createForm.password}
+                onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={createOrganizer.isPending}>
+              Cancel
+            </Button>
+            <Button onClick={submitCreateOrganizer} disabled={!canSubmitCreate || createOrganizer.isPending}>
+              {createOrganizer.isPending ? 'Creating…' : 'Create operator'}
             </Button>
           </DialogFooter>
         </DialogContent>
