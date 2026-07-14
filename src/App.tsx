@@ -42,6 +42,11 @@ import { ResellerDetailPage } from '@/pages/ResellerDetailPage';
 import { HubDetailPage } from '@/pages/HubDetailPage';
 import { OrganizerPayoutsPage } from '@/pages/OrganizerPayoutsPage';
 import { GateOperatorsPage } from '@/pages/GateOperatorsPage';
+import { TransportRoute } from '@/components/TransportRoute';
+import { VehicleTypesPage } from '@/pages/VehicleTypesPage';
+import { TransportRoutesPage } from '@/pages/TransportRoutesPage';
+import { TripsPage } from '@/pages/TripsPage';
+import { BookingsPage } from '@/pages/BookingsPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -88,6 +93,10 @@ function App() {
                   <Route path="resellers/:id/hubs/:hubId" element={<AdminRoute><HubDetailPage /></AdminRoute>} />
                   <Route path="payouts" element={<AdminRoute><OrganizerPayoutsPage /></AdminRoute>} />
                   <Route path="gate-operators" element={<GateOperatorsPage />} />
+                  <Route path="transport/vehicle-types" element={<TransportRoute><VehicleTypesPage /></TransportRoute>} />
+                  <Route path="transport/routes" element={<TransportRoute><TransportRoutesPage /></TransportRoute>} />
+                  <Route path="transport/trips" element={<TransportRoute><TripsPage /></TransportRoute>} />
+                  <Route path="transport/bookings" element={<TransportRoute><BookingsPage /></TransportRoute>} />
                 </Route>
                 <Route path="/reseller/login" element={<ResellerLoginPage />} />
                 <Route
