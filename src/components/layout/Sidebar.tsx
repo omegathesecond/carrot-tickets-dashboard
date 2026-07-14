@@ -18,6 +18,10 @@ import {
   Sparkles,
   ExternalLink,
   X,
+  Bus,
+  Route,
+  Truck,
+  Armchair,
 } from 'lucide-react';
 
 // The organizer's brand social feed lives on the consumer site (same login).
@@ -33,6 +37,7 @@ import {
   canViewUsers,
   canPrintWristbands,
   canModerateSocial,
+  canManageTransport,
 } from '@/lib/permissions';
 
 interface NavigationItem {
@@ -119,6 +124,30 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       href: '/reports',
       icon: Flag,
       show: canModerateSocial(user),
+    },
+    {
+      name: 'Bus Trips',
+      href: '/transport/trips',
+      icon: Bus,
+      show: canManageTransport(user),
+    },
+    {
+      name: 'Bus Routes',
+      href: '/transport/routes',
+      icon: Route,
+      show: canManageTransport(user),
+    },
+    {
+      name: 'Vehicles',
+      href: '/transport/vehicle-types',
+      icon: Truck,
+      show: canManageTransport(user),
+    },
+    {
+      name: 'Bus Bookings',
+      href: '/transport/bookings',
+      icon: Armchair,
+      show: canManageTransport(user),
     },
     ...(user?.isSuperAdmin ? [
       { name: 'Organizers', href: '/organizers', icon: Building2, show: true },
