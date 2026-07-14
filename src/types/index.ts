@@ -43,6 +43,7 @@ export interface AuthUser {
   // True for Keshless platform admins, who approve events and see every
   // vendor's sales/scans. Set from the API's getMe/login payload.
   isSuperAdmin?: boolean;
+  operatorType?: 'events' | 'transport' | 'both';
 }
 
 export interface PaymentMethodSettings {
