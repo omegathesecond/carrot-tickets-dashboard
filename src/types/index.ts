@@ -430,6 +430,15 @@ export interface OrganizersListResponse {
   pagination: { page: number; limit: number; total: number; totalPages: number };
 }
 
+export interface CreateOrganizerData {
+  businessName: string;
+  operatorType: 'events' | 'transport' | 'both';
+  email?: string;
+  phoneNumber?: string;
+  password: string;
+  primaryContact?: string;
+}
+
 // ── Transport (bus) module — mirrors the Events management shapes above.
 // Vehicle types define the seat layout; routes are origin→destination fare
 // templates; trips are scheduled runs of a route on a vehicle type; bookings

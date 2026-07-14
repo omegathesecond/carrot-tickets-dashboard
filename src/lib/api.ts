@@ -36,6 +36,7 @@ import type {
   Organizer,
   OrganizersListResponse,
   OrganizerVerificationStatus,
+  CreateOrganizerData,
   VehicleType,
   VehicleTypeFormData,
   TransportRoute,
@@ -697,6 +698,12 @@ export class ApiClient {
     ): Promise<Pick<Organizer, 'id' | 'verificationStatus' | 'verifiedAt' | 'rejectionReason'>> =>
       this.request(`/tickets/admin/organizers/${id}/verification`, {
         method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+
+    create: async (data: CreateOrganizerData): Promise<{ id: string; businessName: string; operatorType: string }> =>
+      this.request(`/tickets/admin/organizers`, {
+        method: 'POST',
         body: JSON.stringify(data),
       }),
   };
