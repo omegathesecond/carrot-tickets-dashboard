@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -8,12 +8,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { toast } from 'sonner';
 import { AuthHeader } from '@/components/AuthHeader';
 import { BRAND_NAME } from '@/lib/brand';
+import { getOperatorContext, operatorHomePath } from '@/lib/operatorContext';
 
 export function LoginPage() {
   const [credentials, setCredentials] = useState({ identifier: '', password: '' });
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth();
+  const [loggedIn, setLoggedIn] = useState(false);
+  const { login, user } = useAuth();
   const navigate = useNavigate();
+
+  // `login()` resolves once AuthContext has scheduled its user-state update,
+  // but the `user` this handler closed over is still the pre-login value —
+  // wait for the context to actually re-render with the freshly-authenticated
+  // user before deciding where to land, instead of navigating too early.
+  useEffect(() => {
+    if (loggedIn && user) {
+      navigate(operatorHomePath(getOperatorContext(user)), { replace: true });
+    }
+  }, [loggedIn, user, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,7 +35,7 @@ export function LoginPage() {
       await login(credentials);
       toast.success('Login successful');
       await new Promise(resolve => setTimeout(resolve, 250));
-      navigate('/', { replace: true });
+      setLoggedIn(true);
     } catch (error: any) {
       toast.error(error.message || 'Login failed');
     } finally {
