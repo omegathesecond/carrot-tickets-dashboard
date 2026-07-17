@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PhoneField } from '@/components/PhoneField';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { AuthHeader } from '@/components/AuthHeader';
@@ -12,7 +13,17 @@ import { getOperatorContext, operatorHomePath } from '@/lib/operatorContext';
 
 export function LoginPage() {
   const [credentials, setCredentials] = useState({ identifier: '', password: '' });
+  // The API takes one `identifier` (email OR phone). Email stays the default
+  // organizer login; Phone mode swaps in the country picker so an E.164 number
+  // is sent instead of free-typed digits. Switching clears the field so an
+  // email can't leak through as a phone identifier (or vice-versa).
+  const [mode, setMode] = useState<'email' | 'phone'>('email');
   const [isLoading, setIsLoading] = useState(false);
+
+  const switchMode = (next: 'email' | 'phone') => {
+    setMode(next);
+    setCredentials((c) => ({ ...c, identifier: '' }));
+  };
   const [loggedIn, setLoggedIn] = useState(false);
   const { login, user } = useAuth();
   const navigate = useNavigate();
@@ -59,16 +70,44 @@ export function LoginPage() {
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="identifier">Email / Phone</Label>
-              <Input
-                id="identifier"
-                placeholder="Enter your email or phone"
-                value={credentials.identifier}
-                onChange={(e) =>
-                  setCredentials({ ...credentials, identifier: e.target.value })
-                }
-                required
-              />
+              <div className="flex items-center justify-between">
+                <Label htmlFor="identifier">{mode === 'email' ? 'Email' : 'Phone'}</Label>
+                <div className="flex rounded-md border border-input p-0.5 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => switchMode('email')}
+                    className={`rounded px-2 py-0.5 font-medium transition-colors ${mode === 'email' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                  >
+                    Email
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => switchMode('phone')}
+                    className={`rounded px-2 py-0.5 font-medium transition-colors ${mode === 'phone' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                  >
+                    Phone
+                  </button>
+                </div>
+              </div>
+              {mode === 'email' ? (
+                <Input
+                  id="identifier"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={credentials.identifier}
+                  onChange={(e) =>
+                    setCredentials({ ...credentials, identifier: e.target.value })
+                  }
+                  required
+                />
+              ) : (
+                <PhoneField
+                  id="identifier"
+                  value={credentials.identifier}
+                  onChange={(identifier) => setCredentials((c) => ({ ...c, identifier }))}
+                  required
+                />
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
