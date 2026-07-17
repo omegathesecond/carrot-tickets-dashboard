@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PhoneField } from '@/components/PhoneField';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { AuthHeader } from '@/components/AuthHeader';
@@ -108,11 +109,15 @@ export function SignupPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="phoneNumber">Phone number</Label>
-              <Input
+              {/* PhoneField emits full E.164 (+26876123456) when digits are typed,
+                  and '' when the local part is empty. The '' is load-bearing: the
+                  "email or phone" validation below checks `!form.phoneNumber`, and
+                  the payload only sends the field when truthy — so an email-only
+                  signup must not leak a bare '+268'. */}
+              <PhoneField
                 id="phoneNumber"
-                placeholder="+268 7XXX XXXX"
                 value={form.phoneNumber}
-                onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })}
+                onChange={(phoneNumber) => setForm({ ...form, phoneNumber })}
               />
               <p className="text-xs text-muted-foreground">Provide an email or a phone number (or both).</p>
             </div>
