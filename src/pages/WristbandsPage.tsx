@@ -60,11 +60,17 @@ export function WristbandsPage() {
     designJson: { background: state.background, elements: state.elements },
   });
 
-  const onLoad = (d: WristbandDesignDoc) => {
+  const onLoad = (d: WristbandDesignDoc, markDirty = false) => {
     setCurrent(d);
     setTemplate(d.sheetTemplate);
     dispatch({ type: 'load', background: d.designJson.background, elements: d.designJson.elements });
-    setSavedSerial(editSerial); // 'load' matches its own saved state — not dirty
+    if (markDirty) {
+      // A cross-event copy has no _id and is genuinely unsaved: bump the edit
+      // serial past the saved serial so the Save button shows the unsaved dot.
+      setEditSerial((s) => s + 1);
+    } else {
+      setSavedSerial(editSerial); // a normal load matches its own saved state
+    }
   };
 
   const onSaved = (d: WristbandDesignDoc) => {
@@ -155,7 +161,7 @@ export function WristbandsPage() {
           <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-card p-3">
             <DesignManagerBar
               eventId={eventId} current={current} onLoad={onLoad} onSaved={onSaved}
-              dirty={dirty} buildDoc={buildDoc}
+              dirty={dirty} buildDoc={buildDoc} events={events}
             />
 
             <div className="w-56">

@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { FilePlus2, Save, Copy, Trash2 } from 'lucide-react';
+import { FilePlus2, Save, Copy, Trash2, CopyPlus } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import type { WristbandDesignDoc } from '@/lib/wristband/design';
+import type { Event } from '@/types';
+import { copyDesignToEvent } from '@/lib/wristband/design';
+import { CopyFromEventDialog } from '@/components/wristband/CopyFromEventDialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -25,18 +28,20 @@ const NAME_PROMPT_TITLE: Record<NamePromptMode, string> = {
  * new design row (name prompted via a small Dialog since neither can infer
  * one). All API failures surface via toast.error — no silent fallback.
  */
-export function DesignManagerBar({ eventId, current, onLoad, onSaved, dirty, buildDoc }: {
+export function DesignManagerBar({ eventId, current, onLoad, onSaved, dirty, buildDoc, events }: {
   eventId: string;
   current: WristbandDesignDoc | null;
-  onLoad: (d: WristbandDesignDoc) => void;
+  onLoad: (d: WristbandDesignDoc, markDirty?: boolean) => void;
   onSaved: (d: WristbandDesignDoc) => void;
   dirty: boolean;
   buildDoc: () => Omit<WristbandDesignDoc, '_id'>;
+  events: Event[];
 }) {
   const queryClient = useQueryClient();
   const [namePrompt, setNamePrompt] = useState<NamePromptMode | null>(null);
   const [nameValue, setNameValue] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [copyOpen, setCopyOpen] = useState(false);
 
   const queryKey = ['wristband-designs', eventId];
   const { data: designs = [] } = useQuery({
@@ -152,6 +157,14 @@ export function DesignManagerBar({ eventId, current, onLoad, onSaved, dirty, bui
       </Button>
 
       <Button
+        variant="outline" size="sm"
+        disabled={events.length < 2}
+        onClick={() => setCopyOpen(true)}
+      >
+        <CopyPlus className="mr-1.5 h-4 w-4" /> Copy from event…
+      </Button>
+
+      <Button
         variant="ghost" size="sm" disabled={!current?._id}
         onClick={() => setConfirmDelete(true)}
       >
@@ -185,6 +198,14 @@ export function DesignManagerBar({ eventId, current, onLoad, onSaved, dirty, bui
         confirmLabel="Delete"
         isLoading={deleteMutation.isPending}
         onConfirm={() => current?._id && deleteMutation.mutate(current._id)}
+      />
+
+      <CopyFromEventDialog
+        open={copyOpen}
+        onOpenChange={setCopyOpen}
+        events={events}
+        currentEventId={eventId}
+        onPick={(design) => onLoad(copyDesignToEvent(design, eventId), true)}
       />
     </div>
   );

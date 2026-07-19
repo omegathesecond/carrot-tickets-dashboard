@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   imageEffectiveDpi, LOW_DPI_THRESHOLD, createImageElement, createTextElement,
-  createQrElement, FONT_FAMILIES, hasVisibleQrElement,
+  createQrElement, FONT_FAMILIES, hasVisibleQrElement, copyDesignToEvent,
+  type WristbandDesignDoc,
 } from '../design';
+import { DEFAULT_TEMPLATES } from '../templates';
 
 describe('imageEffectiveDpi', () => {
   it('computes DPI from natural pixels over printed mm', () => {
@@ -51,5 +53,43 @@ describe('hasVisibleQrElement', () => {
   it('false when the qr element is toggled invisible', () => {
     const elements = [createQrElement({ visible: false })];
     expect(hasVisibleQrElement(elements)).toBe(false);
+  });
+});
+
+describe('copyDesignToEvent', () => {
+  const makeSource = (): WristbandDesignDoc => ({
+    _id: 'src-123',
+    eventId: 'event-A',
+    name: 'Gold VIP band',
+    sheetTemplate: DEFAULT_TEMPLATES[0],
+    designJson: {
+      background: '#ffffff',
+      elements: [createImageElement('https://cdn.carrottickets.com/x.png', 1000, 250, 25.4)],
+    },
+  });
+
+  it('clears _id so Save creates a new design instead of overwriting the source', () => {
+    expect(copyDesignToEvent(makeSource(), 'event-B')._id).toBeUndefined();
+  });
+
+  it('retargets eventId to the destination event', () => {
+    expect(copyDesignToEvent(makeSource(), 'event-B').eventId).toBe('event-B');
+  });
+
+  it('preserves name, sheetTemplate and designJson including artwork URLs', () => {
+    const source = makeSource();
+    const copy = copyDesignToEvent(source, 'event-B');
+    expect(copy.name).toBe('Gold VIP band');
+    expect(copy.sheetTemplate).toEqual(source.sheetTemplate);
+    expect(copy.designJson).toEqual(source.designJson);
+    expect((copy.designJson.elements[0] as { url: string }).url)
+      .toBe('https://cdn.carrottickets.com/x.png');
+  });
+
+  it('does not mutate the source design', () => {
+    const source = makeSource();
+    const snapshot = JSON.parse(JSON.stringify(source));
+    copyDesignToEvent(source, 'event-B');
+    expect(source).toEqual(snapshot);
   });
 });
