@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { apiClient } from '@/lib/api';
 import type { WristbandDesignDoc } from '@/lib/wristband/design';
 import type { Event } from '@/types';
@@ -50,10 +51,12 @@ export function CopyFromEventDialog({ open, onOpenChange, events, currentEventId
 
   const handleLoad = () => {
     const chosen = designs.find((d) => d._id === designId);
-    if (chosen) {
-      onPick(chosen);
-      handleOpenChange(false);
+    if (!chosen) {
+      toast.error('That design is no longer available. Pick another.');
+      return;
     }
+    onPick(chosen);
+    handleOpenChange(false);
   };
 
   const designPlaceholder =

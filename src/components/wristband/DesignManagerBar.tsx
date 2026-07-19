@@ -156,7 +156,11 @@ export function DesignManagerBar({ eventId, current, onLoad, onSaved, dirty, bui
         <Copy className="mr-1.5 h-4 w-4" /> Duplicate
       </Button>
 
-      <Button variant="outline" size="sm" onClick={() => setCopyOpen(true)}>
+      <Button
+        variant="outline" size="sm"
+        disabled={events.length < 2}
+        onClick={() => setCopyOpen(true)}
+      >
         <CopyPlus className="mr-1.5 h-4 w-4" /> Copy from event…
       </Button>
 
