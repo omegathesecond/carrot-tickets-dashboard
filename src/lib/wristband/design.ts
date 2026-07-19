@@ -125,3 +125,18 @@ export function createImageElement(
     ...BASE(), x: 0, y: 0, type: 'image', url, width, height, naturalWidth, naturalHeight,
   };
 }
+
+/**
+ * Copy a saved design so it can be loaded into the editor as a NEW (unsaved)
+ * design under a different event. Clearing `_id` is essential: it forces the
+ * editor's Save down the create path, so the SOURCE event's design is never
+ * overwritten by a PUT. `sheetTemplate` and `designJson` (background, elements
+ * and their absolute artwork URLs) are carried over verbatim, so the copy is
+ * fully self-contained and does not depend on the target event.
+ */
+export function copyDesignToEvent(
+  source: WristbandDesignDoc,
+  targetEventId: string,
+): WristbandDesignDoc {
+  return { ...source, _id: undefined, eventId: targetEventId };
+}
