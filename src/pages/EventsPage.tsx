@@ -18,6 +18,12 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { type Event, EventFormData } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
+import {
+  type Ticketing,
+  DEFAULT_TICKETING,
+  validateTicketingSelection,
+  buildTicketingPayload,
+} from '@/lib/ticketing';
 
 // Buckets shown as the status filter tabs. Drafts are "pending" (awaiting
 // approval to publish), published+upcoming are "approved", published events
@@ -55,6 +61,9 @@ export function EventsPage() {
   const [isMultiDay, setIsMultiDay] = useState(false);
   const [activeTab, setActiveTab] = useState<Bucket>('all');
   const [deleteTarget, setDeleteTarget] = useState<Event | null>(null);
+  const [ticketing, setTicketing] = useState<Ticketing>(DEFAULT_TICKETING);
+  const [externalTicketUrl, setExternalTicketUrl] = useState('');
+  const [ticketUrlError, setTicketUrlError] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const isAdmin = !!user?.isSuperAdmin;
@@ -71,6 +80,9 @@ export function EventsPage() {
       toast.success('Event created successfully');
       setIsDialogOpen(false);
       setIsMultiDay(false);
+      setTicketing(DEFAULT_TICKETING);
+      setExternalTicketUrl('');
+      setTicketUrlError(null);
     },
     onError: (error: any) => toast.error(error.message || 'Failed to create event'),
   });
@@ -138,6 +150,16 @@ export function EventsPage() {
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
+    // Defense-in-depth: the API also validates this, but reject here first so
+    // the organizer gets an inline field error instead of a round-trip.
+    const urlError = validateTicketingSelection(ticketing, externalTicketUrl);
+    if (urlError) {
+      setTicketUrlError(urlError);
+      return;
+    }
+    setTicketUrlError(null);
+
     const formData = new FormData(e.currentTarget);
 
     const name = formData.get('name') as string;
@@ -175,6 +197,7 @@ export function EventsPage() {
       endTime,
       isMultiDay,
       ticketTypes: [],
+      ...buildTicketingPayload(ticketing, externalTicketUrl),
     };
 
     createMutation.mutate(data);
@@ -207,6 +230,37 @@ export function EventsPage() {
               <DialogTitle>Create New Event</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label>Who sells the tickets?</Label>
+                <Tabs value={ticketing} onValueChange={(v) => setTicketing(v as Ticketing)}>
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="carrot">Carrot sells (recommended)</TabsTrigger>
+                    <TabsTrigger value="external">I sell them myself</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+
+              {ticketing === 'external' && (
+                <div className="space-y-2">
+                  <Label htmlFor="externalTicketUrl">Ticket link (https://…)</Label>
+                  <Input
+                    id="externalTicketUrl"
+                    type="url"
+                    value={externalTicketUrl}
+                    onChange={(e) => {
+                      setExternalTicketUrl(e.target.value);
+                      setTicketUrlError(null);
+                    }}
+                    placeholder="https://your-site.com/tickets"
+                    required
+                  />
+                  {ticketUrlError && <p className="text-xs text-red-600">{ticketUrlError}</p>}
+                  <p className="text-xs text-slate-500">
+                    Buyers will be sent to this link. Carrot won't process the sale.
+                  </p>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="name">Event Name</Label>
@@ -262,9 +316,11 @@ export function EventsPage() {
                 </div>
               )}
 
-              <p className="text-xs text-slate-500">
-                You'll set how many tickets are available when you add ticket types to this event.
-              </p>
+              {ticketing === 'carrot' && (
+                <p className="text-xs text-slate-500">
+                  You'll set how many tickets are available when you add ticket types to this event.
+                </p>
+              )}
 
               <Button type="submit" className="w-full" disabled={createMutation.isPending}>
                 {createMutation.isPending ? 'Creating...' : 'Create Event'}

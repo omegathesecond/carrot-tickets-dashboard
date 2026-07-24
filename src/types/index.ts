@@ -83,6 +83,13 @@ export interface Event {
   status: 'draft' | 'pending_approval' | 'published' | 'cancelled' | 'completed';
   createdAt: string;
   updatedAt: string;
+  // Who sells the tickets: 'carrot' (default, existing checkout) or
+  // 'external' (organizer sells on their own site; the API refuses to
+  // process a sale for these events). Absent on legacy events == 'carrot'.
+  ticketing?: 'carrot' | 'external';
+  // Required when ticketing === 'external' — an absolute https:// URL buyers
+  // are sent to instead of Carrot checkout.
+  externalTicketUrl?: string;
 }
 
 export interface TicketType {
@@ -113,6 +120,11 @@ export interface EventFormData {
     quantity: number; // Changed from capacity
     description?: string;
   }[];
+  // Who sells the tickets — see Event.ticketing. Defaults to 'carrot' when
+  // omitted (backward compatible with events created before this field
+  // existed).
+  ticketing?: 'carrot' | 'external';
+  externalTicketUrl?: string;
 }
 
 // Event creator (organizer) + their event history — powers the admin
