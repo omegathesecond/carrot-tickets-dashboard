@@ -23,7 +23,13 @@ import {
   DEFAULT_TICKETING,
   validateTicketingSelection,
   buildTicketingPayload,
+  buildExternalPricePayload,
+  validateExternalPriceRange,
 } from '@/lib/ticketing';
+import { currencySymbol, type Currency } from '@/lib/currency';
+import { ImageUploadInput } from '@/components/ImageUploadInput';
+import { GalleryManager } from '@/components/GalleryManager';
+import { submitNewEvent } from '@/lib/createEvent';
 
 // Buckets shown as the status filter tabs. Drafts are "pending" (awaiting
 // approval to publish), published+upcoming are "approved", published events
@@ -64,6 +70,12 @@ export function EventsPage() {
   const [ticketing, setTicketing] = useState<Ticketing>(DEFAULT_TICKETING);
   const [externalTicketUrl, setExternalTicketUrl] = useState('');
   const [ticketUrlError, setTicketUrlError] = useState<string | null>(null);
+  const [posterFile, setPosterFile] = useState<File | null>(null);
+  const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
+  const [currency, setCurrency] = useState<Currency>('SZL');
+  const [priceMin, setPriceMin] = useState('');
+  const [priceMax, setPriceMax] = useState('');
+  const [priceError, setPriceError] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const isAdmin = !!user?.isSuperAdmin;
@@ -73,16 +85,31 @@ export function EventsPage() {
     queryFn: () => apiClient.events.getEvents({ limit: 100 }),
   });
 
+  const resetCreateForm = () => {
+    setIsDialogOpen(false);
+    setIsMultiDay(false);
+    setTicketing(DEFAULT_TICKETING);
+    setExternalTicketUrl('');
+    setTicketUrlError(null);
+    setPosterFile(null);
+    setGalleryFiles([]);
+    setCurrency('SZL');
+    setPriceMin('');
+    setPriceMax('');
+    setPriceError(null);
+  };
+
   const createMutation = useMutation({
-    mutationFn: (data: EventFormData) => apiClient.events.createEvent(data),
-    onSuccess: () => {
+    mutationFn: (vars: { data: EventFormData; poster: File | null; gallery: File[] }) =>
+      submitNewEvent(vars.data, { poster: vars.poster, gallery: vars.gallery }),
+    onSuccess: ({ uploadError }) => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
-      toast.success('Event created successfully');
-      setIsDialogOpen(false);
-      setIsMultiDay(false);
-      setTicketing(DEFAULT_TICKETING);
-      setExternalTicketUrl('');
-      setTicketUrlError(null);
+      if (uploadError) {
+        toast.error(`Event created, but the images didn't upload: ${uploadError} Add them from the event page.`);
+      } else {
+        toast.success('Event created successfully');
+      }
+      resetCreateForm();
     },
     onError: (error: any) => toast.error(error.message || 'Failed to create event'),
   });
@@ -160,6 +187,13 @@ export function EventsPage() {
     }
     setTicketUrlError(null);
 
+    const rangeError = ticketing === 'external' ? validateExternalPriceRange(priceMin, priceMax) : null;
+    if (rangeError) {
+      setPriceError(rangeError);
+      return;
+    }
+    setPriceError(null);
+
     const formData = new FormData(e.currentTarget);
 
     const name = formData.get('name') as string;
@@ -198,9 +232,10 @@ export function EventsPage() {
       isMultiDay,
       ticketTypes: [],
       ...buildTicketingPayload(ticketing, externalTicketUrl),
+      ...buildExternalPricePayload(ticketing, currency, priceMin, priceMax),
     };
 
-    createMutation.mutate(data);
+    createMutation.mutate({ data, poster: posterFile, gallery: galleryFiles });
   };
 
   if (isLoading) return <div className="p-8">Loading...</div>;
@@ -219,7 +254,7 @@ export function EventsPage() {
           <h1 className="text-3xl font-bold">Events</h1>
           <p className="text-slate-600">Manage your events and ticket configurations</p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog open={isDialogOpen} onOpenChange={(open) => (open ? setIsDialogOpen(true) : resetCreateForm())}>
           <DialogTrigger asChild>
             <Button className="bg-gradient-to-r from-orange-600 to-amber-600">
               <Plus className="h-4 w-4 mr-2" /> Create Event
@@ -257,6 +292,35 @@ export function EventsPage() {
                   {ticketUrlError && <p className="text-xs text-red-600">{ticketUrlError}</p>}
                   <p className="text-xs text-slate-500">
                     Buyers will be sent to this link. Carrot won't process the sale.
+                  </p>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="currency">Currency</Label>
+                      <select
+                        id="currency"
+                        value={currency}
+                        onChange={(e) => setCurrency(e.target.value as Currency)}
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      >
+                        <option value="SZL">E (SZL)</option>
+                        <option value="ZAR">R (ZAR)</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="priceMin">From</Label>
+                      <Input id="priceMin" type="number" min="0" step="0.01" value={priceMin}
+                        onChange={(e) => setPriceMin(e.target.value)} placeholder="100" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="priceMax">To</Label>
+                      <Input id="priceMax" type="number" min="0" step="0.01" value={priceMax}
+                        onChange={(e) => setPriceMax(e.target.value)} placeholder="250" />
+                    </div>
+                  </div>
+                  {priceError && <p className="text-xs text-red-600">{priceError}</p>}
+                  <p className="text-xs text-slate-500">
+                    Shown on the card as a price range, e.g. {currencySymbol(currency)}100 – {currencySymbol(currency)}250. Optional.
                   </p>
                 </div>
               )}
@@ -321,6 +385,24 @@ export function EventsPage() {
                   You'll set how many tickets are available when you add ticket types to this event.
                 </p>
               )}
+
+              <div className="space-y-3 rounded-lg border border-slate-200 p-3">
+                <div>
+                  <p className="text-sm font-medium text-slate-900">Poster & photos</p>
+                  <p className="text-xs text-slate-500">Add a poster and a few event photos — events with images get far more views, and multiple photos animate on the card.</p>
+                </div>
+                <ImageUploadInput
+                  label="Event poster"
+                  onFileSelect={setPosterFile}
+                  onRemove={() => setPosterFile(null)}
+                />
+                <GalleryManager
+                  label="Event photos"
+                  onFilesSelect={() => {}}
+                  onRemove={() => {}}
+                  onNewFilesChange={setGalleryFiles}
+                />
+              </div>
 
               <Button type="submit" className="w-full" disabled={createMutation.isPending}>
                 {createMutation.isPending ? 'Creating...' : 'Create Event'}
