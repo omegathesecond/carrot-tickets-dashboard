@@ -8,7 +8,10 @@ import {
   DEFAULT_TICKETING,
   validateTicketingSelection,
   buildTicketingPayload,
+  buildExternalPricePayload,
+  validateExternalPriceRange,
 } from '@/lib/ticketing';
+import { currencySymbol, type Currency } from '@/lib/currency';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -49,6 +52,10 @@ export function EventDetailsPage() {
   const [ticketing, setTicketing] = useState<Ticketing>(DEFAULT_TICKETING);
   const [externalTicketUrl, setExternalTicketUrl] = useState('');
   const [ticketUrlError, setTicketUrlError] = useState<string | null>(null);
+  const [currency, setCurrency] = useState<Currency>('SZL');
+  const [priceMin, setPriceMin] = useState('');
+  const [priceMax, setPriceMax] = useState('');
+  const [priceError, setPriceError] = useState<string | null>(null);
 
   // Keshless admins approve events (publish them live) and can unpublish/delete
   // even after tickets sell. Organizers instead SUBMIT events for approval.
@@ -82,8 +89,12 @@ export function EventDetailsPage() {
       setTicketing(event.ticketing ?? DEFAULT_TICKETING);
       setExternalTicketUrl(event.externalTicketUrl ?? '');
       setTicketUrlError(null);
+      setCurrency(event.currency ?? 'SZL');
+      setPriceMin(event.priceMin != null ? String(event.priceMin) : '');
+      setPriceMax(event.priceMax != null ? String(event.priceMax) : '');
+      setPriceError(null);
     }
-  }, [event?._id, event?.ticketing, event?.externalTicketUrl]);
+  }, [event?._id, event?.ticketing, event?.externalTicketUrl, event?.currency, event?.priceMin, event?.priceMax]);
 
   const publishMutation = useMutation({
     mutationFn: (publish: boolean) =>
@@ -134,7 +145,18 @@ export function EventDetailsPage() {
       return;
     }
     setTicketUrlError(null);
-    updateTicketingMutation.mutate(buildTicketingPayload(ticketing, externalTicketUrl));
+
+    const rangeError = ticketing === 'external' ? validateExternalPriceRange(priceMin, priceMax) : null;
+    if (rangeError) {
+      setPriceError(rangeError);
+      return;
+    }
+    setPriceError(null);
+
+    updateTicketingMutation.mutate({
+      ...buildTicketingPayload(ticketing, externalTicketUrl),
+      ...buildExternalPricePayload(ticketing, currency, priceMin, priceMax),
+    });
   };
 
   const addTicketMutation = useMutation({
@@ -470,6 +492,35 @@ export function EventDetailsPage() {
                   {ticketUrlError && <p className="text-xs text-red-600">{ticketUrlError}</p>}
                   <p className="text-xs text-slate-500">
                     Buyers will be sent to this link. Carrot won't process the sale.
+                  </p>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-currency">Currency</Label>
+                      <select
+                        id="edit-currency"
+                        value={currency}
+                        onChange={(e) => setCurrency(e.target.value as Currency)}
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      >
+                        <option value="SZL">E (SZL)</option>
+                        <option value="ZAR">R (ZAR)</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-priceMin">From</Label>
+                      <Input id="edit-priceMin" type="number" min="0" step="0.01" value={priceMin}
+                        onChange={(e) => setPriceMin(e.target.value)} placeholder="100" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-priceMax">To</Label>
+                      <Input id="edit-priceMax" type="number" min="0" step="0.01" value={priceMax}
+                        onChange={(e) => setPriceMax(e.target.value)} placeholder="250" />
+                    </div>
+                  </div>
+                  {priceError && <p className="text-xs text-red-600">{priceError}</p>}
+                  <p className="text-xs text-slate-500">
+                    Shown on the card as a price range, e.g. {currencySymbol(currency)}100 – {currencySymbol(currency)}250. Optional.
                   </p>
                 </div>
               )}
