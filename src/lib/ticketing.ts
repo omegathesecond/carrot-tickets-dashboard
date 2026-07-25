@@ -1,3 +1,5 @@
+import type { Currency } from '@/lib/currency';
+
 // Shared "who sells the tickets?" logic for the event create/edit forms
 // (EventsPage's create dialog + EventDetailsPage's Ticketing card).
 //
@@ -59,4 +61,47 @@ export function buildTicketingPayload(
     return { ticketing, externalTicketUrl: (externalTicketUrl ?? '').trim() };
   }
   return { ticketing };
+}
+
+/** Parses a form price string to a number, or undefined when blank/invalid. */
+function parsePrice(v: string | number | undefined | null): number | undefined {
+  if (v === '' || v == null) return undefined;
+  const n = Number(v);
+  return Number.isNaN(n) ? undefined : n;
+}
+
+/**
+ * Validates the external price range. Both bounds are optional; only a max
+ * below a provided min is an error. Returns a message or null.
+ */
+export function validateExternalPriceRange(
+  priceMin: string | number | undefined | null,
+  priceMax: string | number | undefined | null,
+): string | null {
+  const min = parsePrice(priceMin);
+  const max = parsePrice(priceMax);
+  if (min != null && max != null && max < min) {
+    return 'Maximum price must be greater than or equal to the minimum price.';
+  }
+  return null;
+}
+
+/**
+ * Builds the currency/price fields to merge into the event payload. Returns {}
+ * for carrot events (price comes from ticket tiers there). For external events
+ * always sends the currency label and any numeric bounds provided.
+ */
+export function buildExternalPricePayload(
+  ticketing: Ticketing,
+  currency: Currency,
+  priceMin: string | number | undefined | null,
+  priceMax: string | number | undefined | null,
+): { currency?: Currency; priceMin?: number; priceMax?: number } {
+  if (ticketing !== 'external') return {};
+  const out: { currency?: Currency; priceMin?: number; priceMax?: number } = { currency };
+  const min = parsePrice(priceMin);
+  const max = parsePrice(priceMax);
+  if (min != null) out.priceMin = min;
+  if (max != null) out.priceMax = max;
+  return out;
 }
