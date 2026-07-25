@@ -90,6 +90,10 @@ export interface Event {
   // Required when ticketing === 'external' — an absolute https:// URL buyers
   // are sent to instead of Carrot checkout.
   externalTicketUrl?: string;
+  // Display currency + organizer-entered price range for external events.
+  currency?: 'SZL' | 'ZAR';
+  priceMin?: number;
+  priceMax?: number;
 }
 
 export interface TicketType {
@@ -125,6 +129,9 @@ export interface EventFormData {
   // existed).
   ticketing?: 'carrot' | 'external';
   externalTicketUrl?: string;
+  currency?: 'SZL' | 'ZAR';
+  priceMin?: number;
+  priceMax?: number;
 }
 
 // Event creator (organizer) + their event history — powers the admin
