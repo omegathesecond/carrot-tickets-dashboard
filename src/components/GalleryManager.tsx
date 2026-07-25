@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Upload, X, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -8,6 +8,11 @@ interface GalleryManagerProps {
   currentImages?: string[];
   onFilesSelect: (files: File[]) => void;
   onRemove: (imageUrl: string) => void;
+  // Optional: fires with the full current set of not-yet-uploaded Files after
+  // every add and every remove. Used by the create-event modal, where media
+  // is deferred (no eventId exists yet to upload against). Existing callers
+  // that don't pass it see no behavior change.
+  onNewFilesChange?: (files: File[]) => void;
   maxImages?: number;
   maxSize?: number; // in MB per image
   disabled?: boolean;
@@ -19,16 +24,25 @@ export function GalleryManager({
   currentImages = [],
   onFilesSelect,
   onRemove,
+  onNewFilesChange,
   maxImages = 10,
   maxSize = 10,
   disabled = false,
   className,
 }: GalleryManagerProps) {
-  const [previews, setPreviews] = useState<{ url: string; isNew: boolean }[]>(
+  const [previews, setPreviews] = useState<{ url: string; isNew: boolean; file?: File }[]>(
     currentImages.map(url => ({ url, isNew: false }))
   );
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    onNewFilesChange?.(previews.filter(p => p.isNew && p.file).map(p => p.file as File));
+    // Intentionally omit onNewFilesChange from deps: callers pass an inline
+    // function; re-emitting only when the preview set actually changes is
+    // what we want (and avoids a fire loop).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previews]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
@@ -42,7 +56,7 @@ export function GalleryManager({
 
     // Validate each file
     const validFiles: File[] = [];
-    const newPreviews: { url: string; isNew: boolean }[] = [];
+    const newPreviews: { url: string; isNew: boolean; file?: File }[] = [];
 
     for (const file of files) {
       // Validate file size
@@ -63,7 +77,7 @@ export function GalleryManager({
       // Create preview
       const reader = new FileReader();
       reader.onloadend = () => {
-        newPreviews.push({ url: reader.result as string, isNew: true });
+        newPreviews.push({ url: reader.result as string, isNew: true, file });
         if (newPreviews.length === validFiles.length) {
           setPreviews(prev => [...prev, ...newPreviews]);
         }
@@ -82,8 +96,11 @@ export function GalleryManager({
     }
   };
 
-  const handleRemove = (imageUrl: string, isNew: boolean) => {
-    setPreviews(prev => prev.filter(p => p.url !== imageUrl));
+  // Removes by index rather than by url: two distinct picked files can
+  // legitimately produce the same data-URI preview (identical bytes), so
+  // matching on url alone could remove more than one entry.
+  const handleRemove = (index: number, imageUrl: string, isNew: boolean) => {
+    setPreviews(prev => prev.filter((_, i) => i !== index));
     if (!isNew) {
       onRemove(imageUrl);
     }
@@ -122,7 +139,7 @@ export function GalleryManager({
                   size="sm"
                   variant="destructive"
                   className="opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={() => handleRemove(preview.url, preview.isNew)}
+                  onClick={() => handleRemove(index, preview.url, preview.isNew)}
                   disabled={disabled}
                 >
                   <X className="h-4 w-4" />
