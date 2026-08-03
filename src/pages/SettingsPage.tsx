@@ -21,6 +21,7 @@ export function SettingsPage() {
   const [keshFeeInput, setKeshFeeInput] = useState('');
   const [momoFeeInput, setMomoFeeInput] = useState('');
   const [cardFeeInput, setCardFeeInput] = useState('');
+  const [deltapayFeeInput, setDeltapayFeeInput] = useState('');
   const [feesInitialised, setFeesInitialised] = useState(false);
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -36,6 +37,7 @@ export function SettingsPage() {
       setKeshFeeInput(String(data.keshlessServiceFee ?? 0));
       setMomoFeeInput(String(data.momoServiceFee ?? 0));
       setCardFeeInput(String(data.cardServiceFee ?? 0));
+      setDeltapayFeeInput(String(data.deltapayServiceFee ?? 0));
       setFeesInitialised(true);
     }
   }, [data, feesInitialised]);
@@ -93,7 +95,7 @@ export function SettingsPage() {
       </div>
     );
 
-  const toggle = (key: 'keshlessWalletEnabled' | 'mtnMomoEnabled' | 'cashEnabled' | 'peachCardEnabled') => {
+  const toggle = (key: 'keshlessWalletEnabled' | 'mtnMomoEnabled' | 'cashEnabled' | 'peachCardEnabled' | 'deltapayEnabled') => {
     const feeVal = parseFloat(feeInput);
     const commVal = parseFloat(commInput);
     mutation.mutate({
@@ -127,10 +129,11 @@ export function SettingsPage() {
   const keshFeeVal = parseFloat(keshFeeInput);
   const momoFeeVal = parseFloat(momoFeeInput);
   const cardFeeVal = parseFloat(cardFeeInput);
+  const deltapayFeeVal = parseFloat(deltapayFeeInput);
   const inRange = (v: number) => !isNaN(v) && v >= 0 && v <= 100000;
   const serviceFeesValid =
-    keshFeeInput !== '' && momoFeeInput !== '' && cardFeeInput !== '' &&
-    inRange(keshFeeVal) && inRange(momoFeeVal) && inRange(cardFeeVal);
+    keshFeeInput !== '' && momoFeeInput !== '' && cardFeeInput !== '' && deltapayFeeInput !== '' &&
+    inRange(keshFeeVal) && inRange(momoFeeVal) && inRange(cardFeeVal) && inRange(deltapayFeeVal);
 
   const saveServiceFees = () => {
     serviceFeesMutation.mutate({
@@ -138,6 +141,7 @@ export function SettingsPage() {
       keshlessServiceFee: keshFeeVal,
       momoServiceFee: momoFeeVal,
       cardServiceFee: cardFeeVal,
+      deltapayServiceFee: deltapayFeeVal,
     });
   };
 
@@ -184,6 +188,19 @@ export function SettingsPage() {
             <Switch
               checked={data.peachCardEnabled}
               onCheckedChange={() => toggle('peachCardEnabled')}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <Label className="text-base">DeltaPay</Label>
+              <p className="text-sm text-muted-foreground">
+                Pay from a DeltaPay wallet (phone number, username or QR). Leave OFF until
+                DeltaPay issues live credentials.
+              </p>
+            </div>
+            <Switch
+              checked={data.deltapayEnabled}
+              onCheckedChange={() => toggle('deltapayEnabled')}
             />
           </div>
           <div className="flex items-center justify-between">
@@ -289,6 +306,18 @@ export function SettingsPage() {
               value={cardFeeInput}
               onChange={(e) => setCardFeeInput(e.target.value)}
               placeholder="e.g. 10"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="deltapay-fee">DeltaPay service fee (E)</Label>
+            <Input
+              id="deltapay-fee"
+              type="number"
+              min="0"
+              step="0.01"
+              value={deltapayFeeInput}
+              onChange={(e) => setDeltapayFeeInput(e.target.value)}
+              placeholder="e.g. 5"
             />
           </div>
           <Button

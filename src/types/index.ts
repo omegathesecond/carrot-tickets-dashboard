@@ -51,12 +51,14 @@ export interface PaymentMethodSettings {
   mtnMomoEnabled: boolean;
   cashEnabled: boolean;
   peachCardEnabled: boolean;
+  deltapayEnabled: boolean;
   defaultResellerCommissionPercent: number;
   platformFeePercent: number;
   // Buyer-paid FLAT service fee (E) per online method (added on top at checkout).
   keshlessServiceFee: number;
   momoServiceFee: number;
   cardServiceFee: number;
+  deltapayServiceFee: number;
 }
 
 // Event Types
