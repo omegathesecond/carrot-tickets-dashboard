@@ -24,6 +24,7 @@ import {
   Route,
   Truck,
   Armchair,
+  Receipt,
 } from 'lucide-react';
 
 // The organizer's brand social feed lives on the consumer site (same login).
@@ -176,6 +177,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       { name: 'Settings', href: '/settings', icon: Settings2, show: true },
       { name: 'Resellers', href: '/resellers', icon: Users, show: true },
       { name: 'Payouts', href: '/payouts', icon: Banknote, show: true },
+      { name: 'Fees', href: '/fees', icon: Receipt, show: true },
     ] : []),
   ].filter((item) => item.show);
 

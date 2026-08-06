@@ -41,6 +41,7 @@ import { ResellersPage } from '@/pages/ResellersPage';
 import { ResellerDetailPage } from '@/pages/ResellerDetailPage';
 import { HubDetailPage } from '@/pages/HubDetailPage';
 import { OrganizerPayoutsPage } from '@/pages/OrganizerPayoutsPage';
+import { FeesPage } from '@/pages/FeesPage';
 import { GateOperatorsPage } from '@/pages/GateOperatorsPage';
 import { TransportRoute } from '@/components/TransportRoute';
 import { VehicleTypesPage } from '@/pages/VehicleTypesPage';
@@ -92,6 +93,7 @@ function App() {
                   <Route path="resellers/:id" element={<AdminRoute><ResellerDetailPage /></AdminRoute>} />
                   <Route path="resellers/:id/hubs/:hubId" element={<AdminRoute><HubDetailPage /></AdminRoute>} />
                   <Route path="payouts" element={<AdminRoute><OrganizerPayoutsPage /></AdminRoute>} />
+                  <Route path="fees" element={<AdminRoute><FeesPage /></AdminRoute>} />
                   <Route path="gate-operators" element={<GateOperatorsPage />} />
                   <Route path="transport/vehicle-types" element={<TransportRoute><VehicleTypesPage /></TransportRoute>} />
                   <Route path="transport/routes" element={<TransportRoute><TransportRoutesPage /></TransportRoute>} />
