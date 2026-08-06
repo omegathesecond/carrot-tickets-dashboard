@@ -451,6 +451,42 @@ export interface OrganizersListResponse {
   pagination: { page: number; limit: number; total: number; totalPages: number };
 }
 
+// Fees (booking charges) — admin Fees tab
+export interface FeeMethodBreakdown {
+  method: string;
+  bookingFees: number;
+  platformFees: number;
+  totalFees: number;
+  ticketsSold: number;
+  salesCount: number;
+}
+
+export interface FeeByEventRow {
+  eventId: string;
+  eventName: string;
+  ticketsSold: number;
+  faceValue: number;
+  bookingFees: number;
+  platformFees: number;
+  totalFees: number;
+  byMethod: FeeMethodBreakdown[];
+}
+
+export interface FeeTotals {
+  eventCount: number;
+  ticketsSold: number;
+  faceValue: number;
+  bookingFees: number;
+  platformFees: number;
+  totalFees: number;
+}
+
+export interface FeesResponse {
+  events: FeeByEventRow[];
+  totals: FeeTotals;
+  pagination: { page: number; limit: number; total: number; totalPages: number };
+}
+
 export interface CreateOrganizerData {
   businessName: string;
   operatorType: 'events' | 'transport' | 'both';
