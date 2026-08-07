@@ -404,7 +404,8 @@ export interface ApiError {
 export interface PlatformUser {
   id: string;
   name: string | null;
-  phone: string;
+  phone: string | null; // email-only buyers have none
+  email: string | null; // phone-only (legacy) buyers have none
   createdAt: string;
   lastLoginAt: string | null;
   ticketsBought: number;
