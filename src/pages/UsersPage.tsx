@@ -123,7 +123,7 @@ export function UsersPage() {
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle>All users</CardTitle>
           <Input
-            placeholder="Search by name or phone…"
+            placeholder="Search by name, phone or email…"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             className="sm:max-w-xs"
@@ -135,7 +135,7 @@ export function UsersPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>Phone</TableHead>
+                  <TableHead>Contact</TableHead>
                   <TableHead>Joined</TableHead>
                   <TableHead>Last active</TableHead>
                   <TableHead className="text-right">Tickets</TableHead>
@@ -157,7 +157,7 @@ export function UsersPage() {
                   users.map((u) => (
                     <TableRow key={u.id}>
                       <TableCell className="font-medium">{u.name || '—'}</TableCell>
-                      <TableCell className="font-mono text-sm">{u.phone}</TableCell>
+                      <TableCell className="font-mono text-sm">{u.phone || u.email || '—'}</TableCell>
                       <TableCell>{formatDate(u.createdAt)}</TableCell>
                       <TableCell>{formatDate(u.lastLoginAt)}</TableCell>
                       <TableCell className="text-right">{u.ticketsBought}</TableCell>
