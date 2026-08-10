@@ -20,6 +20,19 @@ export interface AuthResponse {
   user: AuthUser;
 }
 
+// Step 1 of organizer password reset echoes where the code was sent so the UI
+// can say "We texted your phone" / "Check your email".
+export interface ForgotPasswordResponse {
+  channel: 'sms' | 'email';
+  identifier: string;
+}
+
+export interface ResetPasswordData {
+  identifier: string;
+  code: string;
+  newPassword: string;
+}
+
 export type VerificationStatus = 'pending' | 'verified' | 'rejected' | 'suspended';
 
 export interface AuthUser {

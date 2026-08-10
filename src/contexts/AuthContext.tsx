@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from 'react';
 import { apiClient } from '@/lib/api';
-import type { AuthUser, LoginCredentials, RegisterData } from '@/types';
+import type { AuthUser, LoginCredentials, RegisterData, ResetPasswordData } from '@/types';
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -8,6 +8,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
+  resetPassword: (data: ResetPasswordData) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -149,6 +150,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Password reset (step 2) signs the organizer straight in: the API returns the
+  // same token + user payload as login/register, so we just adopt it. Mirrors
+  // register() exactly.
+  const resetPassword = async (data: ResetPasswordData) => {
+    try {
+      const response = await apiClient.auth.resetPassword(data);
+      console.log('[AuthContext] Password reset successful, user:', {
+        id: response.user._id,
+        businessName: response.user.businessName,
+      });
+
+      await new Promise<void>((resolve) => {
+        setUser(response.user);
+        setTimeout(() => resolve(), 50);
+      });
+    } catch (error: any) {
+      console.error('[AuthContext] Password reset failed:', error.message);
+      throw error;
+    }
+  };
+
   const logout = async () => {
     try {
       console.log('[AuthContext] Logging out...');
@@ -179,6 +201,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         login,
         register,
+        resetPassword,
         logout,
       }}
     >

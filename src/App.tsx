@@ -21,6 +21,7 @@ import { ResellerReportsPage } from '@/pages/reseller/ResellerReportsPage';
 import { ResellerPayoutsPage } from '@/pages/reseller/ResellerPayoutsPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { SignupPage } from '@/pages/SignupPage';
+import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { EventsPage } from '@/pages/EventsPage';
 import { EventDetailsPage } from '@/pages/EventDetailsPage';
@@ -68,6 +69,7 @@ function App() {
               <Routes>
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/signup" element={<SignupPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                 <Route
                   path="/"
                   element={

@@ -2,6 +2,8 @@ import type {
   LoginCredentials,
   RegisterData,
   AuthResponse,
+  ForgotPasswordResponse,
+  ResetPasswordData,
   AuthUser,
   Event,
   EventFormData,
@@ -267,6 +269,24 @@ export class ApiClient {
           body: JSON.stringify(data),
         }
       );
+      this.setToken(response.accessToken, response.refreshToken);
+      return response;
+    },
+
+    /** Password reset step 1: request a 6-digit code to the account's email/phone. */
+    requestPasswordReset: async (identifier: string): Promise<ForgotPasswordResponse> => {
+      return this.request<ForgotPasswordResponse>(`/tickets/auth/forgot-password`, {
+        method: 'POST',
+        body: JSON.stringify({ identifier }),
+      });
+    },
+
+    /** Password reset step 2: verify the code + set the new password. Signs in on success. */
+    resetPassword: async (data: ResetPasswordData): Promise<AuthResponse> => {
+      const response = await this.request<AuthResponse>(`/tickets/auth/reset-password`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
       this.setToken(response.accessToken, response.refreshToken);
       return response;
     },
