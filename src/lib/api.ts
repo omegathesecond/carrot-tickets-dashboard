@@ -51,6 +51,8 @@ import type {
   TripStatus,
   TripDetail,
   TransportBooking,
+  CashlessSummary,
+  CashlessTxnsResult,
 } from '@/types';
 import type { WristbandDesignDoc } from '@/lib/wristband/design';
 
@@ -342,6 +344,29 @@ export class ApiClient {
     // Creator (organizer) of the event + a roll-up of all their events.
     getEventCreator: async (id: string): Promise<EventCreatorSummary> => {
       return this.request<EventCreatorSummary>(`/tickets/events/${id}/creator`);
+    },
+
+    // Organizer cashless report — money moved at ONE cashless event. Totals
+    // (circulated / spent / withdrawn / left-behind) + per-vendor takings +
+    // per-cashier activity. Ownership is enforced server-side.
+    getEventCashlessSummary: async (id: string): Promise<CashlessSummary> => {
+      return this.request<CashlessSummary>(`/tickets/events/${id}/cashless/summary`);
+    },
+
+    // Full cashless transaction log for one event — top-ups, cash-outs and
+    // vendor charges, paginated. `type` filters to one kind.
+    getEventCashlessTransactions: async (
+      id: string,
+      params: { type?: 'topup' | 'withdrawal' | 'purchase'; page?: number; limit?: number } = {},
+    ): Promise<CashlessTxnsResult> => {
+      const q = new URLSearchParams();
+      if (params.type) q.set('type', params.type);
+      if (params.page) q.set('page', String(params.page));
+      if (params.limit) q.set('limit', String(params.limit));
+      const qs = q.toString();
+      return this.request<CashlessTxnsResult>(
+        `/tickets/events/${id}/cashless/transactions${qs ? `?${qs}` : ''}`,
+      );
     },
 
     createEvent: async (data: EventFormData): Promise<Event> => {
