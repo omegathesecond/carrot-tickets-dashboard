@@ -373,6 +373,12 @@ export class ApiClient {
         description?: string;
         price: number;
         quantity: number;
+        // Reseller allocation block (super-admin only — enforced server-side).
+        isAllocation?: boolean;
+        resellerId?: string;
+        allocationUnitCost?: number;
+        restrictToMethod?: string;
+        waiveServiceFee?: boolean;
       }
     ): Promise<Event> => {
       return this.request<Event>(`/tickets/events/${eventId}/tickets`, {

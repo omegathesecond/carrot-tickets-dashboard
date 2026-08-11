@@ -19,7 +19,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { TicketTypeDialog } from '@/components/TicketTypeDialog';
+import { TicketTypeDialog, type TicketTypeSubmitData } from '@/components/TicketTypeDialog';
 import { ImageUploadInput } from '@/components/ImageUploadInput';
 import { GalleryManager } from '@/components/GalleryManager';
 import { EventAnalyticsTab } from '@/components/EventAnalyticsTab';
@@ -160,7 +160,7 @@ export function EventDetailsPage() {
   };
 
   const addTicketMutation = useMutation({
-    mutationFn: (ticketData: { name: string; description?: string; price: number; quantity: number }) =>
+    mutationFn: (ticketData: TicketTypeSubmitData) =>
       apiClient.events.addTicketType(id!, ticketData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['event', id] });
@@ -921,6 +921,7 @@ export function EventDetailsPage() {
         }}
         ticketType={editingTicket}
         isLoading={addTicketMutation.isPending || updateTicketMutation.isPending}
+        isAdmin={isAdmin}
       />
 
       {/* Delete confirmation */}
