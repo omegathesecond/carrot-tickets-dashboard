@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { resellerApi } from '@/lib/resellerApi';
+import { useResellerAuth } from '@/contexts/ResellerAuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,12 +13,13 @@ export function AllocationLoginPage() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { ownerLogin } = useResellerAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      await resellerApi.ownerLogin({ email, password });
+      await ownerLogin(email, password);
       navigate('/allocation', { replace: true });
     } catch (error: any) {
       toast.error(error.message || 'Login failed');

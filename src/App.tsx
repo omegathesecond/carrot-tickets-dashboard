@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Outlet } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 
@@ -107,25 +107,21 @@ function App() {
                 <Route path="/reseller/login" element={<ResellerLoginPage />} />
                 {/* Standalone minimal allocation view (no sidebar) for reseller
                     partners like DeltaPay who only track their pre-bought block.
-                    Email + password login (not the till-operator loginCode/PIN). */}
-                <Route
-                  path="/allocation/login"
-                  element={
-                    <ResellerAuthProvider>
-                      <AllocationLoginPage />
-                    </ResellerAuthProvider>
-                  }
-                />
-                <Route
-                  path="/allocation"
-                  element={
-                    <ResellerAuthProvider>
+                    Email + password login (not the till-operator loginCode/PIN).
+                    One shared ResellerAuthProvider wraps both the login and the
+                    view, so a successful login sets auth state in the SAME
+                    provider the /allocation route reads — no cross-provider race. */}
+                <Route element={<ResellerAuthProvider><Outlet /></ResellerAuthProvider>}>
+                  <Route path="/allocation/login" element={<AllocationLoginPage />} />
+                  <Route
+                    path="/allocation"
+                    element={
                       <ResellerProtectedRoute loginPath="/allocation/login">
                         <AllocationPage />
                       </ResellerProtectedRoute>
-                    </ResellerAuthProvider>
-                  }
-                />
+                    }
+                  />
+                </Route>
                 <Route
                   path="/reseller"
                   element={
