@@ -20,6 +20,7 @@ import { ResellerSalesHistoryPage } from '@/pages/reseller/ResellerSalesHistoryP
 import { ResellerReportsPage } from '@/pages/reseller/ResellerReportsPage';
 import { ResellerPayoutsPage } from '@/pages/reseller/ResellerPayoutsPage';
 import { AllocationPage } from '@/pages/reseller/AllocationPage';
+import { AllocationLoginPage } from '@/pages/reseller/AllocationLoginPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { SignupPage } from '@/pages/SignupPage';
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
@@ -105,12 +106,21 @@ function App() {
                 </Route>
                 <Route path="/reseller/login" element={<ResellerLoginPage />} />
                 {/* Standalone minimal allocation view (no sidebar) for reseller
-                    partners like DeltaPay who only track their pre-bought block. */}
+                    partners like DeltaPay who only track their pre-bought block.
+                    Email + password login (not the till-operator loginCode/PIN). */}
+                <Route
+                  path="/allocation/login"
+                  element={
+                    <ResellerAuthProvider>
+                      <AllocationLoginPage />
+                    </ResellerAuthProvider>
+                  }
+                />
                 <Route
                   path="/allocation"
                   element={
                     <ResellerAuthProvider>
-                      <ResellerProtectedRoute>
+                      <ResellerProtectedRoute loginPath="/allocation/login">
                         <AllocationPage />
                       </ResellerProtectedRoute>
                     </ResellerAuthProvider>

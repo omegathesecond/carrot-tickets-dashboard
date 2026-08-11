@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { resellerApi } from '@/lib/resellerApi';
 import { useResellerAuth } from '@/contexts/ResellerAuthContext';
 import { Button } from '@/components/ui/button';
@@ -11,7 +12,9 @@ const money = (n: number) => `E${n.toLocaleString(undefined, { minimumFractionDi
  * no sidebar, no POS, no hubs — just their numbers, scoped to them server-side.
  */
 export function AllocationPage() {
-  const { operator, logout } = useResellerAuth();
+  const { operator } = useResellerAuth();
+  const navigate = useNavigate();
+  const signOut = () => { resellerApi.logout(); navigate('/allocation/login', { replace: true }); };
   const { data, isLoading, isError } = useQuery({
     queryKey: ['reseller', 'allocation'],
     queryFn: () => resellerApi.getMyAllocation(),
@@ -29,7 +32,7 @@ export function AllocationPage() {
             <p className="text-xs text-muted-foreground">{operator.fullName}</p>
           )}
         </div>
-        <Button variant="outline" size="sm" onClick={logout}>Sign out</Button>
+        <Button variant="outline" size="sm" onClick={signOut}>Sign out</Button>
       </header>
 
       <main className="mx-auto max-w-2xl space-y-4 p-4">

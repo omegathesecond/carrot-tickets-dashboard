@@ -121,6 +121,23 @@ export const resellerApi = {
     return result;
   },
 
+  /** Owner login by email + password (allocation-portal partners like DeltaPay). */
+  async ownerLogin(payload: { email: string; password: string }): Promise<{ accessToken: string; operator: ResellerOperator }> {
+    const result = await request<{
+      accessToken: string;
+      reseller: { id: string; resellerId: string; businessName: string; email?: string; role: string; permissions: string[] };
+    }>('/reseller/auth/owner-login', { method: 'POST', body: JSON.stringify(payload) }, false);
+    // Shape the reseller as an "operator" so the shared auth context/portal reuse works.
+    const operator = {
+      _id: result.reseller.id, resellerId: result.reseller.resellerId, hubId: '',
+      fullName: result.reseller.businessName, loginCode: '', role: result.reseller.role,
+      isActive: true, permissions: result.reseller.permissions,
+    } as unknown as ResellerOperator;
+    localStorage.setItem(TOKEN_KEY, result.accessToken);
+    localStorage.setItem(OPERATOR_KEY, JSON.stringify(operator));
+    return { accessToken: result.accessToken, operator };
+  },
+
   logout(): void {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(OPERATOR_KEY);
