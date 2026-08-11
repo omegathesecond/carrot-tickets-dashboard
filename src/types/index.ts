@@ -83,6 +83,9 @@ export interface Event {
   galleryImages?: string[];
   qrCodeUrl?: string;
   status: 'draft' | 'pending_approval' | 'published' | 'cancelled' | 'completed';
+  // NFC closed-loop cashless event: attendees carry funded wristbands, vendors
+  // charge them, cashiers top up + cash out. Gates the organizer Cashless tab.
+  cashless?: boolean;
   createdAt: string;
   updatedAt: string;
   // Who sells the tickets: 'carrot' (default, existing checkout) or
@@ -597,4 +600,51 @@ export interface TransportBooking {
   totalAmount: number;
   status: string;
   createdAt?: string;
+}
+
+// ── Organizer cashless report (NFC closed-loop) ────────────────────────────
+export interface CashlessVendorRow {
+  merchantId: string;
+  name: string;
+  gross: number;      // cents charged
+  commission: number; // cents Carrot kept
+  net: number;        // cents owed to the vendor
+  chargeCount: number;
+}
+
+export interface CashlessCashierRow {
+  cashierId: string;
+  name: string;
+  toppedUp: number;  // cents loaded
+  withdrawn: number; // cents handed back
+  txnCount: number;
+}
+
+export interface CashlessSummary {
+  event?: { id: string; name: string };
+  circulated: number; // Σ top-ups
+  spent: number;      // Σ vendor charges
+  withdrawn: number;  // Σ cash-outs
+  leftBehind: number; // Σ remaining wallet balances (un-withdrawn)
+  fees: number;       // Carrot commission collected
+  walletsFunded: number;
+  vendors: CashlessVendorRow[];
+  cashiers: CashlessCashierRow[];
+}
+
+export interface CashlessTxn {
+  id: string;
+  type: 'topup' | 'withdrawal' | 'purchase';
+  amount: number; // cents
+  at: string;     // ISO
+  actorType?: string;
+  bandUid?: string;
+  fee?: number;
+}
+
+export interface CashlessTxnsResult {
+  transactions: CashlessTxn[];
+  page: number;
+  limit: number;
+  hasMore: boolean;
 }
