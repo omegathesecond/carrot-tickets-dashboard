@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,7 +12,8 @@ import {
   TableCell,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { CreditCard, ArrowDownCircle, ArrowUpCircle, Wallet, Loader2 } from 'lucide-react';
+import { CreditCard, ArrowDownCircle, ArrowUpCircle, Wallet, Loader2, ArrowRight } from 'lucide-react';
+import { TransactionDetailDialog, type TxnDetail } from '@/components/TransactionDetailDialog';
 
 /** Cashless wallet amounts move in ZAR cents on the wire. */
 const fmtR = (cents: number) => `R${((cents ?? 0) / 100).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -54,6 +57,8 @@ export function EventCashlessTab({ eventId }: Props) {
     enabled: !!summary,
   });
 
+  const [selected, setSelected] = useState<TxnDetail | null>(null);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-16 text-muted-foreground">
@@ -90,8 +95,11 @@ export function EventCashlessTab({ eventId }: Props) {
 
       {/* Per-vendor takings */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex-row items-center justify-between space-y-0">
           <CardTitle className="text-base">Vendor takings</CardTitle>
+          <Link to="/vendors" className="text-xs font-medium text-orange-600 hover:text-orange-700 inline-flex items-center gap-1">
+            Manage vendors <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
         </CardHeader>
         <CardContent>
           {summary.vendors.length === 0 ? (
@@ -127,8 +135,11 @@ export function EventCashlessTab({ eventId }: Props) {
 
       {/* Per-cashier activity */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex-row items-center justify-between space-y-0">
           <CardTitle className="text-base">Cashier activity</CardTitle>
+          <Link to="/cashiers" className="text-xs font-medium text-orange-600 hover:text-orange-700 inline-flex items-center gap-1">
+            Manage cashiers <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
         </CardHeader>
         <CardContent>
           {summary.cashiers.length === 0 ? (
@@ -174,20 +185,30 @@ export function EventCashlessTab({ eventId }: Props) {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Type</TableHead>
+                    <TableHead>By</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
-                    <TableHead>When</TableHead>
+                    <TableHead className="hidden sm:table-cell">When</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {txns.transactions.map((t) => {
                     const meta = TXN_LABEL[t.type] ?? { label: t.type, className: 'bg-gray-100 text-gray-800' };
                     return (
-                      <TableRow key={t.id}>
+                      <TableRow
+                        key={t.id}
+                        className="cursor-pointer hover:bg-slate-50"
+                        onClick={() => setSelected({
+                          id: t.id, type: t.type, amount: t.amount, at: t.at,
+                          actorName: t.actorName, actorType: t.actorType,
+                          bandUid: t.bandUid, fee: t.fee, netAmount: t.netAmount,
+                        })}
+                      >
                         <TableCell>
                           <Badge variant="secondary" className={meta.className}>{meta.label}</Badge>
                         </TableCell>
+                        <TableCell className="font-medium">{t.actorName ?? '—'}</TableCell>
                         <TableCell className="text-right font-medium">{fmtR(t.amount)}</TableCell>
-                        <TableCell className="text-muted-foreground">{fmtTime(t.at)}</TableCell>
+                        <TableCell className="text-muted-foreground hidden sm:table-cell">{fmtTime(t.at)}</TableCell>
                       </TableRow>
                     );
                   })}
@@ -200,6 +221,8 @@ export function EventCashlessTab({ eventId }: Props) {
           )}
         </CardContent>
       </Card>
+
+      <TransactionDetailDialog txn={selected} onClose={() => setSelected(null)} />
     </div>
   );
 }

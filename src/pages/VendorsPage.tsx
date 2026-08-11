@@ -112,8 +112,8 @@ export function VendorsPage() {
               <DialogTrigger asChild>
                 <Button disabled={!selectedEventId}
                   className="bg-gradient-to-r from-orange-600 to-amber-600 text-white hover:opacity-90">
-                  <Plus className="h-4 w-4 sm:mr-1.5" />
-                  <span className="hidden sm:inline">Add vendor</span>
+                  <Plus className="h-4 w-4 mr-1.5" />
+                  Add vendor
                 </Button>
               </DialogTrigger>
               <DialogContent>

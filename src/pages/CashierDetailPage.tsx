@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, ArrowDownCircle, ArrowUpCircle, Loader2 } from 'lucide-react';
@@ -5,6 +6,7 @@ import { apiClient } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { TransactionDetailDialog, type TxnDetail } from '@/components/TransactionDetailDialog';
 
 const fmtR = (c: number) => `R${((c ?? 0) / 100).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtTime = (iso: string) => {
@@ -16,6 +18,7 @@ const fmtTime = (iso: string) => {
 export function CashierDetailPage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
+  const [selected, setSelected] = useState<TxnDetail | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['cashier-detail', id],
@@ -76,7 +79,14 @@ export function CashierDetailPage() {
                     {data.transactions.map((t) => {
                       const isTopup = t.type === 'topup';
                       return (
-                        <div key={t.id} className="flex items-center gap-3 py-3">
+                        <div
+                          key={t.id}
+                          className="flex items-center gap-3 py-3 cursor-pointer hover:bg-slate-50 -mx-2 px-2 rounded"
+                          onClick={() => setSelected({
+                            id: t.id, type: t.type, amount: t.amount, at: t.at,
+                            actorName: data.cashier.fullName, actorType: 'Cashier', status: t.status || 'completed',
+                          })}
+                        >
                           <span className={`flex h-9 w-9 items-center justify-center rounded-full ${isTopup ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
                             {isTopup ? <ArrowUpCircle className="h-4 w-4" /> : <ArrowDownCircle className="h-4 w-4" />}
                           </span>
@@ -97,6 +107,7 @@ export function CashierDetailPage() {
           </>
         )}
       </div>
+      <TransactionDetailDialog txn={selected} onClose={() => setSelected(null)} />
     </div>
   );
 }

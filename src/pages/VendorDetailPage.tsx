@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, CreditCard, Loader2 } from 'lucide-react';
@@ -5,6 +6,7 @@ import { apiClient } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { TransactionDetailDialog, type TxnDetail } from '@/components/TransactionDetailDialog';
 
 const fmtR = (c: number) => `R${((c ?? 0) / 100).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtTime = (iso: string) => {
@@ -17,6 +19,7 @@ const bandRef = (uid: string) => (!uid ? '—' : `••${(uid.length > 6 ? uid.
 export function VendorDetailPage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
+  const [selected, setSelected] = useState<TxnDetail | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['vendor-detail', id],
@@ -80,7 +83,15 @@ export function VendorDetailPage() {
                 ) : (
                   <div className="divide-y">
                     {data.transactions.map((t) => (
-                      <div key={t.id} className="flex items-center gap-3 py-3">
+                      <div
+                        key={t.id}
+                        className="flex items-center gap-3 py-3 cursor-pointer hover:bg-slate-50 -mx-2 px-2 rounded"
+                        onClick={() => setSelected({
+                          id: t.id, type: 'purchase', amount: t.amount, at: t.createdAt,
+                          actorName: data.merchant.name, actorType: 'Merchant',
+                          bandUid: t.bandUid, fee: t.fee, netAmount: t.netAmount, status: t.status || 'completed',
+                        })}
+                      >
                         <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-blue-700">
                           <CreditCard className="h-4 w-4" />
                         </span>
@@ -100,6 +111,7 @@ export function VendorDetailPage() {
           </>
         )}
       </div>
+      <TransactionDetailDialog txn={selected} onClose={() => setSelected(null)} />
     </div>
   );
 }
