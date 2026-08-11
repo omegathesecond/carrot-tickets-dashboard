@@ -25,6 +25,7 @@ import {
   Truck,
   Armchair,
   Receipt,
+  Store,
 } from 'lucide-react';
 
 // The organizer's brand social feed lives on the consumer site (same login).
@@ -122,6 +123,18 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       name: 'Gate Operators',
       href: '/gate-operators',
       icon: ShieldCheck,
+      show: canManageAccess(user),
+    },
+    {
+      name: 'Cashiers',
+      href: '/cashiers',
+      icon: Banknote,
+      show: canManageAccess(user),
+    },
+    {
+      name: 'Vendors',
+      href: '/vendors',
+      icon: Store,
       show: canManageAccess(user),
     },
     {

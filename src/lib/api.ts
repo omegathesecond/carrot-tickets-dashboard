@@ -960,6 +960,74 @@ export class ApiClient {
       }),
   };
 
+  // Cashiers — the organizer's in-venue money desk staff (top-up + cash-out).
+  cashiers = {
+    list: async (): Promise<CashierRow[]> =>
+      this.request<CashierRow[]>(`/tickets/cashiers`),
+
+    create: async (data: {
+      fullName: string;
+      phoneNumber?: string;
+      scope?: 'platform' | 'organizer';
+      vendorId?: string;
+    }): Promise<IssuedCashierCredentials> =>
+      this.request<IssuedCashierCredentials>(`/tickets/cashiers`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    resetPin: async (id: string, pin?: string): Promise<{ cashierId: string; pin: string }> =>
+      this.request<{ cashierId: string; pin: string }>(`/tickets/cashiers/${id}/reset-pin`, {
+        method: 'POST',
+        body: JSON.stringify(pin ? { pin } : {}),
+      }),
+
+    setActive: async (id: string, isActive: boolean): Promise<CashierRow> =>
+      this.request<CashierRow>(`/tickets/cashiers/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ isActive }),
+      }),
+
+    transactions: async (id: string, eventId?: string): Promise<CashierDetail> =>
+      this.request<CashierDetail>(
+        `/tickets/cashiers/${id}/transactions${eventId ? `?eventId=${eventId}` : ''}`,
+      ),
+  };
+
+  // Vendors (in-event merchants) — the stalls that charge bands. Scoped to one event.
+  merchants = {
+    list: async (eventId: string): Promise<MerchantRow[]> =>
+      this.request<MerchantRow[]>(`/tickets/merchants?eventId=${eventId}`),
+
+    create: async (data: {
+      eventId: string;
+      name: string;
+      commissionPercent?: number;
+    }): Promise<IssuedMerchantCredentials> =>
+      this.request<IssuedMerchantCredentials>(`/tickets/merchants`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    update: async (
+      id: string,
+      data: { name?: string; commissionPercent?: number; isActive?: boolean },
+    ): Promise<MerchantRow> =>
+      this.request<MerchantRow>(`/tickets/merchants/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+
+    resetPin: async (id: string, pin?: string): Promise<{ merchantId: string; pin: string }> =>
+      this.request<{ merchantId: string; pin: string }>(`/tickets/merchants/${id}/reset-pin`, {
+        method: 'POST',
+        body: JSON.stringify(pin ? { pin } : {}),
+      }),
+
+    transactions: async (id: string, limit = 100): Promise<MerchantDetail> =>
+      this.request<MerchantDetail>(`/tickets/merchants/${id}/transactions?limit=${limit}`),
+  };
+
   // Wristband design + batch-issue endpoints
   wristbands = {
     listDesigns: async (eventId: string): Promise<WristbandDesignDoc[]> =>
@@ -1328,6 +1396,72 @@ export interface IssuedGateCredentials {
   operator: GateOperatorRow;
   loginCode: string;
   pin: string;
+}
+
+// ── Cashiers (organizer money desk) ────────────────────────────────────────
+export interface CashierRow {
+  _id: string;
+  fullName: string;
+  phoneNumber?: string;
+  scope: 'platform' | 'organizer';
+  vendorId?: string | null;
+  isActive: boolean;
+  loginCode: string;
+  createdAt: string;
+}
+
+export interface IssuedCashierCredentials {
+  cashier: CashierRow;
+  loginCode: string;
+  pin: string;
+}
+
+export interface CashierDeskTxn {
+  id: string;
+  type: 'topup' | 'withdrawal';
+  amount: number; // cents
+  status: string;
+  at: string; // ISO
+}
+
+export interface CashierDetail {
+  cashier: CashierRow;
+  transactions: CashierDeskTxn[];
+  summary: { toppedUp: number; withdrawn: number; net: number; count: number };
+}
+
+// ── Vendors (in-event merchants) ───────────────────────────────────────────
+export interface MerchantRow {
+  _id: string;
+  name: string;
+  eventId: string;
+  commissionPercent: number;
+  loginCode: string;
+  status: 'active' | 'suspended';
+  createdAt: string;
+}
+
+export interface IssuedMerchantCredentials {
+  merchant: MerchantRow;
+  loginCode: string;
+  pin: string;
+}
+
+export interface MerchantChargeTxn {
+  id: string;
+  amount: number; // cents
+  fee: number;
+  netAmount: number;
+  bandUid: string;
+  status: string;
+  createdAt: string; // ISO
+}
+
+export interface MerchantDetail {
+  merchant: MerchantRow;
+  event: { id: string; name: string };
+  transactions: MerchantChargeTxn[];
+  summary: { totalCharged: number; totalNet: number; totalFee: number; count: number };
 }
 
 export interface WristbandBatch {
