@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -58,6 +58,7 @@ export function EventCashlessTab({ eventId }: Props) {
   });
 
   const [selected, setSelected] = useState<TxnDetail | null>(null);
+  const navigate = useNavigate();
 
   if (isLoading) {
     return (
@@ -118,8 +119,12 @@ export function EventCashlessTab({ eventId }: Props) {
                 </TableHeader>
                 <TableBody>
                   {summary.vendors.map((v) => (
-                    <TableRow key={v.merchantId}>
-                      <TableCell className="font-medium">{v.name}</TableCell>
+                    <TableRow
+                      key={v.merchantId}
+                      className="cursor-pointer hover:bg-slate-50"
+                      onClick={() => navigate(`/vendors/${v.merchantId}`)}
+                    >
+                      <TableCell className="font-medium text-orange-700">{v.name}</TableCell>
                       <TableCell className="text-right">{fmtR(v.gross)}</TableCell>
                       <TableCell className="text-right text-muted-foreground">{fmtR(v.commission)}</TableCell>
                       <TableCell className="text-right font-semibold">{fmtR(v.net)}</TableCell>
@@ -157,8 +162,12 @@ export function EventCashlessTab({ eventId }: Props) {
                 </TableHeader>
                 <TableBody>
                   {summary.cashiers.map((c) => (
-                    <TableRow key={c.cashierId}>
-                      <TableCell className="font-medium">{c.name}</TableCell>
+                    <TableRow
+                      key={c.cashierId}
+                      className="cursor-pointer hover:bg-slate-50"
+                      onClick={() => navigate(`/cashiers/${c.cashierId}`)}
+                    >
+                      <TableCell className="font-medium text-orange-700">{c.name}</TableCell>
                       <TableCell className="text-right text-green-700">{fmtR(c.toppedUp)}</TableCell>
                       <TableCell className="text-right text-orange-700">{fmtR(c.withdrawn)}</TableCell>
                       <TableCell className="text-right">{c.txnCount}</TableCell>

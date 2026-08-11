@@ -168,13 +168,13 @@ export function CashiersPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {cashiers.map((c: CashierRow) => (
-              <Card key={c._id} className={`transition hover:shadow-md ${c.isActive ? '' : 'opacity-75'}`}>
+              <Card
+                key={c._id}
+                onClick={() => navigate(`/cashiers/${c._id}`)}
+                className={`group transition hover:shadow-md cursor-pointer ${c.isActive ? '' : 'opacity-75'}`}
+              >
                 <CardContent className="pt-5 flex flex-col gap-4 h-full">
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/cashiers/${c._id}`)}
-                    className="flex items-start gap-3 text-left group"
-                  >
+                  <div className="flex items-start gap-3 text-left">
                     <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-amber-500 text-white font-bold">
                       {initialsOf(c.fullName)}
                     </span>
@@ -186,7 +186,7 @@ export function CashiersPage() {
                       <Badge variant={c.isActive ? 'default' : 'secondary'}>{c.isActive ? 'Active' : 'Inactive'}</Badge>
                       <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-orange-400" />
                     </div>
-                  </button>
+                  </div>
 
                   <div className="rounded-lg bg-slate-50 px-3 py-2">
                     <p className="text-[11px] uppercase tracking-wide text-slate-400">User ID</p>
@@ -194,11 +194,12 @@ export function CashiersPage() {
                   </div>
 
                   <div className="mt-auto grid grid-cols-2 gap-2">
-                    <Button variant="outline" size="sm" disabled={resetPin.isPending} onClick={() => resetPin.mutate(c._id)}>
+                    <Button variant="outline" size="sm" disabled={resetPin.isPending}
+                      onClick={(e) => { e.stopPropagation(); resetPin.mutate(c._id); }}>
                       <KeyRound className="h-4 w-4 mr-1.5" /> Reset PIN
                     </Button>
                     <Button variant="outline" size="sm" disabled={pendingActiveId === c._id}
-                      onClick={() => setActive.mutate({ id: c._id, isActive: !c.isActive })}
+                      onClick={(e) => { e.stopPropagation(); setActive.mutate({ id: c._id, isActive: !c.isActive }); }}
                       className={c.isActive
                         ? 'text-red-600 hover:text-red-700 hover:border-red-300'
                         : 'text-emerald-600 hover:text-emerald-700 hover:border-emerald-300'}>
