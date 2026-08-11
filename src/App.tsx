@@ -19,6 +19,7 @@ import { ResellerHubDetailPage } from '@/pages/reseller/ResellerHubDetailPage';
 import { ResellerSalesHistoryPage } from '@/pages/reseller/ResellerSalesHistoryPage';
 import { ResellerReportsPage } from '@/pages/reseller/ResellerReportsPage';
 import { ResellerPayoutsPage } from '@/pages/reseller/ResellerPayoutsPage';
+import { AllocationPage } from '@/pages/reseller/AllocationPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { SignupPage } from '@/pages/SignupPage';
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
@@ -103,6 +104,18 @@ function App() {
                   <Route path="transport/bookings" element={<TransportRoute><BookingsPage /></TransportRoute>} />
                 </Route>
                 <Route path="/reseller/login" element={<ResellerLoginPage />} />
+                {/* Standalone minimal allocation view (no sidebar) for reseller
+                    partners like DeltaPay who only track their pre-bought block. */}
+                <Route
+                  path="/allocation"
+                  element={
+                    <ResellerAuthProvider>
+                      <ResellerProtectedRoute>
+                        <AllocationPage />
+                      </ResellerProtectedRoute>
+                    </ResellerAuthProvider>
+                  }
+                />
                 <Route
                   path="/reseller"
                   element={

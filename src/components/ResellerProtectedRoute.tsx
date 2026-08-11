@@ -1,4 +1,4 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useResellerAuth } from '@/contexts/ResellerAuthContext';
 import { hasResellerPermission, type ResellerPermissionValue } from '@/lib/resellerPermissions';
 
@@ -10,6 +10,7 @@ export function ResellerProtectedRoute({
   requires?: ResellerPermissionValue;
 }) {
   const { isAuthenticated, isLoading, operator } = useResellerAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return (
@@ -20,7 +21,9 @@ export function ResellerProtectedRoute({
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/reseller/login" replace />;
+    // Preserve where the partner was headed (e.g. /allocation) so login returns them there.
+    const redirect = encodeURIComponent(location.pathname + location.search);
+    return <Navigate to={`/reseller/login?redirect=${redirect}`} replace />;
   }
 
   if (requires && !hasResellerPermission(operator, requires)) {

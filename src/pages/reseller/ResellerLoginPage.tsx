@@ -19,7 +19,10 @@ export function ResellerLoginPage() {
 
     try {
       await resellerApi.login({ loginCode, pin });
-      navigate('/reseller', { replace: true });
+      // Honor a ?redirect target (e.g. a partner deep-linked to /allocation);
+      // default to the reseller portal home.
+      const redirect = new URLSearchParams(window.location.search).get('redirect');
+      navigate(redirect || '/reseller', { replace: true });
     } catch (error: any) {
       toast.error(error.message || 'Login failed');
     } finally {

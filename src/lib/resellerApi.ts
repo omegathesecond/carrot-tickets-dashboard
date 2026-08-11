@@ -223,7 +223,23 @@ export const resellerApi = {
   async getMySales(): Promise<ResellerSale[]> {
     return request<ResellerSale[]>('/reseller/sales');
   },
+
+  /** This reseller's pre-bought allocation blocks (sold / remaining / collected). */
+  async getMyAllocation(): Promise<{ blocks: AllocationBlock[] }> {
+    return request<{ blocks: AllocationBlock[] }>('/reseller/allocation/me');
+  },
 };
+
+export interface AllocationBlock {
+  eventId: string;
+  eventName: string;
+  tierName: string;
+  price: number;
+  quantity: number;
+  sold: number;
+  remaining: number;
+  collected: number;
+}
 
 export interface OperatorAdminRow {
   _id: string;
