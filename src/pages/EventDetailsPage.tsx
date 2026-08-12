@@ -56,10 +56,18 @@ export function EventDetailsPage() {
   const [priceMin, setPriceMin] = useState('');
   const [priceMax, setPriceMax] = useState('');
   const [priceError, setPriceError] = useState<string | null>(null);
+  // Inline rename of the event title in the header.
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
 
   // Keshless admins approve events (publish them live) and can unpublish/delete
   // even after tickets sell. Organizers instead SUBMIT events for approval.
   const isAdmin = !!user?.isSuperAdmin;
+  // Renaming a live event is ADMIN-ONLY on purpose: an organizer silently
+  // swapping the name of an approved/sold event is a bait-and-switch fraud
+  // vector. Organizers must get the name right at creation (they're warned
+  // there) and ask Keshless to correct genuine mistakes.
+  const canRenameEvent = isAdmin;
   // Community management (channels/announcements/moderation) needs the same
   // create/edit-event capability as the rest of this page's editing affordances.
   const canManageCommunity = canManageEvents(user);
@@ -125,6 +133,38 @@ export function EventDetailsPage() {
     },
     onError: (error: any) => toast.error(error.message),
   });
+
+  // Inline rename — reuses the shared partial-update endpoint, so the same
+  // cache invalidation and loud error surfacing as every other event edit.
+  const renameMutation = useMutation({
+    mutationFn: (name: string) => apiClient.events.updateEvent(id!, { name }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['event', id] });
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+      toast.success('Event name updated');
+      setIsEditingName(false);
+    },
+    onError: (error: any) => toast.error(error.message || 'Failed to update event name'),
+  });
+
+  const handleStartRename = () => {
+    setNameDraft(event?.name ?? '');
+    setIsEditingName(true);
+  };
+
+  const handleSaveName = () => {
+    const trimmed = nameDraft.trim();
+    if (!trimmed) {
+      toast.error('Event name cannot be empty');
+      return;
+    }
+    // Nothing changed — just close the editor without a needless round-trip.
+    if (trimmed === event?.name) {
+      setIsEditingName(false);
+      return;
+    }
+    renameMutation.mutate(trimmed);
+  };
 
   const updateTicketingMutation = useMutation({
     mutationFn: (payload: Partial<EventFormData>) => apiClient.events.updateEvent(id!, payload),
@@ -315,10 +355,53 @@ export function EventDetailsPage() {
           </Button>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold">{event.name}</h1>
-              <Badge variant={statusVariant} className="capitalize">
-                {statusLabel}
-              </Badge>
+              {isEditingName ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={nameDraft}
+                    onChange={(e) => setNameDraft(e.target.value)}
+                    maxLength={200}
+                    autoFocus
+                    disabled={renameMutation.isPending}
+                    aria-label="Event name"
+                    className="h-11 w-[24rem] max-w-full text-2xl font-bold"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveName();
+                      if (e.key === 'Escape') setIsEditingName(false);
+                    }}
+                  />
+                  <Button size="sm" onClick={handleSaveName} disabled={renameMutation.isPending}>
+                    {renameMutation.isPending ? 'Saving…' : 'Save'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setIsEditingName(false)}
+                    disabled={renameMutation.isPending}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <h1 className="text-3xl font-bold">{event.name}</h1>
+                  {canRenameEvent && event.status !== 'cancelled' && event.status !== 'completed' && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-slate-500 hover:text-slate-900"
+                      onClick={handleStartRename}
+                      aria-label="Edit event name"
+                      title="Edit event name (admin)"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                  )}
+                  <Badge variant={statusVariant} className="capitalize">
+                    {statusLabel}
+                  </Badge>
+                </>
+              )}
             </div>
             <p className="text-slate-600 mt-1">Event ID: {event.eventId}</p>
             {isPending && (
