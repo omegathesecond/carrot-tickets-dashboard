@@ -30,6 +30,7 @@ import { AnnouncementComposer } from '@/components/community/AnnouncementCompose
 import { MembersModeration } from '@/components/community/MembersModeration';
 import { useAuth } from '@/contexts/AuthContext';
 import { canManageEvents } from '@/lib/permissions';
+import { formatEventDateTimeRange } from '@/lib/eventWhen';
 import { getSaleTicketType, getSaleTicketCodes } from '@/lib/sales';
 import {
   ArrowLeft, Calendar, MapPin, Users, CheckCircle, Clock,
@@ -521,17 +522,7 @@ export function EventDetailsPage() {
                 <div className="text-sm text-slate-600 mb-1">Date & Time</div>
                 <div className="flex items-center text-slate-900">
                   <Calendar className="h-4 w-4 mr-2 text-slate-400" />
-                  {event.isMultiDay ? (
-                    <span>
-                      {format(new Date(event.eventDate || event.startTime), 'PPp')} -{' '}
-                      {format(new Date(event.endTime), 'PPp')}
-                    </span>
-                  ) : (
-                    <span>
-                      {format(new Date(event.eventDate || event.startTime), 'PPP')} •{' '}
-                      {format(new Date(event.startTime), 'p')} - {format(new Date(event.endTime), 'p')}
-                    </span>
-                  )}
+                  <span>{formatEventDateTimeRange(event)}</span>
                 </div>
               </div>
 

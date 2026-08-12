@@ -15,7 +15,6 @@ import {
   CalendarDays, Ticket as TicketIcon, DollarSign, Activity,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
 import { type Event, EventFormData } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -30,6 +29,7 @@ import { currencySymbol, type Currency } from '@/lib/currency';
 import { ImageUploadInput } from '@/components/ImageUploadInput';
 import { GalleryManager } from '@/components/GalleryManager';
 import { submitNewEvent } from '@/lib/createEvent';
+import { formatEventDateTimeRange } from '@/lib/eventWhen';
 
 // Buckets shown as the status filter tabs. Drafts are "pending" (awaiting
 // approval to publish), published+upcoming are "approved", published events
@@ -204,19 +204,24 @@ export function EventsPage() {
     let startTime: string;
     let endTime: string;
 
+    // The date/time inputs give a NAIVE local wall-clock string (no timezone).
+    // Convert it to a real UTC instant here — `new Date('...T09:00')` parses in
+    // the browser's local zone (Eswatini, UTC+2), and toISOString() encodes the
+    // correct UTC. Sending the naive string instead let the UTC server parse it
+    // AS UTC, storing every time 2 hours off. eventDate stays a date-only marker.
     if (isMultiDay) {
       const startDateTime = formData.get('startDateTime') as string;
       const endDateTime = formData.get('endDateTime') as string;
       eventDate = startDateTime.split('T')[0];
-      startTime = startDateTime;
-      endTime = endDateTime;
+      startTime = new Date(startDateTime).toISOString();
+      endTime = new Date(endDateTime).toISOString();
     } else {
       const eventDateValue = formData.get('eventDate') as string;
       const startTimeValue = formData.get('startTime') as string;
       const endTimeValue = formData.get('endTime') as string;
       eventDate = eventDateValue;
-      startTime = `${eventDateValue}T${startTimeValue}`;
-      endTime = `${eventDateValue}T${endTimeValue}`;
+      startTime = new Date(`${eventDateValue}T${startTimeValue}`).toISOString();
+      endTime = new Date(`${eventDateValue}T${endTimeValue}`).toISOString();
     }
 
     // Capacity is intentionally NOT collected here — it's derived from the
@@ -486,8 +491,7 @@ export function EventsPage() {
                       </div>
                       <div className="flex items-center text-slate-600">
                         <Calendar className="h-4 w-4 mr-2" />
-                        {format(new Date(event.eventDate || event.startTime), 'PPp')}
-                        {event.isMultiDay && ` - ${format(new Date(event.endTime), 'PPp')}`}
+                        {formatEventDateTimeRange(event)}
                       </div>
                       <div className="bg-slate-50 p-3 rounded-lg">
                         <div className="text-xs text-slate-600">Tickets Sold</div>
