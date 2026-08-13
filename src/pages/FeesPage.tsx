@@ -14,6 +14,13 @@ import { formatMoney, type Currency } from '@/lib/currency';
 const PAGE_SIZE = 25;
 const money = (v: number, currency: Currency = 'SZL') => formatMoney(v ?? 0, currency, { space: true, decimals: 2 });
 
+// Mirrors the API's settlementCurrencyForMethod (src/utils/currency.util.ts on
+// the API side): card is the only rail that settles off-display, in ZAR —
+// everything else (MoMo, wallet, cash, DeltaPay) settles in SZL. Static and
+// known client-side, so this needs no backend change.
+const settlementCurrencyForMethod = (method: string): Currency =>
+  method === 'peach_card' ? 'ZAR' : 'SZL';
+
 export function FeesPage() {
   const [range, setRange] = useState<DateRange>({ startDate: undefined, endDate: undefined });
   const [eventId, setEventId] = useState('');
@@ -165,15 +172,27 @@ export function FeesPage() {
                             <div className="text-xs uppercase tracking-wide text-slate-400 mb-1">By payment method</div>
                             <table className="w-full text-sm">
                               <tbody>
-                                {e.byMethod.map((m) => (
-                                  <tr key={m.method} className="text-slate-600">
-                                    <td className="py-1">{paymentLabel(m.method)}</td>
-                                    <td className="py-1 text-right">{m.ticketsSold.toLocaleString()} tix</td>
-                                    <td className="py-1 text-right">Booking {money(m.bookingFees, e.currency ?? 'SZL')}</td>
-                                    <td className="py-1 text-right">Commission {money(m.platformFees, e.currency ?? 'SZL')}</td>
-                                    <td className="py-1 text-right font-medium">{money(m.totalFees, e.currency ?? 'SZL')}</td>
-                                  </tr>
-                                ))}
+                                {e.byMethod.map((m) => {
+                                  const eventCurrency = e.currency ?? 'SZL';
+                                  const settlementCurrency = settlementCurrencyForMethod(m.method);
+                                  const settledDifferently = settlementCurrency !== eventCurrency;
+                                  return (
+                                    <tr key={m.method} className="text-slate-600">
+                                      <td className="py-1">{paymentLabel(m.method)}</td>
+                                      <td className="py-1 text-right">{m.ticketsSold.toLocaleString()} tix</td>
+                                      <td className="py-1 text-right">Booking {money(m.bookingFees, eventCurrency)}</td>
+                                      <td className="py-1 text-right">Commission {money(m.platformFees, eventCurrency)}</td>
+                                      <td className="py-1 text-right font-medium">
+                                        {money(m.totalFees, eventCurrency)}
+                                        {settledDifferently && (
+                                          <div className="text-xs font-normal text-slate-400">
+                                            settled {money(m.totalFees, settlementCurrency)}
+                                          </div>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
                               </tbody>
                             </table>
                           </TableCell>
