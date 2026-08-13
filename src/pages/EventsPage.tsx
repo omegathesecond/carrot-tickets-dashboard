@@ -30,6 +30,7 @@ import { formatCurrency } from '@/lib/chartColors';
 import { ImageUploadInput } from '@/components/ImageUploadInput';
 import { GalleryManager } from '@/components/GalleryManager';
 import { submitNewEvent } from '@/lib/createEvent';
+import { composeEventDateTime } from '@/lib/eventForm';
 import { formatEventDateTimeRange } from '@/lib/eventWhen';
 
 // Buckets shown as the status filter tabs. Drafts are "pending" (awaiting
@@ -201,29 +202,17 @@ export function EventsPage() {
     const description = formData.get('description') as string;
     const venue = formData.get('venue') as string;
 
-    let eventDate: string;
-    let startTime: string;
-    let endTime: string;
-
-    // The date/time inputs give a NAIVE local wall-clock string (no timezone).
-    // Convert it to a real UTC instant here — `new Date('...T09:00')` parses in
-    // the browser's local zone (Eswatini, UTC+2), and toISOString() encodes the
-    // correct UTC. Sending the naive string instead let the UTC server parse it
-    // AS UTC, storing every time 2 hours off. eventDate stays a date-only marker.
-    if (isMultiDay) {
-      const startDateTime = formData.get('startDateTime') as string;
-      const endDateTime = formData.get('endDateTime') as string;
-      eventDate = startDateTime.split('T')[0];
-      startTime = new Date(startDateTime).toISOString();
-      endTime = new Date(endDateTime).toISOString();
-    } else {
-      const eventDateValue = formData.get('eventDate') as string;
-      const startTimeValue = formData.get('startTime') as string;
-      const endTimeValue = formData.get('endTime') as string;
-      eventDate = eventDateValue;
-      startTime = new Date(`${eventDateValue}T${startTimeValue}`).toISOString();
-      endTime = new Date(`${eventDateValue}T${endTimeValue}`).toISOString();
-    }
+    // Compose eventDate/startTime/endTime from the raw single- or multi-day
+    // inputs. Shared with the edit form so both send identical UTC-normalized
+    // shapes (see composeEventDateTime for the timezone rationale).
+    const { eventDate, startTime, endTime } = composeEventDateTime({
+      isMultiDay,
+      eventDate: formData.get('eventDate') as string,
+      startTime: formData.get('startTime') as string,
+      endTime: formData.get('endTime') as string,
+      startDateTime: formData.get('startDateTime') as string,
+      endDateTime: formData.get('endDateTime') as string,
+    });
 
     // Capacity is intentionally NOT collected here — it's derived from the
     // ticket quantities you add later, so the event total always matches the

@@ -19,6 +19,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { TicketTypeDialog, type TicketTypeSubmitData } from '@/components/TicketTypeDialog';
 import { ImageUploadInput } from '@/components/ImageUploadInput';
 import { GalleryManager } from '@/components/GalleryManager';
@@ -29,7 +30,12 @@ import { ChannelsManager } from '@/components/community/ChannelsManager';
 import { AnnouncementComposer } from '@/components/community/AnnouncementComposer';
 import { MembersModeration } from '@/components/community/MembersModeration';
 import { useAuth } from '@/contexts/AuthContext';
-import { canManageEvents } from '@/lib/permissions';
+import { canManageEvents, canEditEventInfo } from '@/lib/permissions';
+import {
+  composeEventDateTime,
+  eventToDateTimeInputs,
+  type EventDateTimeFormValues,
+} from '@/lib/eventForm';
 import { formatEventDateTimeRange } from '@/lib/eventWhen';
 import { getSaleTicketType, getSaleTicketCodes } from '@/lib/sales';
 import {
@@ -41,6 +47,9 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { QRCodeSVG } from 'qrcode.react';
 import { TicketType, EventFormData } from '@/types';
+
+/** Draft state for the editable Event Information card. */
+type InfoDraft = { name: string; description: string; venue: string } & EventDateTimeFormValues;
 
 export function EventDetailsPage() {
   const { id } = useParams<{ id: string }>();
@@ -74,6 +83,12 @@ export function EventDetailsPage() {
   // Inline rename of the event title in the header.
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
+
+  // Editing the "Event Information" card (name/venue/date/time/description).
+  // Editable only before the event goes live (canEditEventInfo); the draft holds
+  // the raw form values and is null while not editing.
+  const [isEditingInfo, setIsEditingInfo] = useState(false);
+  const [infoDraft, setInfoDraft] = useState<InfoDraft | null>(null);
 
   const { data: event, isLoading } = useQuery({
     queryKey: ['event', id],
@@ -168,6 +183,76 @@ export function EventDetailsPage() {
       return;
     }
     renameMutation.mutate(trimmed);
+  };
+
+  // Save the whole Event Information card (name/venue/date/time/description).
+  // Reuses the shared partial-update endpoint; the server rejects core-info
+  // edits once the event is published (canEditEventInfo mirrors that gate, so
+  // the form only shows while the edit is actually allowed).
+  const updateInfoMutation = useMutation({
+    mutationFn: (payload: Partial<EventFormData>) => apiClient.events.updateEvent(id!, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['event', id] });
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+      toast.success('Event information updated');
+      setIsEditingInfo(false);
+      setInfoDraft(null);
+    },
+    // Never swallow a failed save — surface it so the organizer knows the edit
+    // did not take effect (e.g. a 403 if the event went live in another tab).
+    onError: (error: any) => toast.error(error.message || 'Failed to update event information'),
+  });
+
+  const handleStartEditInfo = () => {
+    if (!event) return;
+    setInfoDraft({
+      name: event.name ?? '',
+      description: event.description ?? '',
+      venue: event.venue ?? '',
+      ...eventToDateTimeInputs(event),
+    });
+    setIsEditingInfo(true);
+  };
+
+  const handleCancelEditInfo = () => {
+    setIsEditingInfo(false);
+    setInfoDraft(null);
+  };
+
+  const setInfoField = <K extends keyof InfoDraft>(key: K, value: InfoDraft[K]) =>
+    setInfoDraft((d) => (d ? { ...d, [key]: value } : d));
+
+  const handleSaveInfo = () => {
+    if (!infoDraft) return;
+    const name = infoDraft.name.trim();
+    const venue = infoDraft.venue.trim();
+    if (!name) { toast.error('Event name cannot be empty'); return; }
+    if (!venue) { toast.error('Venue cannot be empty'); return; }
+    if (infoDraft.isMultiDay) {
+      if (!infoDraft.startDateTime || !infoDraft.endDateTime) {
+        toast.error('Start and end date & time are required');
+        return;
+      }
+    } else if (!infoDraft.eventDate || !infoDraft.startTime || !infoDraft.endTime) {
+      toast.error('Event date, start time and end time are required');
+      return;
+    }
+
+    const { eventDate, startTime, endTime } = composeEventDateTime(infoDraft);
+    if (new Date(endTime).getTime() <= new Date(startTime).getTime()) {
+      toast.error('End time must be after start time');
+      return;
+    }
+
+    updateInfoMutation.mutate({
+      name,
+      description: infoDraft.description.trim() || undefined,
+      venue,
+      isMultiDay: infoDraft.isMultiDay,
+      eventDate,
+      startTime,
+      endTime,
+    });
   };
 
   const updateTicketingMutation = useMutation({
@@ -319,6 +404,9 @@ export function EventDetailsPage() {
     isPublished ? 'default' : isPending ? 'secondary' : 'secondary';
   const totalCapacity = event.capacity || event.ticketTypes.reduce((sum, tt) => sum + tt.quantity, 0);
   const soldPercentage = totalCapacity > 0 ? (event.totalTicketsSold / totalCapacity) * 100 : 0;
+  // Core "Event Information" is editable only before the event goes live (admins
+  // may still fix a live event). Mirrors the server-side guard.
+  const canEditInfo = canEditEventInfo(event, user);
 
   // Public buyer-facing page: slugged URL, resolved by the trailing _id
   // (same URL the QR code encodes).
@@ -497,42 +585,148 @@ export function EventDetailsPage() {
             <div className="lg:col-span-2 space-y-6">
           {/* Basic Info Card */}
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
               <CardTitle>Event Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className="text-sm text-slate-600 mb-1">Venue</div>
-                  <div className="flex items-center text-slate-900">
-                    <MapPin className="h-4 w-4 mr-2 text-slate-400" />
-                    {event.venue}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-sm text-slate-600 mb-1">Capacity</div>
-                  <div className="flex items-center text-slate-900">
-                    <Users className="h-4 w-4 mr-2 text-slate-400" />
-                    {totalCapacity.toLocaleString()}
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <div className="text-sm text-slate-600 mb-1">Date & Time</div>
-                <div className="flex items-center text-slate-900">
-                  <Calendar className="h-4 w-4 mr-2 text-slate-400" />
-                  <span>{formatEventDateTimeRange(event)}</span>
-                </div>
-              </div>
-
-              {event.description && (
-                <div>
-                  <div className="text-sm text-slate-600 mb-1">Description</div>
-                  <p className="text-slate-900">{event.description}</p>
-                </div>
+              {canEditInfo && !isEditingInfo && (
+                <Button variant="ghost" size="sm" onClick={handleStartEditInfo} aria-label="Edit event information">
+                  <Edit className="h-4 w-4 mr-1" /> Edit
+                </Button>
               )}
-            </CardContent>
+            </CardHeader>
+            {isEditingInfo && infoDraft ? (
+              <CardContent className="space-y-4">
+                {/* Details lock once the event goes live — set expectations up front. */}
+                <p className="text-xs text-amber-600">
+                  You can edit these details until the event is published. Afterwards, ask Keshless to make changes.
+                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-name">Event Name</Label>
+                  <Input
+                    id="edit-name"
+                    value={infoDraft.name}
+                    onChange={(e) => setInfoField('name', e.target.value)}
+                    placeholder="e.g., Summer Music Festival"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-venue">Venue</Label>
+                  <Input
+                    id="edit-venue"
+                    value={infoDraft.venue}
+                    onChange={(e) => setInfoField('venue', e.target.value)}
+                    placeholder="e.g., National Stadium"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-description">Description (Optional)</Label>
+                  <Input
+                    id="edit-description"
+                    value={infoDraft.description}
+                    onChange={(e) => setInfoField('description', e.target.value)}
+                    placeholder="Brief description of the event"
+                  />
+                </div>
+
+                <div className="flex items-center space-x-2 p-3 bg-slate-50 rounded-lg">
+                  <Checkbox
+                    id="edit-isMultiDay"
+                    checked={infoDraft.isMultiDay}
+                    onCheckedChange={(checked) => setInfoField('isMultiDay', checked as boolean)}
+                  />
+                  <Label htmlFor="edit-isMultiDay" className="cursor-pointer font-normal">
+                    This is a multi-day event
+                  </Label>
+                </div>
+
+                {!infoDraft.isMultiDay ? (
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-eventDate">Event Date</Label>
+                      <Input
+                        id="edit-eventDate" type="date" value={infoDraft.eventDate}
+                        onChange={(e) => setInfoField('eventDate', e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-startTime">Start Time</Label>
+                      <Input
+                        id="edit-startTime" type="time" value={infoDraft.startTime}
+                        onChange={(e) => setInfoField('startTime', e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-endTime">End Time</Label>
+                      <Input
+                        id="edit-endTime" type="time" value={infoDraft.endTime}
+                        onChange={(e) => setInfoField('endTime', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-startDateTime">Start Date & Time</Label>
+                      <Input
+                        id="edit-startDateTime" type="datetime-local" value={infoDraft.startDateTime}
+                        onChange={(e) => setInfoField('startDateTime', e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-endDateTime">End Date & Time</Label>
+                      <Input
+                        id="edit-endDateTime" type="datetime-local" value={infoDraft.endDateTime}
+                        onChange={(e) => setInfoField('endDateTime', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={handleSaveInfo} disabled={updateInfoMutation.isPending}>
+                    {updateInfoMutation.isPending ? 'Saving…' : 'Save'}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={handleCancelEditInfo} disabled={updateInfoMutation.isPending}>
+                    Cancel
+                  </Button>
+                </div>
+              </CardContent>
+            ) : (
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-sm text-slate-600 mb-1">Venue</div>
+                    <div className="flex items-center text-slate-900">
+                      <MapPin className="h-4 w-4 mr-2 text-slate-400" />
+                      {event.venue}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-slate-600 mb-1">Capacity</div>
+                    <div className="flex items-center text-slate-900">
+                      <Users className="h-4 w-4 mr-2 text-slate-400" />
+                      {totalCapacity.toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-sm text-slate-600 mb-1">Date & Time</div>
+                  <div className="flex items-center text-slate-900">
+                    <Calendar className="h-4 w-4 mr-2 text-slate-400" />
+                    <span>{formatEventDateTimeRange(event)}</span>
+                  </div>
+                </div>
+
+                {event.description && (
+                  <div>
+                    <div className="text-sm text-slate-600 mb-1">Description</div>
+                    <p className="text-slate-900">{event.description}</p>
+                  </div>
+                )}
+              </CardContent>
+            )}
           </Card>
 
           {/* Ticketing Card — who sells the tickets: Carrot (existing

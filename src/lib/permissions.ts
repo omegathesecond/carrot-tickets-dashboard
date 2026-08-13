@@ -1,4 +1,4 @@
-import type { AuthUser } from '@/types';
+import type { AuthUser, Event } from '@/types';
 
 /**
  * Keshless Tickets permission strings — must match the `tickets:*` namespace
@@ -48,6 +48,26 @@ export function canManageEvents(user: AuthUser | null | undefined): boolean {
     hasPermission(user, TicketsPermission.CREATE_EVENT) ||
     hasPermission(user, TicketsPermission.EDIT_EVENT)
   );
+}
+
+/**
+ * Whether the "Event Information" (name, venue, date/time, description, …) may
+ * be edited — drives the Edit affordance on the event details page. Core
+ * details are owner-editable ONLY before the event goes live: a draft/
+ * pending_approval event has no sold tickets, so the organizer may freely fix
+ * it; once published, changing it is a bait-and-switch on ticket holders and
+ * only an admin may correct it. Cancelled/completed are locked for everyone.
+ * Mirrors the server guard in EventService.updateEvent.
+ */
+export function canEditEventInfo(
+  event: Pick<Event, 'status'> | null | undefined,
+  user: AuthUser | null | undefined
+): boolean {
+  if (!event || !user) return false;
+  if (!canManageEvents(user)) return false;
+  if (event.status === 'cancelled' || event.status === 'completed') return false;
+  if (user.isSuperAdmin) return true;
+  return event.status === 'draft' || event.status === 'pending_approval';
 }
 
 /**
