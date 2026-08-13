@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { TicketType } from '@/types';
 import { apiClient } from '@/lib/api';
+import { currencySymbol, type Currency } from '@/lib/currency';
 
 export interface TicketTypeSubmitData {
   name: string;
@@ -29,6 +30,8 @@ interface TicketTypeDialogProps {
   /** Super-admin only: reveals the reseller-allocation section (Carrot sets up
    *  pre-bought blocks like a DeltaPay-exclusive tier). */
   isAdmin?: boolean;
+  /** The event's display currency — labels the price fields with its symbol. */
+  currency?: Currency;
 }
 
 const ALLOC_METHODS = [
@@ -45,7 +48,9 @@ export function TicketTypeDialog({
   ticketType,
   isLoading = false,
   isAdmin = false,
+  currency = 'SZL',
 }: TicketTypeDialogProps) {
+  const sym = currencySymbol(currency);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -144,7 +149,7 @@ export function TicketTypeDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="price">Price (E)</Label>
+              <Label htmlFor="price">Price ({sym})</Label>
               <Input
                 id="price"
                 type="number"
@@ -209,7 +214,7 @@ export function TicketTypeDialog({
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="alloc-cost">Unit cost paid (E)</Label>
+                      <Label htmlFor="alloc-cost">Unit cost paid ({sym})</Label>
                       <Input
                         id="alloc-cost"
                         type="number"

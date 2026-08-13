@@ -26,6 +26,7 @@ import {
   validateExternalPriceRange,
 } from '@/lib/ticketing';
 import { currencySymbol, type Currency } from '@/lib/currency';
+import { formatCurrency } from '@/lib/chartColors';
 import { ImageUploadInput } from '@/components/ImageUploadInput';
 import { GalleryManager } from '@/components/GalleryManager';
 import { submitNewEvent } from '@/lib/createEvent';
@@ -248,7 +249,9 @@ export function EventsPage() {
   const analyticsCards = [
     { label: 'Total Events', value: analytics.totalEvents.toLocaleString(), icon: CalendarDays },
     { label: 'Tickets Sold', value: analytics.ticketsSold.toLocaleString(), icon: TicketIcon },
-    { label: 'Total Revenue', value: `E ${analytics.revenue.toLocaleString()}`, icon: DollarSign },
+    // Platform-wide, across every event (may mix E- and R-priced events) —
+    // base currency, not one event's symbol.
+    { label: 'Total Revenue', value: formatCurrency(analytics.revenue), icon: DollarSign },
     { label: 'Active Events', value: analytics.active.toLocaleString(), icon: Activity },
   ];
 

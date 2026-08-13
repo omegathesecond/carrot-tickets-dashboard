@@ -12,6 +12,7 @@ import { PhoneInput } from '@/components/PhoneInput';
 import { TicketSuccessDialog } from '@/components/TicketSuccessDialog';
 import { toast } from 'sonner';
 import type { SellTicketsRequest } from '@/types';
+import { formatMoney } from '@/lib/currency';
 
 export function TicketSalesPage() {
   const [formData, setFormData] = useState<Partial<SellTicketsRequest>>({
@@ -67,6 +68,7 @@ export function TicketSalesPage() {
         customerPhone: formData.customerPhone || '',
         quantity: formData.quantity || 1,
         totalAmount: (selectedTicketType?.price || 0) * (formData.quantity || 1),
+        currency: selectedEvent?.currency ?? 'SZL',
         ticketIds: response.data?.tickets?.map((t: any) => t.ticketId || t._id) || [],
       };
 
@@ -125,7 +127,7 @@ export function TicketSalesPage() {
                     <SelectContent>
                       {selectedEvent.ticketTypes?.map((tt) => (
                         <SelectItem key={tt._id} value={tt._id!}>
-                          {tt.name} - E {tt.price.toLocaleString()} ({tt.available} left)
+                          {tt.name} - {formatMoney(tt.price, selectedEvent.currency ?? 'SZL', { space: true, decimals: 0 })} ({tt.available} left)
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -223,7 +225,7 @@ export function TicketSalesPage() {
                 <div className="space-y-2">
                   <div className="text-sm text-slate-600">Price per Ticket</div>
                   <div className="font-medium">
-                    E {(selectedTicketType?.price || 0).toLocaleString()}
+                    {formatMoney(selectedTicketType?.price || 0, selectedEvent.currency ?? 'SZL', { space: true, decimals: 0 })}
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -234,7 +236,7 @@ export function TicketSalesPage() {
                   <div className="flex justify-between items-center">
                     <div className="text-lg font-bold">Total</div>
                     <div className="text-2xl font-bold text-orange-600">
-                      E {((selectedTicketType?.price || 0) * (formData.quantity || 1)).toLocaleString()}
+                      {formatMoney((selectedTicketType?.price || 0) * (formData.quantity || 1), selectedEvent.currency ?? 'SZL', { space: true, decimals: 0 })}
                     </div>
                   </div>
                 </div>

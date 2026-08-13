@@ -10,6 +10,7 @@ import { printTicket } from '@/lib/printTicket';
 import { getPrintLogoDataUrl } from '@/lib/printAssets';
 import type { ReceiptTicket } from '@/lib/ticketReceipt';
 import { resellerApi } from '@/lib/resellerApi';
+import { formatMoney } from '@/lib/currency';
 
 interface TicketSuccessDialogProps {
   open: boolean;
@@ -119,7 +120,7 @@ export function TicketSuccessDialog({ open, onOpenChange, saleData }: TicketSucc
                 <div>
                   <p className="text-sm text-slate-600 font-medium">Total Amount</p>
                   <p className="text-2xl font-bold text-orange-600">
-                    E {saleData.totalAmount.toLocaleString()}
+                    {formatMoney(saleData.totalAmount, saleData.currency ?? 'SZL', { space: true, decimals: 0 })}
                   </p>
                 </div>
               </div>

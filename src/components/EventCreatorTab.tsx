@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Building2, Mail, Phone, User, ShieldCheck, CalendarDays, Ticket, DollarSign } from 'lucide-react';
 import { format } from 'date-fns';
+import { formatCurrency } from '@/lib/chartColors';
 
 /**
  * "Creator" tab on the event detail page — shows the organizer who created
@@ -103,7 +104,10 @@ export function EventCreatorTab({ eventId }: { eventId: string }) {
               <div className="text-sm text-slate-600 flex items-center gap-1.5">
                 <DollarSign className="h-4 w-4" /> Revenue
               </div>
-              <div className="text-2xl font-bold text-slate-900">E {stats.totalRevenue.toLocaleString()}</div>
+              {/* Roll-up across every event this creator owns — may span
+                  both E- and R-priced events, so this stays the base
+                  currency rather than stamping one event's symbol on it. */}
+              <div className="text-2xl font-bold text-slate-900">{formatCurrency(stats.totalRevenue)}</div>
             </div>
           </CardContent>
         </Card>
@@ -142,7 +146,7 @@ export function EventCreatorTab({ eventId }: { eventId: string }) {
                     <TableCell className="text-right">
                       {e.totalTicketsSold} / {e.capacity}
                     </TableCell>
-                    <TableCell className="text-right">E {e.totalRevenue.toLocaleString()}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(e.totalRevenue, e.currency ?? 'SZL')}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

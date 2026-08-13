@@ -11,7 +11,7 @@ import {
   buildPricePayload,
   validateExternalPriceRange,
 } from '@/lib/ticketing';
-import { currencySymbol, type Currency } from '@/lib/currency';
+import { currencySymbol, formatMoney, type Currency } from '@/lib/currency';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -664,7 +664,7 @@ export function EventDetailsPage() {
                             <div className="text-xs text-slate-500 mt-1">{ticket.description}</div>
                           )}
                         </TableCell>
-                        <TableCell>E {ticket.price.toLocaleString()}</TableCell>
+                        <TableCell>{formatMoney(ticket.price, event.currency ?? 'SZL', { space: true, decimals: 0 })}</TableCell>
                         <TableCell className="text-right">{ticket.quantity}</TableCell>
                         <TableCell className="text-right">{ticket.sold}</TableCell>
                         <TableCell className="text-right">
@@ -833,7 +833,9 @@ export function EventDetailsPage() {
                         <TableCell>{getSaleTicketType(sale)}</TableCell>
                         <TableCell className="font-mono text-xs">{getSaleTicketCodes(sale)}</TableCell>
                         <TableCell className="text-right">{sale.quantity}</TableCell>
-                        <TableCell className="text-right">E {sale.totalAmount.toLocaleString()}</TableCell>
+                        <TableCell className="text-right">
+                          {formatMoney(sale.totalAmount, sale.currency ?? event.currency ?? 'SZL', { space: true, decimals: 0 })}
+                        </TableCell>
                         <TableCell>{format(new Date(sale.createdAt), 'PP')}</TableCell>
                       </TableRow>
                     ))}
@@ -855,7 +857,7 @@ export function EventDetailsPage() {
               <div>
                 <div className="text-sm text-slate-600 mb-1">Total Revenue</div>
                 <div className="text-2xl font-bold text-slate-900">
-                  E {event.totalRevenue.toLocaleString()}
+                  {formatMoney(event.totalRevenue, event.currency ?? 'SZL', { space: true, decimals: 0 })}
                 </div>
               </div>
 
@@ -960,7 +962,7 @@ export function EventDetailsPage() {
 
         {/* Analytics Tab */}
         <TabsContent value="analytics" className="mt-6">
-          <EventAnalyticsTab eventId={id!} />
+          <EventAnalyticsTab eventId={id!} currency={event.currency ?? 'SZL'} />
         </TabsContent>
 
         {/* Creator Tab */}
@@ -1003,6 +1005,7 @@ export function EventDetailsPage() {
         ticketType={editingTicket}
         isLoading={addTicketMutation.isPending || updateTicketMutation.isPending}
         isAdmin={isAdmin}
+        currency={event.currency ?? 'SZL'}
       />
 
       {/* Delete confirmation */}
