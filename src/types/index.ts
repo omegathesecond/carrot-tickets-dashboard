@@ -197,6 +197,9 @@ export interface EventCreatorSummary {
     posterUrl?: string;
     thumbnailUrl?: string;
     createdAt: string;
+    // Not yet returned by GET /events/:id/creator (its Mongo .select omits
+    // it) — optional so the row falls back to base E until the API adds it.
+    currency?: 'SZL' | 'ZAR';
   }>;
 }
 
@@ -209,6 +212,16 @@ export interface TicketSale {
   ticketType?: TicketType;
   quantity: number;
   totalAmount: number;
+  // DISPLAY currency snapshot (from event.currency at sale time) — what the
+  // buyer/organizer see. Absent on sales made before this field existed.
+  currency?: 'SZL' | 'ZAR';
+  // Rail-native SETTLEMENT currency actually used (card charges settle in
+  // ZAR regardless of display currency; everything else settles in SZL).
+  // Only worth surfacing when it differs from `currency` — see ticket.model.ts.
+  settlementCurrency?: 'SZL' | 'ZAR';
+  // Economic snapshot: what was actually charged on the settlement rail (may
+  // differ from totalAmount when display and settlement currencies differ).
+  amountCharged?: number;
   customerName: string;
   customerPhone: string;
   paymentMethod: 'cash' | 'keshless_wallet' | 'mtn_momo';
@@ -241,6 +254,8 @@ export interface Ticket {
   scannedAt?: string;
   scannedBy?: string;
   createdAt: string;
+  // Snapshot of the event's DISPLAY currency at mint time.
+  currency?: 'SZL' | 'ZAR';
 }
 
 export interface SellTicketsRequest {
@@ -498,6 +513,10 @@ export interface FeeByEventRow {
   platformFees: number;
   totalFees: number;
   byMethod: FeeMethodBreakdown[];
+  // Not yet returned by GET /admin/fees (its aggregation drops the joined
+  // event doc after pulling eventName) — optional so rows fall back to base
+  // E until the API adds it.
+  currency?: 'SZL' | 'ZAR';
 }
 
 export interface FeeTotals {

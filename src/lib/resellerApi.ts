@@ -33,6 +33,7 @@ export interface ResellerEvent {
   venue?: string;
   date?: string;
   thumbnailUrl?: string;
+  currency?: 'SZL' | 'ZAR';
 }
 
 export interface ResellerTicketType {
@@ -184,6 +185,7 @@ export const resellerApi = {
       venue: ev.venue,
       date: ev.date ?? ev.eventDate,
       thumbnailUrl: ev.thumbnailUrl ?? ev.posterUrl,
+      currency: ev.currency ?? 'SZL',
     }));
   },
 
@@ -256,6 +258,10 @@ export interface AllocationBlock {
   sold: number;
   remaining: number;
   collected: number;
+  // Not yet returned by GET /reseller/allocation/me (AllocationService's
+  // Event.find .select omits it) — optional so blocks fall back to base E
+  // until the API adds it.
+  currency?: 'SZL' | 'ZAR';
 }
 
 export interface OperatorAdminRow {
@@ -324,6 +330,10 @@ export interface ManagerSale {
   paymentStatus: string;
   customerName: string;
   soldAt: string;
+  // Not yet returned by GET /reseller/manager/sales (ResellerReportService's
+  // row mapper omits it even though the underlying sale doc has it) —
+  // optional so rows fall back to base E until the API adds it.
+  currency?: 'SZL' | 'ZAR';
 }
 
 export interface Paginated<T> {

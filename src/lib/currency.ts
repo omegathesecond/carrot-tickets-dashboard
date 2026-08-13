@@ -1,6 +1,10 @@
 // Display currency for event prices. 'SZL' (Lilangeni) shows 'E'; 'ZAR' (Rand)
-// shows 'R'. Only used as a DISPLAY label for external events — Carrot never
-// charges in anything but Emalangeni.
+// shows 'R'. Selectable per event — organizers pick whichever symbol matches
+// how they're advertising the event, for ANY event (not just externally
+// ticketed ones). This is purely a DISPLAY label: it does not change how
+// Carrot itself settles — every gateway charge still moves real money over
+// its own rail (e.g. card settles in ZAR, MoMo/wallet/cash in SZL) regardless
+// of which symbol the event shows.
 export type Currency = 'SZL' | 'ZAR';
 
 export function currencySymbol(currency?: Currency | string): 'E' | 'R' {
