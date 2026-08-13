@@ -19,6 +19,7 @@ import {
 import { StatsCard } from '@/components/ui/stats-card';
 import { DateRangePicker, type DateRange } from '@/components/DateRangePicker';
 import { OperatorCredentialsDialog } from '@/components/OperatorCredentialsDialog';
+import { formatMoney } from '@/lib/currency';
 
 const HUB_VIEW_ROLES = ['reseller_admin', 'reseller_hub_manager'];
 
@@ -97,7 +98,7 @@ export function ResellerHubDetailPage() {
 
       <DateRangePicker value={range} onChange={setRange} />
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <StatsCard title="Revenue" value={`E ${(analytics?.revenue ?? 0).toFixed(2)}`} description="Completed sales" icon={DollarSign} gradient="from-green-500 to-emerald-600" />
+        <StatsCard title="Revenue" value={formatMoney(analytics?.revenue ?? 0, 'SZL', { space: true, decimals: 2 })} description="Completed sales" icon={DollarSign} gradient="from-green-500 to-emerald-600" />
         <StatsCard title="Tickets Sold" value={analytics?.ticketsSold ?? 0} description="Tickets" icon={Ticket} gradient="from-orange-500 to-amber-600" />
         <StatsCard title="Sales" value={analytics?.salesCount ?? 0} description="Completed sales" icon={Receipt} gradient="from-blue-500 to-indigo-600" />
         <StatsCard title="Operators" value={analytics?.operatorsCount ?? 0} description="In this hub" icon={Users} gradient="from-purple-500 to-fuchsia-600" />
@@ -123,7 +124,7 @@ export function ResellerHubDetailPage() {
                   <TableCell className="font-mono">{o.loginCode}</TableCell>
                   <TableCell className="text-right">{o.salesCount}</TableCell>
                   <TableCell className="text-right">{o.ticketsSold}</TableCell>
-                  <TableCell className="text-right">E {o.revenue.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">{formatMoney(o.revenue, 'SZL', { space: true, decimals: 2 })}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

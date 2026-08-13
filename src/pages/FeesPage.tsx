@@ -9,9 +9,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { StatsCard } from '@/components/ui/stats-card';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { DateRangePicker, type DateRange } from '@/components/DateRangePicker';
+import { formatMoney, type Currency } from '@/lib/currency';
 
 const PAGE_SIZE = 25;
-const money = (v: number) => `E ${(v ?? 0).toFixed(2)}`;
+const money = (v: number, currency: Currency = 'SZL') => formatMoney(v ?? 0, currency, { space: true, decimals: 2 });
 
 export function FeesPage() {
   const [range, setRange] = useState<DateRange>({ startDate: undefined, endDate: undefined });
@@ -46,6 +47,12 @@ export function FeesPage() {
   const totals = data?.totals;
   const pagination = data?.pagination;
 
+  // The KPI row is a cross-event aggregate by default (base E) — UNLESS the
+  // event filter narrows it to one event, in which case it's that event's
+  // money and should show that event's currency.
+  const filterEvent = eventId ? eventsData?.data?.find((e) => e._id === eventId) : undefined;
+  const statsCurrency: Currency = filterEvent?.currency ?? 'SZL';
+
   const toggle = (id: string) =>
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -67,21 +74,21 @@ export function FeesPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatsCard
           title="Total Carrot fees"
-          value={isLoading && !data ? '—' : money(totals?.totalFees ?? 0)}
+          value={isLoading && !data ? '—' : money(totals?.totalFees ?? 0, statsCurrency)}
           description="Booking fee + platform commission"
           icon={Receipt}
           gradient="from-orange-500 to-orange-600"
         />
         <StatsCard
           title="Booking fees"
-          value={isLoading && !data ? '—' : money(totals?.bookingFees ?? 0)}
+          value={isLoading && !data ? '—' : money(totals?.bookingFees ?? 0, statsCurrency)}
           description="Buyer-paid per-ticket fee (online)"
           icon={Coins}
           gradient="from-emerald-500 to-emerald-600"
         />
         <StatsCard
           title="Platform commission"
-          value={isLoading && !data ? '—' : money(totals?.platformFees ?? 0)}
+          value={isLoading && !data ? '—' : money(totals?.platformFees ?? 0, statsCurrency)}
           description="% of face, all channels"
           icon={Percent}
           gradient="from-indigo-500 to-indigo-600"
@@ -146,10 +153,10 @@ export function FeesPage() {
                         </TableCell>
                         <TableCell className="font-medium">{e.eventName}</TableCell>
                         <TableCell className="text-right">{e.ticketsSold.toLocaleString()}</TableCell>
-                        <TableCell className="text-right text-slate-500">{money(e.faceValue)}</TableCell>
-                        <TableCell className="text-right">{money(e.bookingFees)}</TableCell>
-                        <TableCell className="text-right">{money(e.platformFees)}</TableCell>
-                        <TableCell className="text-right font-semibold">{money(e.totalFees)}</TableCell>
+                        <TableCell className="text-right text-slate-500">{money(e.faceValue, e.currency ?? 'SZL')}</TableCell>
+                        <TableCell className="text-right">{money(e.bookingFees, e.currency ?? 'SZL')}</TableCell>
+                        <TableCell className="text-right">{money(e.platformFees, e.currency ?? 'SZL')}</TableCell>
+                        <TableCell className="text-right font-semibold">{money(e.totalFees, e.currency ?? 'SZL')}</TableCell>
                       </TableRow>
                       {expanded.has(e.eventId) && (
                         <TableRow className="bg-slate-50/60">
@@ -162,9 +169,9 @@ export function FeesPage() {
                                   <tr key={m.method} className="text-slate-600">
                                     <td className="py-1">{paymentLabel(m.method)}</td>
                                     <td className="py-1 text-right">{m.ticketsSold.toLocaleString()} tix</td>
-                                    <td className="py-1 text-right">Booking {money(m.bookingFees)}</td>
-                                    <td className="py-1 text-right">Commission {money(m.platformFees)}</td>
-                                    <td className="py-1 text-right font-medium">{money(m.totalFees)}</td>
+                                    <td className="py-1 text-right">Booking {money(m.bookingFees, e.currency ?? 'SZL')}</td>
+                                    <td className="py-1 text-right">Commission {money(m.platformFees, e.currency ?? 'SZL')}</td>
+                                    <td className="py-1 text-right font-medium">{money(m.totalFees, e.currency ?? 'SZL')}</td>
                                   </tr>
                                 ))}
                               </tbody>

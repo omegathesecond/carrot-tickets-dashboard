@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { resellerApi } from '@/lib/resellerApi';
 import { useResellerAuth } from '@/contexts/ResellerAuthContext';
 import { Button } from '@/components/ui/button';
+import { formatMoney, type Currency } from '@/lib/currency';
 
-const money = (n: number) => `E${n.toLocaleString(undefined, { minimumFractionDigits: 0 })}`;
+const money = (n: number, currency: Currency = 'SZL') =>
+  formatMoney(n, currency, { decimals: 0 });
 
 /**
  * DeltaPay's (and any allocation reseller's) single, read-only view: the ticket
@@ -51,7 +53,7 @@ export function AllocationPage() {
                   <p className="font-semibold break-words">{b.tierName}</p>
                   <p className="text-sm text-muted-foreground break-words">{b.eventName}</p>
                 </div>
-                <p className="shrink-0 text-lg font-bold text-primary">{money(b.price)}</p>
+                <p className="shrink-0 text-lg font-bold text-primary">{money(b.price, b.currency ?? 'SZL')}</p>
               </div>
 
               <div className="mt-4 grid grid-cols-3 gap-2 text-center">
@@ -64,7 +66,7 @@ export function AllocationPage() {
                   <p className="text-xs text-muted-foreground">Remaining</p>
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-primary">{money(b.collected)}</p>
+                  <p className="text-2xl font-bold text-primary">{money(b.collected, b.currency ?? 'SZL')}</p>
                   <p className="text-xs text-muted-foreground">Collected</p>
                 </div>
               </div>

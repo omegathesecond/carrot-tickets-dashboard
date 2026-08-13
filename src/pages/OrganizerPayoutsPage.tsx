@@ -20,6 +20,7 @@ import {
 import { StatsCard } from '@/components/ui/stats-card';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { DateRangePicker } from '@/components/DateRangePicker';
+import { formatMoney } from '@/lib/currency';
 
 export function OrganizerPayoutsPage() {
   const [vendorId, setVendorId] = useState('');
@@ -117,34 +118,36 @@ export function OrganizerPayoutsPage() {
         </Button>
       </div>
 
-      {/* Preview stats */}
+      {/* Preview stats — a payout spans every event the organizer sold in the
+          date range, which may mix E- and R-priced events, so this stays the
+          base currency rather than one event's symbol. */}
       {preview && (
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatsCard
               title="Proceeds Owed"
-              value={`E ${preview.proceedsOwed.toFixed(2)}`}
+              value={formatMoney(preview.proceedsOwed, 'SZL', { space: true, decimals: 2 })}
               description="Total organizer proceeds from ticket sales"
               icon={DollarSign}
               gradient="from-green-500 to-emerald-600"
             />
             <StatsCard
               title="Fee Owed by Vendor"
-              value={`E ${preview.feeOwedByVendor.toFixed(2)}`}
+              value={formatMoney(preview.feeOwedByVendor, 'SZL', { space: true, decimals: 2 })}
               description="Platform fee the vendor owes Carrot"
               icon={TrendingDown}
               gradient="from-red-500 to-rose-600"
             />
             <StatsCard
               title="Available Proceeds"
-              value={`E ${preview.availableProceeds.toFixed(2)}`}
+              value={formatMoney(preview.availableProceeds, 'SZL', { space: true, decimals: 2 })}
               description="What Carrot can pay out now"
               icon={TrendingUp}
               gradient="from-blue-500 to-indigo-600"
             />
             <StatsCard
               title="Net Amount"
-              value={`E ${preview.netAmount.toFixed(2)}`}
+              value={formatMoney(preview.netAmount, 'SZL', { space: true, decimals: 2 })}
               description="Net payable to organizer"
               icon={Wallet}
               gradient="from-orange-500 to-amber-600"

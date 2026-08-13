@@ -17,6 +17,7 @@ import {
   YAxis,
 } from 'recharts';
 import { resellerReportsApi, resellerApi } from '@/lib/resellerApi';
+import { formatMoney, type Currency } from '@/lib/currency';
 
 const METHOD_LABELS: Record<string, string> = {
   cash: 'Cash',
@@ -24,7 +25,8 @@ const METHOD_LABELS: Record<string, string> = {
   keshless_wallet: 'Keshless Wallet',
 };
 
-const money = (n: number) => `E ${n.toLocaleString()}`;
+const money = (n: number, currency: Currency = 'SZL') =>
+  formatMoney(n, currency, { space: true, decimals: 0 });
 const isoFrom = (d: string) => (d ? `${d}T00:00:00` : undefined);
 const isoTo = (d: string) => (d ? `${d}T23:59:59` : undefined);
 
@@ -51,6 +53,14 @@ export function ResellerReportsPage() {
 
   const chartData =
     data?.byDay.map((d) => ({ ...d, label: format(new Date(d.date), 'dd MMM') })) ?? [];
+
+  // This report is always a cross-event aggregate — base E. NOTE: the "Event"
+  // filter above is passed to resellerReportsApi.summary() but the backend's
+  // ResellerReportService.summary() doesn't accept/apply an eventId (only
+  // scope/from/to/hubId), so selecting one event does NOT actually narrow
+  // these totals server-side. Don't key currency off that filter until the
+  // API honours it — see task-6 report for the flagged gap.
+  const reportCurrency: Currency = 'SZL';
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
@@ -119,7 +129,7 @@ export function ResellerReportsPage() {
         <StatCard
           icon={<DollarSign className="h-5 w-5" />}
           label="Revenue"
-          value={money(data?.totals.revenue ?? 0)}
+          value={money(data?.totals.revenue ?? 0, reportCurrency)}
           tint="from-green-500 to-emerald-600"
         />
         <StatCard
@@ -151,7 +161,7 @@ export function ResellerReportsPage() {
                 <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
                 <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={48} />
                 <Tooltip
-                  formatter={(v: number) => money(v)}
+                  formatter={(v: number) => money(v, reportCurrency)}
                   labelStyle={{ color: '#0f172a' }}
                   contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0' }}
                 />
@@ -166,6 +176,7 @@ export function ResellerReportsPage() {
         {/* By payment method */}
         <Breakdown
           title="By payment method"
+          currency={reportCurrency}
           rows={(data?.byMethod ?? []).map((m) => ({
             name: METHOD_LABELS[m.method] ?? m.method,
             revenue: m.revenue,
@@ -175,6 +186,7 @@ export function ResellerReportsPage() {
         {/* By operator */}
         <Breakdown
           title="By operator"
+          currency={reportCurrency}
           rows={(data?.byOperator ?? []).map((o) => ({
             name: o.fullName,
             revenue: o.revenue,
@@ -188,6 +200,7 @@ export function ResellerReportsPage() {
         <div className="mt-6">
           <Breakdown
             title="By hub"
+            currency={reportCurrency}
             rows={(data?.byHub ?? []).map((h) => ({
               name: h.name,
               revenue: h.revenue,
@@ -227,9 +240,11 @@ function StatCard({
 function Breakdown({
   title,
   rows,
+  currency = 'SZL',
 }: {
   title: string;
   rows: { name: string; revenue: number; sub: string }[];
+  currency?: Currency;
 }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4">
@@ -245,7 +260,7 @@ function Breakdown({
                 <p className="text-xs text-slate-500">{r.sub}</p>
               </div>
               <p className="ml-3 shrink-0 font-semibold tabular-nums text-slate-900">
-                {money(r.revenue)}
+                {money(r.revenue, currency)}
               </p>
             </div>
           ))}

@@ -3,6 +3,7 @@ import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ChevronLeft, ChevronRight, Receipt } from 'lucide-react';
 import { resellerReportsApi, type ManagerSale } from '@/lib/resellerApi';
+import { formatMoney } from '@/lib/currency';
 
 const METHOD_LABELS: Record<string, string> = {
   cash: 'Cash',
@@ -16,7 +17,10 @@ const STATUS_STYLES: Record<string, string> = {
   failed: 'bg-red-100 text-red-700',
 };
 
-const money = (n: number) => `E ${n.toLocaleString()}`;
+// Per-sale row — each is one event's money, so this takes the sale's
+// currency snapshot (falling back to base E where the API hasn't sent it yet).
+const money = (n: number, currency: 'SZL' | 'ZAR' = 'SZL') =>
+  formatMoney(n, currency, { space: true, decimals: 0 });
 
 function isoFrom(d: string) {
   return d ? `${d}T00:00:00` : undefined;
@@ -136,7 +140,7 @@ export function ResellerSalesHistoryPage() {
                   <td className="px-4 py-3 text-slate-600">{s.hubName || '—'}</td>
                   <td className="px-4 py-3 text-right tabular-nums">{s.quantity}</td>
                   <td className="px-4 py-3 text-right font-semibold tabular-nums text-slate-900">
-                    {money(s.totalAmount)}
+                    {money(s.totalAmount, s.currency ?? 'SZL')}
                   </td>
                   <td className="px-4 py-3 text-slate-600">
                     {METHOD_LABELS[s.paymentMethod] ?? s.paymentMethod}

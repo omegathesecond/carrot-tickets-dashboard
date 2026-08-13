@@ -15,6 +15,7 @@ import { format } from 'date-fns';
 import { formatCurrency } from '@/lib/chartColors';
 import { channelLabel, channelSource } from '@/lib/channel';
 import { paymentLabel } from '@/lib/payment';
+import { formatMoney } from '@/lib/currency';
 import type { SalesQueryParams } from '@/types';
 
 const ALL = 'all';
@@ -72,11 +73,17 @@ export function SalesHistoryPage() {
     apiClient.exports.exportSalesCSV(filterParams);
   };
 
+  // The analytics row is a cross-event aggregate by default (base E) — UNLESS
+  // the event filter narrows it to one event, in which case it genuinely is
+  // that event's money and should show that event's currency.
+  const filterEvent = eventId !== ALL ? eventsData?.data?.find((e) => e._id === eventId) : undefined;
+  const statsCurrency = filterEvent?.currency ?? 'SZL';
+
   const statsCards = [
     { title: 'Total Sales', value: (stats?.totalSales || 0).toLocaleString() },
-    { title: 'Total Revenue', value: formatCurrency(stats?.totalRevenue || 0) },
+    { title: 'Total Revenue', value: formatCurrency(stats?.totalRevenue || 0, statsCurrency) },
     { title: 'Refunds', value: (stats?.totalRefunds || 0).toLocaleString() },
-    { title: 'Avg. Sale', value: formatCurrency(stats?.averageSaleAmount || 0) },
+    { title: 'Avg. Sale', value: formatCurrency(stats?.averageSaleAmount || 0, statsCurrency) },
   ];
 
   return (
@@ -208,7 +215,14 @@ export function SalesHistoryPage() {
                       </TableCell>
                       <TableCell>{sale.event?.name || 'N/A'}</TableCell>
                       <TableCell>{sale.quantity}</TableCell>
-                      <TableCell className="font-medium">E {sale.totalAmount.toLocaleString()}</TableCell>
+                      <TableCell className="font-medium">
+                        {formatMoney(sale.totalAmount, sale.currency ?? sale.event?.currency ?? 'SZL', { space: true, decimals: 0 })}
+                        {sale.settlementCurrency && sale.settlementCurrency !== (sale.currency ?? sale.event?.currency ?? 'SZL') && (
+                          <div className="text-xs font-normal text-slate-500">
+                            settled {formatMoney(sale.amountCharged ?? sale.totalAmount, sale.settlementCurrency, { space: true, decimals: 0 })}
+                          </div>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <Badge variant={sale.paymentMethod === 'cash' ? 'secondary' : 'default'}>
                           {paymentLabel(sale.paymentMethod)}
