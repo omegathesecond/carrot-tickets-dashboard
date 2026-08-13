@@ -1,3 +1,5 @@
+import { formatMoney, type Currency } from '@/lib/currency';
+
 // Vibrant color palette for charts
 export const CHART_COLORS = {
   // Primary vibrant colors
@@ -121,15 +123,10 @@ export const CHART_CONFIG = {
   },
 };
 
-// Helper to format currency
-export const formatCurrency = (value: number): string => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value).replace('$', 'E ');
-};
+// Format an amount for charts/tiles. `currency` defaults to 'SZL' ONLY for
+// cross-event aggregate totals that have no single event currency (base = E).
+export const formatCurrency = (value: number, currency: Currency = 'SZL'): string =>
+  formatMoney(value, currency, { space: true, decimals: 0 });
 
 // Helper to format large numbers
 export const formatNumber = (value: number): string => {
