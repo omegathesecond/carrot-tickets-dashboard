@@ -26,6 +26,8 @@ import {
   Armchair,
   Receipt,
   Store,
+  Boxes,
+  type LucideIcon,
 } from 'lucide-react';
 
 // The organizer's brand social feed lives on the consumer site (same login).
@@ -44,12 +46,13 @@ import {
   canPrintWristbands,
   canModerateSocial,
   canManageTransport,
+  canManageStock,
 } from '@/lib/permissions';
 
 interface NavigationItem {
   name: string;
   href: string;
-  icon: any;
+  icon: LucideIcon;
   show: boolean;
 }
 
@@ -136,6 +139,12 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       href: '/vendors',
       icon: Store,
       show: canManageAccess(user),
+    },
+    {
+      name: 'Catalogue',
+      href: '/stock',
+      icon: Boxes,
+      show: canManageStock(user),
     },
     {
       name: 'Analytics',
