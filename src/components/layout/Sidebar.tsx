@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { apiClient } from '@/lib/api';
 import {
   LayoutDashboard,
   Calendar,
@@ -28,13 +27,10 @@ import {
   Smartphone,
 } from 'lucide-react';
 
-// The organizer's brand social feed lives on the consumer site (same login).
-// This is the single door from the dashboard so organizers don't need a 2nd URL.
-const SOCIAL_LOGIN_URL = 'https://carrottickets.com/brand/login';
-const SOCIAL_SSO_URL = 'https://carrottickets.com/brand/sso';
 import { useAuth } from '@/contexts/AuthContext';
 import { BRAND_NAME } from '@/lib/brand';
 import { getOperatorContext, operatorLabel, operatorHomePath } from '@/lib/operatorContext';
+import { SOCIAL_LOGIN_URL, mintSocialFeedUrl } from '@/lib/socialFeed';
 import {
   TicketsPermission,
   hasPermission,
@@ -64,16 +60,15 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const ctx = getOperatorContext(user);
   const homePath = operatorHomePath(ctx);
 
-  // Mint a one-time SSO handoff so the organizer lands in the social feed
-  // already signed in (no second login). Falls back to the social login page.
+  // Open the brand social feed in a new tab, already signed in via a one-time
+  // SSO handoff. Falls back to the social login page if the handoff can't be
+  // minted. (LoginPage reuses mintSocialFeedUrl for the post-login landing.)
   async function openSocialFeed() {
     onClose();
     setOpeningSocial(true);
     try {
-      const { handoff } = await apiClient.auth.socialHandoff();
-      window.open(`${SOCIAL_SSO_URL}#h=${encodeURIComponent(handoff)}`, '_blank', 'noopener');
-    } catch {
-      window.open(SOCIAL_LOGIN_URL, '_blank', 'noopener');
+      const url = await mintSocialFeedUrl();
+      window.open(url ?? SOCIAL_LOGIN_URL, '_blank', 'noopener');
     } finally {
       setOpeningSocial(false);
     }
