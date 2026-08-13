@@ -1067,7 +1067,7 @@ export class ApiClient {
 
     updateProduct: async (
       productId: string,
-      data: Partial<NewProduct> & { active?: boolean },
+      data: UpdateProduct,
     ): Promise<StockProductRow> =>
       this.request<StockProductRow>(`/tickets/products/${productId}`, {
         method: 'PATCH',
@@ -1568,6 +1568,22 @@ export interface NewProduct {
   unitLabel?: string;
   unitsPerPack?: number;
   packLabel?: string;
+}
+
+/**
+ * The edit payload — like NewProduct but the optional fields accept `null` so an
+ * organiser can CLEAR a barcode/pack size (the API's updateProductSchema allows
+ * null; omitting the key would leave the old value, a silent no-op).
+ */
+export interface UpdateProduct {
+  name?: string;
+  category?: string;
+  price?: number;
+  barcode?: string | null;
+  unitLabel?: string;
+  unitsPerPack?: number | null;
+  packLabel?: string | null;
+  active?: boolean;
 }
 
 export interface StockBoardBarRow {

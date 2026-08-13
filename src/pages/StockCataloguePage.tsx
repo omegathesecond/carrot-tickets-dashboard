@@ -7,6 +7,7 @@ import {
   PRODUCT_CATEGORIES,
   type StockProductRow,
   type NewProduct,
+  type UpdateProduct,
   type StockStatus,
 } from '@/lib/api';
 import { fmtR, randToCents, centsToRand } from '@/lib/money';
@@ -115,10 +116,10 @@ export function StockCataloguePage() {
   };
 
   const saveProduct = useMutation({
-    mutationFn: (payload: NewProduct & { active?: boolean }) =>
-      editing
-        ? apiClient.stock.updateProduct(editing._id, payload)
-        : apiClient.stock.createProduct(selectedEventId, payload),
+    mutationFn: (payload: { create?: NewProduct; update?: UpdateProduct }) =>
+      payload.update
+        ? apiClient.stock.updateProduct(editing!._id, payload.update)
+        : apiClient.stock.createProduct(selectedEventId, payload.create!),
     onSuccess: () => {
       invalidate();
       toast.success(editing ? 'Product updated' : 'Product added');
@@ -198,20 +199,42 @@ export function StockCataloguePage() {
     if (!form.name.trim()) { toast.error('Name is required'); return; }
     if (cents == null) { toast.error('Enter a valid price'); return; }
     if (form.barcode.trim() && form.barcode.trim().length < 3) { toast.error('Barcode must be at least 3 characters'); return; }
-    const packN = form.unitsPerPack.trim() ? Number(form.unitsPerPack) : undefined;
+    const hasPack = form.unitsPerPack.trim() !== '';
+    const packN = hasPack ? Number(form.unitsPerPack) : null;
     if (packN != null && (!Number.isInteger(packN) || packN < 1)) { toast.error('Units per pack must be a whole number'); return; }
+    const barcode = form.barcode.trim();
+    const packLabel = form.packLabel.trim();
+    const unitLabel = form.unitLabel.trim() || 'unit';
 
-    const payload: NewProduct & { active?: boolean } = {
-      name: form.name.trim(),
-      category: form.category,
-      price: cents,
-      ...(form.barcode.trim() ? { barcode: form.barcode.trim() } : {}),
-      ...(form.unitLabel.trim() ? { unitLabel: form.unitLabel.trim() } : {}),
-      ...(packN != null ? { unitsPerPack: packN } : {}),
-      ...(form.packLabel.trim() ? { packLabel: form.packLabel.trim() } : {}),
-      ...(editing ? { active: form.active } : {}),
-    };
-    saveProduct.mutate(payload);
+    if (editing) {
+      // Edit: send null to CLEAR an optional field (omitting it would leave the
+      // old value — a silent no-op behind a "saved" toast).
+      saveProduct.mutate({
+        update: {
+          name: form.name.trim(),
+          category: form.category,
+          price: cents,
+          barcode: barcode ? barcode : null,
+          unitLabel,
+          unitsPerPack: packN,
+          packLabel: packLabel ? packLabel : null,
+          active: form.active,
+        },
+      });
+    } else {
+      // Create: the schema rejects null, so omit empty optionals.
+      saveProduct.mutate({
+        create: {
+          name: form.name.trim(),
+          category: form.category,
+          price: cents,
+          ...(barcode ? { barcode } : {}),
+          unitLabel,
+          ...(packN != null ? { unitsPerPack: packN } : {}),
+          ...(packLabel ? { packLabel } : {}),
+        },
+      });
+    }
   };
 
   return (
@@ -445,6 +468,8 @@ function StockOpDialogs({
     </div>
   );
   const qtyValid = Number.isInteger(Number(form.quantity)) && Number(form.quantity) >= 1;
+  // A count of 0 is legitimate (bar sold out), so it can't reuse qtyValid's >= 1.
+  const countValid = form.quantity.trim() !== '' && Number.isInteger(Number(form.quantity)) && Number(form.quantity) >= 0;
 
   return (
     <Dialog open={op !== null} onOpenChange={(o) => { if (!o) setOp(null); }}>
@@ -497,7 +522,7 @@ function StockOpDialogs({
               {productSelect}
               {qtyInput('Counted on hand')}
               <OpActions onCancel={() => setOp(null)} onConfirm={() => countM.mutate()} pending={countM.isPending}
-                disabled={!form.merchantId || !form.productId || form.quantity.trim() === '' || Number(form.quantity) < 0} label="Submit count" />
+                disabled={!form.merchantId || !form.productId || !countValid} label="Submit count" />
             </div>
           </>
         )}

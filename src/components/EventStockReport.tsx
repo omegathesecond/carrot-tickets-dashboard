@@ -80,11 +80,12 @@ function BoardSection({ eventId }: { eventId: string }) {
               <TableBody>
                 {data!.byProduct.map((p) => {
                   const bars = barsByProduct.get(p.productId) ?? [];
-                  const open = expanded.has(p.productId);
+                  const expandable = bars.length > 1;
+                  const open = expandable && expanded.has(p.productId);
                   return (
                     <Fragment key={p.productId}>
-                      <TableRow className="cursor-pointer hover:bg-slate-50" onClick={() => toggle(p.productId)}>
-                        <TableCell>{bars.length > 1 ? (open ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />) : null}</TableCell>
+                      <TableRow className={expandable ? 'cursor-pointer hover:bg-slate-50' : ''} onClick={expandable ? () => toggle(p.productId) : undefined}>
+                        <TableCell>{expandable ? (open ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />) : null}</TableCell>
                         <TableCell className="font-medium">{p.productName}</TableCell>
                         <TableCell className="text-right font-semibold">{p.totalOnHand}</TableCell>
                         <TableCell><StatusPill status={p.status} /></TableCell>
@@ -186,6 +187,9 @@ function DashboardSection({ eventId }: { eventId: string }) {
                         ))}
                       </TableBody>
                     </Table>
+                    {data.predictedStockOut.length > 10 && (
+                      <p className="text-xs text-muted-foreground pt-1">+{data.predictedStockOut.length - 10} more</p>
+                    )}
                   </div>
                 )}
               </div>
@@ -215,6 +219,9 @@ function TwoColTable({ title, rows, emptyText }: { title: string; rows: { k: str
               <span className="text-muted-foreground">{r.right}</span>
             </div>
           ))}
+          {rows.length > 10 && (
+            <p className="text-xs text-muted-foreground pt-1">+{rows.length - 10} more</p>
+          )}
         </div>
       )}
     </div>
@@ -325,6 +332,11 @@ function MovementsSection({ eventId }: { eventId: string }) {
       return res;
     },
     retry: false,
+    // The pager accumulates pages in local state; a background refetch would
+    // reset it to page 1 without warning. Fetch once per mount only.
+    staleTime: Infinity,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
   });
 
   const loadMore = async () => {
