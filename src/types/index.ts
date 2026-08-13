@@ -197,8 +197,8 @@ export interface EventCreatorSummary {
     posterUrl?: string;
     thumbnailUrl?: string;
     createdAt: string;
-    // Not yet returned by GET /events/:id/creator (its Mongo .select omits
-    // it) — optional so the row falls back to base E until the API adds it.
+    // Returned by GET /events/:id/creator since the accounting-currency
+    // change; `?? 'SZL'` guards only legacy docs that predate the field.
     currency?: 'SZL' | 'ZAR';
   }>;
 }
@@ -513,9 +513,8 @@ export interface FeeByEventRow {
   platformFees: number;
   totalFees: number;
   byMethod: FeeMethodBreakdown[];
-  // Not yet returned by GET /admin/fees (its aggregation drops the joined
-  // event doc after pulling eventName) — optional so rows fall back to base
-  // E until the API adds it.
+  // Returned by GET /admin/fees since the accounting-currency change;
+  // `?? 'SZL'` guards only legacy docs that predate the field.
   currency?: 'SZL' | 'ZAR';
 }
 

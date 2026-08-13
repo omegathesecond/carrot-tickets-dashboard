@@ -258,9 +258,8 @@ export interface AllocationBlock {
   sold: number;
   remaining: number;
   collected: number;
-  // Not yet returned by GET /reseller/allocation/me (AllocationService's
-  // Event.find .select omits it) — optional so blocks fall back to base E
-  // until the API adds it.
+  // Returned by GET /reseller/allocation/me since the accounting-currency
+  // change; `?? 'SZL'` guards only legacy docs that predate the field.
   currency?: 'SZL' | 'ZAR';
 }
 
@@ -330,9 +329,8 @@ export interface ManagerSale {
   paymentStatus: string;
   customerName: string;
   soldAt: string;
-  // Not yet returned by GET /reseller/manager/sales (ResellerReportService's
-  // row mapper omits it even though the underlying sale doc has it) —
-  // optional so rows fall back to base E until the API adds it.
+  // Returned by GET /reseller/manager/sales since the accounting-currency
+  // change; `?? 'SZL'` guards only legacy docs that predate the field.
   currency?: 'SZL' | 'ZAR';
 }
 
