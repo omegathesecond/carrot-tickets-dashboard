@@ -8,7 +8,7 @@ import {
   DEFAULT_TICKETING,
   validateTicketingSelection,
   buildTicketingPayload,
-  buildExternalPricePayload,
+  buildPricePayload,
   validateExternalPriceRange,
 } from '@/lib/ticketing';
 import { currencySymbol, type Currency } from '@/lib/currency';
@@ -199,7 +199,7 @@ export function EventDetailsPage() {
 
     updateTicketingMutation.mutate({
       ...buildTicketingPayload(ticketing, externalTicketUrl),
-      ...buildExternalPricePayload(ticketing, currency, priceMin, priceMax),
+      ...buildPricePayload(ticketing, currency, priceMin, priceMax),
     });
   };
 
@@ -553,6 +553,22 @@ export function EventDetailsPage() {
                 </Tabs>
               </div>
 
+              <div className="space-y-2 max-w-md">
+                <Label htmlFor="edit-currency">Currency</Label>
+                <select
+                  id="edit-currency"
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value as Currency)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="SZL">E (SZL) — Eswatini Lilangeni</option>
+                  <option value="ZAR">R (ZAR) — South African Rand</option>
+                </select>
+                <p className="text-xs text-slate-500">
+                  Prices for this event are shown with this currency's symbol ({currencySymbol(currency)}).
+                </p>
+              </div>
+
               {ticketing === 'external' && (
                 <div className="space-y-2 max-w-md">
                   <Label htmlFor="externalTicketUrl">Ticket link (https://…)</Label>
@@ -571,19 +587,7 @@ export function EventDetailsPage() {
                     Buyers will be sent to this link. Carrot won't process the sale.
                   </p>
 
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="edit-currency">Currency</Label>
-                      <select
-                        id="edit-currency"
-                        value={currency}
-                        onChange={(e) => setCurrency(e.target.value as Currency)}
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      >
-                        <option value="SZL">E (SZL)</option>
-                        <option value="ZAR">R (ZAR)</option>
-                      </select>
-                    </div>
+                  <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-2">
                       <Label htmlFor="edit-priceMin">From</Label>
                       <Input id="edit-priceMin" type="number" min="0" step="0.01" value={priceMin}

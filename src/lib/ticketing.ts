@@ -87,21 +87,22 @@ export function validateExternalPriceRange(
 }
 
 /**
- * Builds the currency/price fields to merge into the event payload. Returns {}
- * for carrot events (price comes from ticket tiers there). For external events
- * always sends the currency label and any numeric bounds provided.
+ * Builds the currency/price fields to merge into the event payload. `currency`
+ * is the event's DISPLAY currency and is ALWAYS sent (carrot + external). Price
+ * bounds are external-only (carrot prices come from the ticket tiers).
  */
-export function buildExternalPricePayload(
+export function buildPricePayload(
   ticketing: Ticketing,
   currency: Currency,
   priceMin: string | number | undefined | null,
   priceMax: string | number | undefined | null,
-): { currency?: Currency; priceMin?: number; priceMax?: number } {
-  if (ticketing !== 'external') return {};
-  const out: { currency?: Currency; priceMin?: number; priceMax?: number } = { currency };
-  const min = parsePrice(priceMin);
-  const max = parsePrice(priceMax);
-  if (min != null) out.priceMin = min;
-  if (max != null) out.priceMax = max;
+): { currency: Currency; priceMin?: number; priceMax?: number } {
+  const out: { currency: Currency; priceMin?: number; priceMax?: number } = { currency };
+  if (ticketing === 'external') {
+    const min = parsePrice(priceMin);
+    const max = parsePrice(priceMax);
+    if (min != null) out.priceMin = min;
+    if (max != null) out.priceMax = max;
+  }
   return out;
 }
