@@ -338,6 +338,31 @@ export class ApiClient {
       );
     },
 
+    // ---- Cashless STOCK reporting (Slice 4 endpoints; VIEW_REVENUE, ownership server-side) ----
+    getEventStockBoard: async (id: string): Promise<StockBoard> =>
+      this.request<StockBoard>(`/tickets/events/${id}/stock/board`),
+
+    getEventStockReconciliation: async (id: string): Promise<StockReconciliation> =>
+      this.request<StockReconciliation>(`/tickets/events/${id}/stock/reconciliation`),
+
+    getEventStockDashboard: async (id: string): Promise<StockDashboard> =>
+      this.request<StockDashboard>(`/tickets/events/${id}/stock/dashboard`),
+
+    getEventStockMovements: async (
+      id: string,
+      params: { productId?: string; merchantId?: string; cursor?: string; limit?: number } = {},
+    ): Promise<StockMovementsPage> => {
+      const q = new URLSearchParams();
+      if (params.productId) q.set('productId', params.productId);
+      if (params.merchantId) q.set('merchantId', params.merchantId);
+      if (params.cursor) q.set('cursor', params.cursor);
+      if (params.limit) q.set('limit', String(params.limit));
+      const qs = q.toString();
+      return this.request<StockMovementsPage>(
+        `/tickets/events/${id}/stock/movements${qs ? `?${qs}` : ''}`,
+      );
+    },
+
     createEvent: async (data: EventFormData): Promise<Event> => {
       return this.request<Event>(`/tickets/events`, {
         method: 'POST',
@@ -1028,6 +1053,64 @@ export class ApiClient {
       this.request<MerchantDetail>(`/tickets/merchants/${id}/transactions?limit=${limit}`),
   };
 
+  // Cashless STOCK management (Slices 1/3; MANAGE_STOCK, ownership server-side) —
+  // product catalogue + per-bar stock ops for ONE event.
+  stock = {
+    listProducts: async (eventId: string): Promise<StockProductRow[]> =>
+      this.request<StockProductRow[]>(`/tickets/events/${eventId}/products`),
+
+    createProduct: async (eventId: string, data: NewProduct): Promise<StockProductRow> =>
+      this.request<StockProductRow>(`/tickets/events/${eventId}/products`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    updateProduct: async (
+      productId: string,
+      data: Partial<NewProduct> & { active?: boolean },
+    ): Promise<StockProductRow> =>
+      this.request<StockProductRow>(`/tickets/products/${productId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+
+    receive: async (
+      eventId: string,
+      data: { merchantId: string; productId: string; quantity: number; unit: 'unit' | 'pack'; note?: string },
+    ): Promise<{ onHand: number; movementId: string }> =>
+      this.request(`/tickets/events/${eventId}/stock/receive`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    transfer: async (
+      eventId: string,
+      data: { productId: string; fromMerchantId: string; toMerchantId: string; qty: number; note?: string },
+    ): Promise<{ transferId: string; fromOnHand: number; toOnHand: number }> =>
+      this.request(`/tickets/events/${eventId}/stock/transfer`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    recordCount: async (
+      eventId: string,
+      data: { merchantId: string; productId: string; countedOnHand: number; phase?: string },
+    ): Promise<{ countId: string; expectedOnHand: number; countedOnHand: number; variance: number; onHand: number }> =>
+      this.request(`/tickets/events/${eventId}/stock/count`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    setThreshold: async (
+      eventId: string,
+      data: { merchantId: string; productId: string; lowStockThreshold: number | null },
+    ): Promise<{ merchantId: string; productId: string; lowStockThreshold: number | null }> =>
+      this.request(`/tickets/events/${eventId}/stock/threshold`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+  };
+
   // Wristband design + batch-issue endpoints
   wristbands = {
     listDesigns: async (eventId: string): Promise<WristbandDesignDoc[]> =>
@@ -1439,6 +1522,135 @@ export interface MerchantRow {
   loginCode: string;
   status: 'active' | 'suspended';
   createdAt: string;
+}
+
+// ---- Cashless stock (Slices 4/6) — mirror the API payloads exactly ----
+export type StockStatus = 'in_stock' | 'low' | 'sold_out';
+
+export interface ProductCategoryOption {
+  value: string;
+  label: string;
+}
+/** The ProductCategory enum values (api/src/interfaces/stock.interface.ts). */
+export const PRODUCT_CATEGORIES: ProductCategoryOption[] = [
+  { value: 'beer', label: 'Beer' },
+  { value: 'spirits', label: 'Spirits' },
+  { value: 'wine', label: 'Wine' },
+  { value: 'soft_drink', label: 'Soft drink' },
+  { value: 'water', label: 'Water' },
+  { value: 'food', label: 'Food' },
+  { value: 'merch', label: 'Merch' },
+  { value: 'cigarettes', label: 'Cigarettes' },
+  { value: 'other', label: 'Other' },
+];
+
+export interface StockProductRow {
+  _id: string;
+  eventId: string;
+  name: string;
+  category: string;
+  price: number; // ZAR cents, per base unit
+  barcode?: string | null;
+  unitLabel: string;
+  unitsPerPack?: number | null;
+  packLabel?: string | null;
+  imageUrl?: string | null;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NewProduct {
+  name: string;
+  category: string;
+  price: number; // ZAR cents
+  barcode?: string;
+  unitLabel?: string;
+  unitsPerPack?: number;
+  packLabel?: string;
+}
+
+export interface StockBoardBarRow {
+  merchantId: string;
+  merchantName: string;
+  productId: string;
+  productName: string;
+  category: string;
+  onHand: number;
+  lowStockThreshold: number | null;
+  status: StockStatus;
+}
+export interface StockBoardProductRow {
+  productId: string;
+  productName: string;
+  category: string;
+  totalOnHand: number;
+  status: StockStatus;
+}
+export interface StockBoard {
+  event: { id: string; name: string };
+  perBar: StockBoardBarRow[];
+  byProduct: StockBoardProductRow[];
+}
+
+export interface ReconRow {
+  merchantId?: string;
+  merchantName?: string;
+  productId: string;
+  productName: string;
+  opening: number;
+  added: number;
+  transferIn: number;
+  transferOut: number;
+  sold: number;
+  countAdjust: number;
+  spoilage: number;
+  manual: number;
+  expectedClosing: number;
+  physicalCount: number | null;
+  variance: number | null;
+}
+export interface StockReconciliation {
+  event: { id: string; name: string };
+  perBar: ReconRow[];
+  byProduct: ReconRow[];
+  total: Omit<ReconRow, 'merchantId' | 'merchantName' | 'productId' | 'productName'>;
+}
+
+export interface StockDashboard {
+  event: { id: string; name: string };
+  revenueByProduct: { productId: string; productName: string; revenue: number; units: number }[];
+  bestSellers: { productId: string; productName: string; revenue: number; units: number }[];
+  salesByBar: { merchantId: string; merchantName: string; gross: number; fee: number; net: number; count: number }[];
+  salesByEmployee: { staffName: string | null; label: string; gross: number; count: number }[];
+  itemisedSplit: { itemised: { gross: number; count: number }; unitemised: { gross: number; count: number } };
+  peakTimes: { hour: number; units: number }[];
+  variances: { merchantId: string; merchantName: string; productId: string; productName: string; variance: number }[];
+  totalShrinkageUnits: number;
+  predictedStockOut: { merchantId: string; merchantName: string; productId: string; productName: string; onHand: number; ratePerMin: number; minutesToStockOut: number }[];
+  noRecentSales: number;
+}
+
+export interface StockMovementRow {
+  id: string;
+  at: string;
+  merchantId: string;
+  merchantName: string;
+  productId: string;
+  productName: string;
+  delta: number;
+  reason: string;
+  balanceAfter: number;
+  refType: string | null;
+  refId: string | null;
+  byType: string;
+  by: string;
+  note: string | null;
+}
+export interface StockMovementsPage {
+  movements: StockMovementRow[];
+  nextCursor: string | null;
+  hasMore: boolean;
 }
 
 export interface IssuedMerchantCredentials {

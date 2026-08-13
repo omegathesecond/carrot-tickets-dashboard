@@ -20,6 +20,7 @@ export const TicketsPermission = {
   MODERATE_SOCIAL: 'tickets:moderate_social',
   VIEW_TRANSPORT: 'tickets:view_transport',
   MANAGE_TRANSPORT: 'tickets:manage_transport',
+  MANAGE_STOCK: 'tickets:manage_stock',
 } as const;
 
 export type TicketsPermissionValue =
@@ -106,4 +107,16 @@ export function canManageTransport(user: AuthUser | null | undefined): boolean {
     hasPermission(user, TicketsPermission.MANAGE_TRANSPORT) ||
     hasPermission(user, TicketsPermission.VIEW_TRANSPORT)
   );
+}
+
+/**
+ * Cashless stock/catalogue management — drives the Catalogue page + sidebar
+ * entry. Super-admins always; vendor owners (no permissions array) keep access
+ * via hasPermission's default; restricted team members only with the explicit
+ * `tickets:manage_stock`. The API still enforces per request.
+ */
+export function canManageStock(user: AuthUser | null | undefined): boolean {
+  if (!user) return false;
+  if (user.isSuperAdmin) return true;
+  return hasPermission(user, TicketsPermission.MANAGE_STOCK);
 }
