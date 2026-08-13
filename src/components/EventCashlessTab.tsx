@@ -12,8 +12,10 @@ import {
   TableCell,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { CreditCard, ArrowDownCircle, ArrowUpCircle, Wallet, Loader2, ArrowRight } from 'lucide-react';
 import { TransactionDetailDialog, type TxnDetail } from '@/components/TransactionDetailDialog';
+import { EventStockReport } from '@/components/EventStockReport';
 
 /** Cashless wallet amounts move in ZAR cents on the wire. */
 const fmtR = (cents: number) => `R${((cents ?? 0) / 100).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -60,27 +62,19 @@ export function EventCashlessTab({ eventId }: Props) {
   const [selected, setSelected] = useState<TxnDetail | null>(null);
   const navigate = useNavigate();
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-16 text-muted-foreground">
-        <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading cashless report…
-      </div>
-    );
-  }
-
-  if (error || !summary) {
-    return (
-      <Card>
-        <CardContent className="py-12 text-center text-muted-foreground">
-          {String((error as Error)?.message || '').toLowerCase().includes('not cashless')
-            ? 'This event is not a cashless event.'
-            : 'Could not load the cashless report.'}
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
+  const moneyBody = isLoading ? (
+    <div className="flex items-center justify-center py-16 text-muted-foreground">
+      <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading cashless report…
+    </div>
+  ) : error || !summary ? (
+    <Card>
+      <CardContent className="py-12 text-center text-muted-foreground">
+        {String((error as Error)?.message || '').toLowerCase().includes('not cashless')
+          ? 'This event is not a cashless event.'
+          : 'Could not load the cashless report.'}
+      </CardContent>
+    </Card>
+  ) : (
     <div className="space-y-6">
       {/* Totals */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -233,6 +227,19 @@ export function EventCashlessTab({ eventId }: Props) {
 
       <TransactionDetailDialog txn={selected} onClose={() => setSelected(null)} />
     </div>
+  );
+
+  return (
+    <Tabs defaultValue="money" className="space-y-4">
+      <TabsList>
+        <TabsTrigger value="money">Money</TabsTrigger>
+        <TabsTrigger value="stock">Stock</TabsTrigger>
+      </TabsList>
+      <TabsContent value="money">{moneyBody}</TabsContent>
+      <TabsContent value="stock">
+        <EventStockReport eventId={eventId} />
+      </TabsContent>
+    </Tabs>
   );
 }
 
