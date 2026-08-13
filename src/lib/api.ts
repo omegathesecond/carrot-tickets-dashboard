@@ -1,6 +1,8 @@
 import type {
   LoginCredentials,
   RegisterData,
+  RegistrationOtpRequest,
+  RegistrationOtpResponse,
   AuthResponse,
   ForgotPasswordResponse,
   ResetPasswordData,
@@ -261,6 +263,15 @@ export class ApiClient {
       return response;
     },
 
+    /** Signup step 1: request a 6-digit code to the email/phone being registered. */
+    requestRegistrationOtp: async (data: RegistrationOtpRequest): Promise<RegistrationOtpResponse> => {
+      return this.request<RegistrationOtpResponse>(`/tickets/auth/register/request-otp`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
+    /** Signup step 2: verify the code + create the account. Signs in on success. */
     register: async (data: RegisterData): Promise<AuthResponse> => {
       const response = await this.request<AuthResponse>(
         `/tickets/auth/register`,

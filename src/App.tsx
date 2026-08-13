@@ -24,6 +24,7 @@ import { AllocationLoginPage } from '@/pages/reseller/AllocationLoginPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { SignupPage } from '@/pages/SignupPage';
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
+import { GetPosAppPage } from '@/pages/GetPosAppPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { EventsPage } from '@/pages/EventsPage';
 import { EventDetailsPage } from '@/pages/EventDetailsPage';
@@ -99,6 +100,7 @@ function App() {
                   <Route path="payouts" element={<AdminRoute><OrganizerPayoutsPage /></AdminRoute>} />
                   <Route path="fees" element={<AdminRoute><FeesPage /></AdminRoute>} />
                   <Route path="gate-operators" element={<GateOperatorsPage />} />
+                  <Route path="get-pos-app" element={<GetPosAppPage />} />
                   <Route path="transport/vehicle-types" element={<TransportRoute><VehicleTypesPage /></TransportRoute>} />
                   <Route path="transport/routes" element={<TransportRoute><TransportRoutesPage /></TransportRoute>} />
                   <Route path="transport/trips" element={<TransportRoute><TripsPage /></TransportRoute>} />

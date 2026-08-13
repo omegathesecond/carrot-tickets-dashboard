@@ -25,6 +25,7 @@ import {
   Truck,
   Armchair,
   Receipt,
+  Smartphone,
 } from 'lucide-react';
 
 // The organizer's brand social feed lives on the consumer site (same login).
@@ -171,6 +172,15 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       href: '/transport/bookings',
       icon: Armchair,
       show: canManageTransport(user),
+    },
+    // Permanent home for the handheld POS-app download — the one-time install
+    // prompt only shows once, so every organizer keeps a link here. Visible to
+    // all organizer accounts (owners and their gate/sales staff use the app).
+    {
+      name: 'Get the POS app',
+      href: '/get-pos-app',
+      icon: Smartphone,
+      show: true,
     },
     ...(user?.isSuperAdmin ? [
       { name: 'Organizers', href: '/organizers', icon: Building2, show: true },

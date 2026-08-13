@@ -12,6 +12,20 @@ export interface RegisterData {
   phoneNumber?: string;
   password: string;
   businessType?: string;
+  code: string; // 6-digit code from signup step 1 (register/request-otp)
+}
+
+// Signup step 1: which contact channel to send the verification code to.
+export interface RegistrationOtpRequest {
+  email?: string;
+  phoneNumber?: string;
+}
+
+// Signup step 1 echoes where the code went so the UI can say
+// "We texted your phone" / "Check your email" (same shape as reset).
+export interface RegistrationOtpResponse {
+  channel: 'sms' | 'email';
+  identifier: string;
 }
 
 export interface AuthResponse {
