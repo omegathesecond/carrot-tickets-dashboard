@@ -435,6 +435,8 @@ export interface Organizer {
   phoneNumber: string | null;
   primaryContact: string | null;
   businessType: string | null;
+  operatorType?: string;
+  serviceCategory?: string;
   verificationStatus: OrganizerVerificationStatus;
   verifiedAt: string | null;
   rejectionReason: string | null;

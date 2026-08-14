@@ -683,10 +683,11 @@ export class ApiClient {
 
   // Organizers admin endpoints (super-admin only)
   organizers = {
-    list: async (params?: { search?: string; status?: string; page?: number; limit?: number }): Promise<OrganizersListResponse> => {
+    list: async (params?: { search?: string; status?: string; operatorType?: string; page?: number; limit?: number }): Promise<OrganizersListResponse> => {
       const query = new URLSearchParams();
       if (params?.search) query.append('search', params.search);
       if (params?.status) query.append('status', params.status);
+      if (params?.operatorType) query.append('operatorType', params.operatorType);
       if (params?.page) query.append('page', String(params.page));
       if (params?.limit) query.append('limit', String(params.limit));
       return this.request<OrganizersListResponse>(`/tickets/admin/organizers?${query.toString()}`);
