@@ -37,6 +37,7 @@ import { StatsCard } from '@/components/ui/stats-card';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { OperatorCredentialsDialog } from '@/components/OperatorCredentialsDialog';
 import { DateRangePicker, type DateRange } from '@/components/DateRangePicker';
+import { formatMoney } from '@/lib/currency';
 
 // ─── Hubs Tab ────────────────────────────────────────────────────────────────
 
@@ -463,21 +464,21 @@ function SettlementTab({ resellerId }: { resellerId: string }) {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <StatsCard
               title="Cash Owed to Carrot"
-              value={`E ${preview.cashOwedToCarrot.toFixed(2)}`}
+              value={formatMoney(preview.cashOwedToCarrot, 'SZL', { space: true, decimals: 2 })}
               description="Cash collected by reseller due to Carrot"
               icon={Wallet}
               gradient="from-red-500 to-rose-600"
             />
             <StatsCard
               title="Commission Owed by Carrot"
-              value={`E ${preview.commissionOwedByCarrot.toFixed(2)}`}
+              value={formatMoney(preview.commissionOwedByCarrot, 'SZL', { space: true, decimals: 2 })}
               description="Commission Carrot owes the reseller"
               icon={TrendingUp}
               gradient="from-green-500 to-emerald-600"
             />
             <StatsCard
               title="Net Amount"
-              value={`E ${preview.netAmount.toFixed(2)}`}
+              value={formatMoney(preview.netAmount, 'SZL', { space: true, decimals: 2 })}
               description="Net payable (positive = reseller owes Carrot)"
               icon={preview.netAmount >= 0 ? TrendingDown : TrendingUp}
               gradient="from-orange-500 to-amber-600"
@@ -494,7 +495,7 @@ function SettlementTab({ resellerId }: { resellerId: string }) {
                   {Object.entries(preview.byMethod).map(([method, amount]) => (
                     <li key={method} className="flex justify-between text-sm">
                       <span className="text-slate-600 capitalize">{method}</span>
-                      <span className="font-medium">E {amount.toFixed(2)}</span>
+                      <span className="font-medium">{formatMoney(amount, 'SZL', { space: true, decimals: 2 })}</span>
                     </li>
                   ))}
                 </ul>
@@ -651,7 +652,7 @@ function WithdrawalsTab({ resellerId }: { resellerId: string }) {
           <TableBody>
             {withdrawals.map((w) => (
               <TableRow key={w._id}>
-                <TableCell className="font-semibold tabular-nums">E {w.amount.toLocaleString()}</TableCell>
+                <TableCell className="font-semibold tabular-nums">{formatMoney(w.amount, 'SZL', { space: true, decimals: 0 })}</TableCell>
                 <TableCell>
                   <Badge className={WITHDRAWAL_BADGE[w.status]}>{w.status}</Badge>
                 </TableCell>
@@ -700,7 +701,7 @@ function WithdrawalsTab({ resellerId }: { resellerId: string }) {
             className="space-y-4"
           >
             <p className="text-sm text-slate-600">
-              Paying out <span className="font-semibold">E {payDialog?.amount.toLocaleString()}</span>.
+              Paying out <span className="font-semibold">{payDialog ? formatMoney(payDialog.amount, 'SZL', { space: true, decimals: 0 }) : ''}</span>.
             </p>
             <div className="space-y-2">
               <Label htmlFor="wd-ref">Payment reference (optional)</Label>

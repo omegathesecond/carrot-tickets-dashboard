@@ -33,6 +33,7 @@ export interface ResellerEvent {
   venue?: string;
   date?: string;
   thumbnailUrl?: string;
+  currency?: 'SZL' | 'ZAR';
 }
 
 export interface ResellerTicketType {
@@ -121,6 +122,23 @@ export const resellerApi = {
     return result;
   },
 
+  /** Owner login by email + password (allocation-portal partners like DeltaPay). */
+  async ownerLogin(payload: { email: string; password: string }): Promise<{ accessToken: string; operator: ResellerOperator }> {
+    const result = await request<{
+      accessToken: string;
+      reseller: { id: string; resellerId: string; businessName: string; email?: string; role: string; permissions: string[] };
+    }>('/reseller/auth/owner-login', { method: 'POST', body: JSON.stringify(payload) }, false);
+    // Shape the reseller as an "operator" so the shared auth context/portal reuse works.
+    const operator = {
+      _id: result.reseller.id, resellerId: result.reseller.resellerId, hubId: '',
+      fullName: result.reseller.businessName, loginCode: '', role: result.reseller.role,
+      isActive: true, permissions: result.reseller.permissions,
+    } as unknown as ResellerOperator;
+    localStorage.setItem(TOKEN_KEY, result.accessToken);
+    localStorage.setItem(OPERATOR_KEY, JSON.stringify(operator));
+    return { accessToken: result.accessToken, operator };
+  },
+
   logout(): void {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(OPERATOR_KEY);
@@ -167,6 +185,7 @@ export const resellerApi = {
       venue: ev.venue,
       date: ev.date ?? ev.eventDate,
       thumbnailUrl: ev.thumbnailUrl ?? ev.posterUrl,
+      currency: ev.currency ?? 'SZL',
     }));
   },
 
@@ -223,7 +242,26 @@ export const resellerApi = {
   async getMySales(): Promise<ResellerSale[]> {
     return request<ResellerSale[]>('/reseller/sales');
   },
+
+  /** This reseller's pre-bought allocation blocks (sold / remaining / collected). */
+  async getMyAllocation(): Promise<{ blocks: AllocationBlock[] }> {
+    return request<{ blocks: AllocationBlock[] }>('/reseller/allocation/me');
+  },
 };
+
+export interface AllocationBlock {
+  eventId: string;
+  eventName: string;
+  tierName: string;
+  price: number;
+  quantity: number;
+  sold: number;
+  remaining: number;
+  collected: number;
+  // Returned by GET /reseller/allocation/me since the accounting-currency
+  // change; `?? 'SZL'` guards only legacy docs that predate the field.
+  currency?: 'SZL' | 'ZAR';
+}
 
 export interface OperatorAdminRow {
   _id: string;
@@ -291,6 +329,9 @@ export interface ManagerSale {
   paymentStatus: string;
   customerName: string;
   soldAt: string;
+  // Returned by GET /reseller/manager/sales since the accounting-currency
+  // change; `?? 'SZL'` guards only legacy docs that predate the field.
+  currency?: 'SZL' | 'ZAR';
 }
 
 export interface Paginated<T> {

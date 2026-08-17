@@ -1,28 +1,26 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { resellerApi } from '@/lib/resellerApi';
+import { useResellerAuth } from '@/contexts/ResellerAuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 
-export function ResellerLoginPage() {
-  const [loginCode, setLoginCode] = useState('');
-  const [pin, setPin] = useState('');
+/** Email + password login for allocation-portal partners (e.g. DeltaPay). */
+export function AllocationLoginPage() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { ownerLogin } = useResellerAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-
     try {
-      await resellerApi.login({ loginCode, pin });
-      // Honor a ?redirect target (e.g. a partner deep-linked to /allocation);
-      // default to the reseller portal home.
-      const redirect = new URLSearchParams(window.location.search).get('redirect');
-      navigate(redirect || '/reseller', { replace: true });
+      await ownerLogin(email, password);
+      navigate('/allocation', { replace: true });
     } catch (error: any) {
       toast.error(error.message || 'Login failed');
     } finally {
@@ -38,34 +36,33 @@ export function ResellerLoginPage() {
             <img src="/carrot_tickets_icon.png" alt="Carrot Tickets" className="h-16 w-16" />
           </div>
           <div className="text-center">
-            <CardTitle className="text-2xl">Reseller Portal</CardTitle>
-            <CardDescription>Operator POS Login</CardDescription>
+            <CardTitle className="text-2xl">Partner Portal</CardTitle>
+            <CardDescription>Sign in to view your ticket allocation</CardDescription>
           </div>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="loginCode">User ID</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
-                id="loginCode"
-                inputMode="numeric"
-                autoComplete="off"
-                placeholder="6-digit user ID"
-                value={loginCode}
-                onChange={(e) => setLoginCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                id="email"
+                type="email"
+                autoComplete="username"
+                placeholder="you@company.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="pin">PIN</Label>
+              <Label htmlFor="password">Password</Label>
               <Input
-                id="pin"
+                id="password"
                 type="password"
-                inputMode="numeric"
-                autoComplete="off"
-                placeholder="6-digit PIN"
-                value={pin}
-                onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                autoComplete="current-password"
+                placeholder="Your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 required
               />
             </div>
@@ -74,7 +71,7 @@ export function ResellerLoginPage() {
               className="w-full bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700"
               disabled={isLoading}
             >
-              {isLoading ? 'Logging in...' : 'Login'}
+              {isLoading ? 'Signing in…' : 'Sign in'}
             </Button>
           </form>
         </CardContent>

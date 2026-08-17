@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { apiClient } from '@/lib/api';
 import {
   LayoutDashboard,
   Calendar,
@@ -24,15 +23,14 @@ import {
   Route,
   Truck,
   Armchair,
+  Receipt,
+  Smartphone,
 } from 'lucide-react';
 
-// The organizer's brand social feed lives on the consumer site (same login).
-// This is the single door from the dashboard so organizers don't need a 2nd URL.
-const SOCIAL_LOGIN_URL = 'https://carrottickets.com/brand/login';
-const SOCIAL_SSO_URL = 'https://carrottickets.com/brand/sso';
 import { useAuth } from '@/contexts/AuthContext';
 import { BRAND_NAME } from '@/lib/brand';
 import { getOperatorContext, operatorLabel, operatorHomePath } from '@/lib/operatorContext';
+import { SOCIAL_LOGIN_URL, mintSocialFeedUrl } from '@/lib/socialFeed';
 import {
   TicketsPermission,
   hasPermission,
@@ -62,16 +60,15 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const ctx = getOperatorContext(user);
   const homePath = operatorHomePath(ctx);
 
-  // Mint a one-time SSO handoff so the organizer lands in the social feed
-  // already signed in (no second login). Falls back to the social login page.
+  // Open the brand social feed in a new tab, already signed in via a one-time
+  // SSO handoff. Falls back to the social login page if the handoff can't be
+  // minted. (LoginPage reuses mintSocialFeedUrl for the post-login landing.)
   async function openSocialFeed() {
     onClose();
     setOpeningSocial(true);
     try {
-      const { handoff } = await apiClient.auth.socialHandoff();
-      window.open(`${SOCIAL_SSO_URL}#h=${encodeURIComponent(handoff)}`, '_blank', 'noopener');
-    } catch {
-      window.open(SOCIAL_LOGIN_URL, '_blank', 'noopener');
+      const url = await mintSocialFeedUrl();
+      window.open(url ?? SOCIAL_LOGIN_URL, '_blank', 'noopener');
     } finally {
       setOpeningSocial(false);
     }
@@ -171,11 +168,21 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       icon: Armchair,
       show: canManageTransport(user),
     },
+    // Permanent home for the handheld POS-app download — the one-time install
+    // prompt only shows once, so every organizer keeps a link here. Visible to
+    // all organizer accounts (owners and their gate/sales staff use the app).
+    {
+      name: 'Get the POS app',
+      href: '/get-pos-app',
+      icon: Smartphone,
+      show: true,
+    },
     ...(user?.isSuperAdmin ? [
       { name: 'Organizers', href: '/organizers', icon: Building2, show: true },
       { name: 'Settings', href: '/settings', icon: Settings2, show: true },
       { name: 'Resellers', href: '/resellers', icon: Users, show: true },
       { name: 'Payouts', href: '/payouts', icon: Banknote, show: true },
+      { name: 'Fees', href: '/fees', icon: Receipt, show: true },
     ] : []),
   ].filter((item) => item.show);
 

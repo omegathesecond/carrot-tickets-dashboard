@@ -1,5 +1,6 @@
 import { BRAND_NAME, SUPPORT_EMAIL } from '@/lib/brand';
 import type { SaleData } from '@/lib/saleData';
+import { formatMoney } from '@/lib/currency';
 
 export interface ReceiptTicket {
   ticketId: string;
@@ -41,6 +42,7 @@ export function buildTicketReceiptHtml(
   tickets: ReceiptTicket[],
   logoDataUrl: string | null,
 ): string {
+  const cur = sale.currency ?? 'SZL';
   const printedAt = new Date().toLocaleString('en-GB', {
     day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
   });
@@ -108,8 +110,8 @@ export function buildTicketReceiptHtml(
   <div class="row"><span class="k">Type</span><span class="v">${esc(sale.ticketTypeName)}</span></div>
   <div class="row"><span class="k">Customer</span><span class="v">${esc(sale.customerName)}</span></div>
   <div class="row"><span class="k">Phone</span><span class="v">${esc(sale.customerPhone)}</span></div>
-  <div class="row"><span class="k">Qty x Price</span><span class="v">${esc(sale.quantity)} x E ${esc(sale.unitPrice.toLocaleString())}</span></div>
-  <div class="row total"><span class="k">TOTAL</span><span class="v">E ${esc(sale.totalAmount.toLocaleString())}</span></div>
+  <div class="row"><span class="k">Qty x Price</span><span class="v">${esc(sale.quantity)} x ${esc(formatMoney(sale.unitPrice, cur, { space: true, decimals: 0 }))}</span></div>
+  <div class="row total"><span class="k">TOTAL</span><span class="v">${esc(formatMoney(sale.totalAmount, cur, { space: true, decimals: 0 }))}</span></div>
   <div class="row"><span class="k">Payment</span><span class="v">${esc(sale.paymentMethod)}</span></div>
   ${sale.saleId ? `<div class="row"><span class="k">Ref</span><span class="v">${esc(shortRef(sale.saleId))}</span></div>` : ''}
   <div class="row"><span class="k">Sold by</span><span class="v">${esc(sale.operatorName)}</span></div>
@@ -156,6 +158,7 @@ export function buildSingleTicketHtml(
   total: number,
   logoDataUrl: string | null,
 ): string {
+  const cur = sale.currency ?? 'SZL';
   const logo = logoDataUrl
     ? `<img src="${esc(logoDataUrl)}" alt="${esc(BRAND_NAME)}" style="display:block;margin:0 auto 4px;width:120px;height:120px;object-fit:contain;" />`
     : '';
@@ -180,7 +183,7 @@ export function buildSingleTicketHtml(
     <img src="${esc(ticket.qrDataUrl)}" alt="QR ${esc(ticket.ticketId)}" style="display:block;margin:12px auto;width:280px;height:280px;image-rendering:pixelated;" />
     <div style="text-align:center;font-family:'Courier New',monospace;font-weight:700;font-size:22px;word-break:break-all;">${esc(ticket.ticketId)}</div>
     <div style="text-align:center;font-size:18px;margin-top:8px;">Sold by ${esc(sale.operatorName)}${refPart}</div>
-    <div style="text-align:center;font-weight:800;font-size:22px;margin-top:2px;">E ${esc(sale.totalAmount.toLocaleString())} · ${esc(sale.paymentMethod)}</div>
+    <div style="text-align:center;font-weight:800;font-size:22px;margin-top:2px;">${esc(formatMoney(sale.totalAmount, cur, { space: true, decimals: 0 }))} · ${esc(sale.paymentMethod)}</div>
     <div style="border-top:2px dashed #000;margin:12px 0;"></div>
     <div style="font-size:18px;line-height:1.4;">
       <div style="font-weight:700;text-align:center;margin-bottom:4px;">Entry instructions</div>

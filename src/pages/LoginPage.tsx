@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { AuthHeader } from '@/components/AuthHeader';
 import { BRAND_NAME } from '@/lib/brand';
 import { getOperatorContext, operatorHomePath } from '@/lib/operatorContext';
+import { shouldLandOnSocialFeed, mintSocialFeedUrl } from '@/lib/socialFeed';
 
 export function LoginPage() {
   const [credentials, setCredentials] = useState({ identifier: '', password: '' });
@@ -27,15 +28,34 @@ export function LoginPage() {
   const [loggedIn, setLoggedIn] = useState(false);
   const { login, user } = useAuth();
   const navigate = useNavigate();
+  // Land-once guard: the effect below may re-run as `user` settles, but a
+  // brand redirect mints a one-time SSO handoff and starts navigating away —
+  // we must do that exactly once.
+  const landed = useRef(false);
 
   // `login()` resolves once AuthContext has scheduled its user-state update,
   // but the `user` this handler closed over is still the pre-login value —
   // wait for the context to actually re-render with the freshly-authenticated
   // user before deciding where to land, instead of navigating too early.
   useEffect(() => {
-    if (loggedIn && user) {
-      navigate(operatorHomePath(getOperatorContext(user)), { replace: true });
+    if (!loggedIn || !user || landed.current) return;
+    landed.current = true;
+
+    const home = operatorHomePath(getOperatorContext(user));
+
+    // Non-brand accounts (super-admins, transport-only, sales-only resellers)
+    // keep landing on their dashboard home. Event organizers land on their
+    // brand social feed instead — same login, via a one-time SSO handoff. If
+    // the handoff can't be minted, fall back to the dashboard home rather than
+    // bouncing a just-authenticated user to a second login.
+    if (!shouldLandOnSocialFeed(user)) {
+      navigate(home, { replace: true });
+      return;
     }
+    mintSocialFeedUrl().then((url) => {
+      if (url) window.location.href = url;
+      else navigate(home, { replace: true });
+    });
   }, [loggedIn, user, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -110,7 +130,12 @@ export function LoginPage() {
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                <Link to="/forgot-password" className="text-xs text-orange-600 font-medium hover:underline">
+                  Forgot password?
+                </Link>
+              </div>
               <Input
                 id="password"
                 type="password"

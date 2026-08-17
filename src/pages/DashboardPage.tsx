@@ -88,7 +88,9 @@ export function DashboardPage() {
   const statsCards = [
     {
       title: 'Total Revenue',
-      value: `E ${(stats?.totalRevenue || 0).toLocaleString()}`,
+      // Platform-wide, across every event (may mix E- and R-priced events) —
+      // base currency, not one event's symbol.
+      value: formatCurrency(stats?.totalRevenue || 0),
       icon: DollarSign,
       change: stats?.revenueChange,
       color: 'text-green-600 bg-green-50',

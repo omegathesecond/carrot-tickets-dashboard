@@ -12,12 +12,39 @@ export interface RegisterData {
   phoneNumber?: string;
   password: string;
   businessType?: string;
+  code: string; // 6-digit code from signup step 1 (register/request-otp)
+}
+
+// Signup step 1: which contact channel to send the verification code to.
+export interface RegistrationOtpRequest {
+  email?: string;
+  phoneNumber?: string;
+}
+
+// Signup step 1 echoes where the code went so the UI can say
+// "We texted your phone" / "Check your email" (same shape as reset).
+export interface RegistrationOtpResponse {
+  channel: 'sms' | 'email';
+  identifier: string;
 }
 
 export interface AuthResponse {
   accessToken: string;
   refreshToken: string;
   user: AuthUser;
+}
+
+// Step 1 of organizer password reset echoes where the code was sent so the UI
+// can say "We texted your phone" / "Check your email".
+export interface ForgotPasswordResponse {
+  channel: 'sms' | 'email';
+  identifier: string;
+}
+
+export interface ResetPasswordData {
+  identifier: string;
+  code: string;
+  newPassword: string;
 }
 
 export type VerificationStatus = 'pending' | 'verified' | 'rejected' | 'suspended';
@@ -170,6 +197,9 @@ export interface EventCreatorSummary {
     posterUrl?: string;
     thumbnailUrl?: string;
     createdAt: string;
+    // Returned by GET /events/:id/creator since the accounting-currency
+    // change; `?? 'SZL'` guards only legacy docs that predate the field.
+    currency?: 'SZL' | 'ZAR';
   }>;
 }
 
@@ -182,6 +212,16 @@ export interface TicketSale {
   ticketType?: TicketType;
   quantity: number;
   totalAmount: number;
+  // DISPLAY currency snapshot (from event.currency at sale time) — what the
+  // buyer/organizer see. Absent on sales made before this field existed.
+  currency?: 'SZL' | 'ZAR';
+  // Rail-native SETTLEMENT currency actually used (card charges settle in
+  // ZAR regardless of display currency; everything else settles in SZL).
+  // Only worth surfacing when it differs from `currency` — see ticket.model.ts.
+  settlementCurrency?: 'SZL' | 'ZAR';
+  // Economic snapshot: what was actually charged on the settlement rail (may
+  // differ from totalAmount when display and settlement currencies differ).
+  amountCharged?: number;
   customerName: string;
   customerPhone: string;
   paymentMethod: 'cash' | 'keshless_wallet' | 'mtn_momo';
@@ -214,6 +254,8 @@ export interface Ticket {
   scannedAt?: string;
   scannedBy?: string;
   createdAt: string;
+  // Snapshot of the event's DISPLAY currency at mint time.
+  currency?: 'SZL' | 'ZAR';
 }
 
 export interface SellTicketsRequest {
@@ -404,7 +446,8 @@ export interface ApiError {
 export interface PlatformUser {
   id: string;
   name: string | null;
-  phone: string;
+  phone: string | null; // email-only buyers have none
+  email: string | null; // phone-only (legacy) buyers have none
   createdAt: string;
   lastLoginAt: string | null;
   ticketsBought: number;
@@ -450,6 +493,45 @@ export interface Organizer {
 export interface OrganizersListResponse {
   organizers: Organizer[];
   statusCounts: Partial<Record<OrganizerVerificationStatus, number>>;
+  pagination: { page: number; limit: number; total: number; totalPages: number };
+}
+
+// Fees (booking charges) — admin Fees tab
+export interface FeeMethodBreakdown {
+  method: string;
+  bookingFees: number;
+  platformFees: number;
+  totalFees: number;
+  ticketsSold: number;
+  salesCount: number;
+}
+
+export interface FeeByEventRow {
+  eventId: string;
+  eventName: string;
+  ticketsSold: number;
+  faceValue: number;
+  bookingFees: number;
+  platformFees: number;
+  totalFees: number;
+  byMethod: FeeMethodBreakdown[];
+  // Returned by GET /admin/fees since the accounting-currency change;
+  // `?? 'SZL'` guards only legacy docs that predate the field.
+  currency?: 'SZL' | 'ZAR';
+}
+
+export interface FeeTotals {
+  eventCount: number;
+  ticketsSold: number;
+  faceValue: number;
+  bookingFees: number;
+  platformFees: number;
+  totalFees: number;
+}
+
+export interface FeesResponse {
+  events: FeeByEventRow[];
+  totals: FeeTotals;
   pagination: { page: number; limit: number; total: number; totalPages: number };
 }
 

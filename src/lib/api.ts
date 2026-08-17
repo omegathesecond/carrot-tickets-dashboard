@@ -1,7 +1,11 @@
 import type {
   LoginCredentials,
   RegisterData,
+  RegistrationOtpRequest,
+  RegistrationOtpResponse,
   AuthResponse,
+  ForgotPasswordResponse,
+  ResetPasswordData,
   AuthUser,
   Event,
   EventFormData,
@@ -37,6 +41,7 @@ import type {
   OrganizersListResponse,
   OrganizerVerificationStatus,
   CreateOrganizerData,
+  FeesResponse,
   VehicleType,
   VehicleTypeFormData,
   TransportRoute,
@@ -258,6 +263,15 @@ export class ApiClient {
       return response;
     },
 
+    /** Signup step 1: request a 6-digit code to the email/phone being registered. */
+    requestRegistrationOtp: async (data: RegistrationOtpRequest): Promise<RegistrationOtpResponse> => {
+      return this.request<RegistrationOtpResponse>(`/tickets/auth/register/request-otp`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
+    /** Signup step 2: verify the code + create the account. Signs in on success. */
     register: async (data: RegisterData): Promise<AuthResponse> => {
       const response = await this.request<AuthResponse>(
         `/tickets/auth/register`,
@@ -266,6 +280,24 @@ export class ApiClient {
           body: JSON.stringify(data),
         }
       );
+      this.setToken(response.accessToken, response.refreshToken);
+      return response;
+    },
+
+    /** Password reset step 1: request a 6-digit code to the account's email/phone. */
+    requestPasswordReset: async (identifier: string): Promise<ForgotPasswordResponse> => {
+      return this.request<ForgotPasswordResponse>(`/tickets/auth/forgot-password`, {
+        method: 'POST',
+        body: JSON.stringify({ identifier }),
+      });
+    },
+
+    /** Password reset step 2: verify the code + set the new password. Signs in on success. */
+    resetPassword: async (data: ResetPasswordData): Promise<AuthResponse> => {
+      const response = await this.request<AuthResponse>(`/tickets/auth/reset-password`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
       this.setToken(response.accessToken, response.refreshToken);
       return response;
     },
@@ -352,6 +384,12 @@ export class ApiClient {
         description?: string;
         price: number;
         quantity: number;
+        // Reseller allocation block (super-admin only — enforced server-side).
+        isAllocation?: boolean;
+        resellerId?: string;
+        allocationUnitCost?: number;
+        restrictToMethod?: string;
+        waiveServiceFee?: boolean;
       }
     ): Promise<Event> => {
       return this.request<Event>(`/tickets/events/${eventId}/tickets`, {
@@ -707,6 +745,27 @@ export class ApiClient {
         method: 'POST',
         body: JSON.stringify(data),
       }),
+  };
+
+  // Fees endpoints (super-admin only)
+  fees = {
+    list: async (params?: {
+      search?: string;
+      eventId?: string;
+      startDate?: string;
+      endDate?: string;
+      page?: number;
+      limit?: number;
+    }): Promise<FeesResponse> => {
+      const query = new URLSearchParams();
+      if (params?.search) query.append('search', params.search);
+      if (params?.eventId) query.append('eventId', params.eventId);
+      if (params?.startDate) query.append('startDate', params.startDate);
+      if (params?.endDate) query.append('endDate', params.endDate);
+      if (params?.page) query.append('page', String(params.page));
+      if (params?.limit) query.append('limit', String(params.limit));
+      return this.request<FeesResponse>(`/tickets/admin/fees?${query.toString()}`);
+    },
   };
 
   // Settings endpoints (super-admin only)

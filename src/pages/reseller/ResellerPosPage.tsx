@@ -30,6 +30,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import type { SaleData } from '@/lib/saleData';
 import { friendlyMessage, momoFailureMessage } from '@/lib/errors';
+import { formatMoney } from '@/lib/currency';
 
 const PAYMENT_META: Record<string, { label: string; icon: LucideIcon; tint: string }> = {
   cash: { label: 'Cash', icon: Banknote, tint: 'bg-green-50 text-green-600' },
@@ -213,6 +214,7 @@ export function ResellerPosPage() {
             customerPhone,
             quantity,
             totalAmount: (selectedTicketType?.price ?? 0) * quantity,
+            currency: selectedEvent?.currency ?? 'SZL',
             paymentMethod: paymentLabel(paymentMethod),
             operatorName: operator?.fullName ?? '',
             ticketIds,
@@ -271,6 +273,7 @@ export function ResellerPosPage() {
                 customerPhone,
                 quantity,
                 totalAmount: (selectedTicketType?.price ?? 0) * quantity,
+                currency: selectedEvent?.currency ?? 'SZL',
                 paymentMethod: paymentLabel(paymentMethod),
                 operatorName: operator?.fullName ?? '',
                 ticketIds,
@@ -515,7 +518,7 @@ export function ResellerPosPage() {
                             </p>
                           </div>
                           <div className="flex shrink-0 items-center gap-2">
-                            <span className="font-bold text-slate-900">E {tt.price.toLocaleString()}</span>
+                            <span className="font-bold text-slate-900">{formatMoney(tt.price, selectedEvent?.currency ?? 'SZL', { space: true, decimals: 0 })}</span>
                             {active && (
                               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-white">
                                 <Check className="h-3.5 w-3.5" />
@@ -654,7 +657,7 @@ export function ResellerPosPage() {
               <SummaryRow label="Ticket" value={selectedTicketType?.name} />
               <SummaryRow
                 label="Unit price"
-                value={selectedTicketType ? `E ${selectedTicketType.price.toLocaleString()}` : undefined}
+                value={selectedTicketType ? formatMoney(selectedTicketType.price, selectedEvent?.currency ?? 'SZL', { space: true, decimals: 0 }) : undefined}
               />
               <SummaryRow label="Quantity" value={String(quantity)} />
               <SummaryRow label="Payment" value={paymentMethod ? paymentLabel(paymentMethod) : undefined} />
@@ -662,7 +665,7 @@ export function ResellerPosPage() {
             <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-3">
               <span className="font-semibold text-slate-700">Total</span>
               <span className="text-xl font-bold tabular-nums text-orange-600">
-                {selectedTicketType ? `E ${total.toLocaleString()}` : '—'}
+                {selectedTicketType ? formatMoney(total, selectedEvent?.currency ?? 'SZL', { space: true, decimals: 0 }) : '—'}
               </span>
             </div>
             {step === 0 ? (
@@ -698,7 +701,7 @@ export function ResellerPosPage() {
               <div className="min-w-0">
                 <p className="text-xs leading-tight text-slate-500">Total</p>
                 <p className="text-xl font-bold leading-tight tabular-nums text-orange-600">
-                  E {total.toLocaleString()}
+                  {formatMoney(total, selectedEvent?.currency ?? 'SZL', { space: true, decimals: 0 })}
                 </p>
               </div>
             )}

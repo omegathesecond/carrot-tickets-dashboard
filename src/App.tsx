@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Outlet } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 
@@ -19,8 +19,12 @@ import { ResellerHubDetailPage } from '@/pages/reseller/ResellerHubDetailPage';
 import { ResellerSalesHistoryPage } from '@/pages/reseller/ResellerSalesHistoryPage';
 import { ResellerReportsPage } from '@/pages/reseller/ResellerReportsPage';
 import { ResellerPayoutsPage } from '@/pages/reseller/ResellerPayoutsPage';
+import { AllocationPage } from '@/pages/reseller/AllocationPage';
+import { AllocationLoginPage } from '@/pages/reseller/AllocationLoginPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { SignupPage } from '@/pages/SignupPage';
+import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
+import { GetPosAppPage } from '@/pages/GetPosAppPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { EventsPage } from '@/pages/EventsPage';
 import { EventDetailsPage } from '@/pages/EventDetailsPage';
@@ -41,6 +45,7 @@ import { ResellersPage } from '@/pages/ResellersPage';
 import { ResellerDetailPage } from '@/pages/ResellerDetailPage';
 import { HubDetailPage } from '@/pages/HubDetailPage';
 import { OrganizerPayoutsPage } from '@/pages/OrganizerPayoutsPage';
+import { FeesPage } from '@/pages/FeesPage';
 import { GateOperatorsPage } from '@/pages/GateOperatorsPage';
 import { TransportRoute } from '@/components/TransportRoute';
 import { VehicleTypesPage } from '@/pages/VehicleTypesPage';
@@ -67,6 +72,7 @@ function App() {
               <Routes>
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/signup" element={<SignupPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                 <Route
                   path="/"
                   element={
@@ -92,13 +98,32 @@ function App() {
                   <Route path="resellers/:id" element={<AdminRoute><ResellerDetailPage /></AdminRoute>} />
                   <Route path="resellers/:id/hubs/:hubId" element={<AdminRoute><HubDetailPage /></AdminRoute>} />
                   <Route path="payouts" element={<AdminRoute><OrganizerPayoutsPage /></AdminRoute>} />
+                  <Route path="fees" element={<AdminRoute><FeesPage /></AdminRoute>} />
                   <Route path="gate-operators" element={<GateOperatorsPage />} />
+                  <Route path="get-pos-app" element={<GetPosAppPage />} />
                   <Route path="transport/vehicle-types" element={<TransportRoute><VehicleTypesPage /></TransportRoute>} />
                   <Route path="transport/routes" element={<TransportRoute><TransportRoutesPage /></TransportRoute>} />
                   <Route path="transport/trips" element={<TransportRoute><TripsPage /></TransportRoute>} />
                   <Route path="transport/bookings" element={<TransportRoute><BookingsPage /></TransportRoute>} />
                 </Route>
                 <Route path="/reseller/login" element={<ResellerLoginPage />} />
+                {/* Standalone minimal allocation view (no sidebar) for reseller
+                    partners like DeltaPay who only track their pre-bought block.
+                    Email + password login (not the till-operator loginCode/PIN).
+                    One shared ResellerAuthProvider wraps both the login and the
+                    view, so a successful login sets auth state in the SAME
+                    provider the /allocation route reads — no cross-provider race. */}
+                <Route element={<ResellerAuthProvider><Outlet /></ResellerAuthProvider>}>
+                  <Route path="/allocation/login" element={<AllocationLoginPage />} />
+                  <Route
+                    path="/allocation"
+                    element={
+                      <ResellerProtectedRoute loginPath="/allocation/login">
+                        <AllocationPage />
+                      </ResellerProtectedRoute>
+                    }
+                  />
+                </Route>
                 <Route
                   path="/reseller"
                   element={

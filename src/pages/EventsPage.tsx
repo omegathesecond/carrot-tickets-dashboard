@@ -15,7 +15,6 @@ import {
   CalendarDays, Ticket as TicketIcon, DollarSign, Activity,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
 import { type Event, EventFormData } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -23,13 +22,16 @@ import {
   DEFAULT_TICKETING,
   validateTicketingSelection,
   buildTicketingPayload,
-  buildExternalPricePayload,
+  buildPricePayload,
   validateExternalPriceRange,
 } from '@/lib/ticketing';
 import { currencySymbol, type Currency } from '@/lib/currency';
+import { formatCurrency } from '@/lib/chartColors';
 import { ImageUploadInput } from '@/components/ImageUploadInput';
 import { GalleryManager } from '@/components/GalleryManager';
 import { submitNewEvent } from '@/lib/createEvent';
+import { composeEventDateTime } from '@/lib/eventForm';
+import { formatEventDateTimeRange } from '@/lib/eventWhen';
 
 // Buckets shown as the status filter tabs. Drafts are "pending" (awaiting
 // approval to publish), published+upcoming are "approved", published events
@@ -200,24 +202,17 @@ export function EventsPage() {
     const description = formData.get('description') as string;
     const venue = formData.get('venue') as string;
 
-    let eventDate: string;
-    let startTime: string;
-    let endTime: string;
-
-    if (isMultiDay) {
-      const startDateTime = formData.get('startDateTime') as string;
-      const endDateTime = formData.get('endDateTime') as string;
-      eventDate = startDateTime.split('T')[0];
-      startTime = startDateTime;
-      endTime = endDateTime;
-    } else {
-      const eventDateValue = formData.get('eventDate') as string;
-      const startTimeValue = formData.get('startTime') as string;
-      const endTimeValue = formData.get('endTime') as string;
-      eventDate = eventDateValue;
-      startTime = `${eventDateValue}T${startTimeValue}`;
-      endTime = `${eventDateValue}T${endTimeValue}`;
-    }
+    // Compose eventDate/startTime/endTime from the raw single- or multi-day
+    // inputs. Shared with the edit form so both send identical UTC-normalized
+    // shapes (see composeEventDateTime for the timezone rationale).
+    const { eventDate, startTime, endTime } = composeEventDateTime({
+      isMultiDay,
+      eventDate: formData.get('eventDate') as string,
+      startTime: formData.get('startTime') as string,
+      endTime: formData.get('endTime') as string,
+      startDateTime: formData.get('startDateTime') as string,
+      endDateTime: formData.get('endDateTime') as string,
+    });
 
     // Capacity is intentionally NOT collected here — it's derived from the
     // ticket quantities you add later, so the event total always matches the
@@ -232,7 +227,7 @@ export function EventsPage() {
       isMultiDay,
       ticketTypes: [],
       ...buildTicketingPayload(ticketing, externalTicketUrl),
-      ...buildExternalPricePayload(ticketing, currency, priceMin, priceMax),
+      ...buildPricePayload(ticketing, currency, priceMin, priceMax),
     };
 
     createMutation.mutate({ data, poster: posterFile, gallery: galleryFiles });
@@ -243,7 +238,9 @@ export function EventsPage() {
   const analyticsCards = [
     { label: 'Total Events', value: analytics.totalEvents.toLocaleString(), icon: CalendarDays },
     { label: 'Tickets Sold', value: analytics.ticketsSold.toLocaleString(), icon: TicketIcon },
-    { label: 'Total Revenue', value: `E ${analytics.revenue.toLocaleString()}`, icon: DollarSign },
+    // Platform-wide, across every event (may mix E- and R-priced events) —
+    // base currency, not one event's symbol.
+    { label: 'Total Revenue', value: formatCurrency(analytics.revenue), icon: DollarSign },
     { label: 'Active Events', value: analytics.active.toLocaleString(), icon: Activity },
   ];
 
@@ -275,6 +272,22 @@ export function EventsPage() {
                 </Tabs>
               </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="currency">Currency</Label>
+                <select
+                  id="currency"
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value as Currency)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="SZL">E (SZL) — Eswatini Lilangeni</option>
+                  <option value="ZAR">R (ZAR) — South African Rand</option>
+                </select>
+                <p className="text-xs text-slate-500">
+                  Prices for this event are shown with this currency's symbol ({currencySymbol(currency)}).
+                </p>
+              </div>
+
               {ticketing === 'external' && (
                 <div className="space-y-2">
                   <Label htmlFor="externalTicketUrl">Ticket link (https://…)</Label>
@@ -294,19 +307,7 @@ export function EventsPage() {
                     Buyers will be sent to this link. Carrot won't process the sale.
                   </p>
 
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="currency">Currency</Label>
-                      <select
-                        id="currency"
-                        value={currency}
-                        onChange={(e) => setCurrency(e.target.value as Currency)}
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      >
-                        <option value="SZL">E (SZL)</option>
-                        <option value="ZAR">R (ZAR)</option>
-                      </select>
-                    </div>
+                  <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-2">
                       <Label htmlFor="priceMin">From</Label>
                       <Input id="priceMin" type="number" min="0" step="0.01" value={priceMin}
@@ -329,6 +330,14 @@ export function EventsPage() {
                 <div className="space-y-2">
                   <Label htmlFor="name">Event Name</Label>
                   <Input id="name" name="name" required placeholder="e.g., Summer Music Festival" />
+                  {/* Organizers can't rename an event once it's created (only
+                      Keshless admins can, to prevent bait-and-switch). Set
+                      expectations up front so they choose carefully. */}
+                  {!isAdmin && (
+                    <p className="text-xs text-amber-600">
+                      Choose carefully — the event name can’t be changed after saving.
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="venue">Venue</Label>
@@ -478,8 +487,7 @@ export function EventsPage() {
                       </div>
                       <div className="flex items-center text-slate-600">
                         <Calendar className="h-4 w-4 mr-2" />
-                        {format(new Date(event.eventDate || event.startTime), 'PPp')}
-                        {event.isMultiDay && ` - ${format(new Date(event.endTime), 'PPp')}`}
+                        {formatEventDateTimeRange(event)}
                       </div>
                       <div className="bg-slate-50 p-3 rounded-lg">
                         <div className="text-xs text-slate-600">Tickets Sold</div>

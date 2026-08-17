@@ -29,12 +29,16 @@ import {
   formatPercentage,
   getTicketTypeColor,
 } from '@/lib/chartColors';
+import type { Currency } from '@/lib/currency';
 
 interface EventAnalyticsTabProps {
   eventId: string;
+  // This tab is always scoped to a single event, so every revenue figure
+  // here renders in THAT event's currency (not the platform base).
+  currency?: Currency;
 }
 
-export function EventAnalyticsTab({ eventId }: EventAnalyticsTabProps) {
+export function EventAnalyticsTab({ eventId, currency = 'SZL' }: EventAnalyticsTabProps) {
   const [dateRange, setDateRange] = useState<DateRange>({
     startDate: undefined,
     endDate: undefined,
@@ -119,7 +123,7 @@ export function EventAnalyticsTab({ eventId }: EventAnalyticsTabProps) {
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-slate-900">
-              {formatCurrency(analytics.sales.totalRevenue)}
+              {formatCurrency(analytics.sales.totalRevenue, currency)}
             </div>
             <div className="text-sm text-slate-600">Total Revenue</div>
           </CardContent>
@@ -182,7 +186,7 @@ export function EventAnalyticsTab({ eventId }: EventAnalyticsTabProps) {
                     <Tooltip
                       {...CHART_CONFIG.tooltip}
                       formatter={(value: number, name: string) => {
-                        if (name === 'revenue') return [formatCurrency(value), 'Revenue'];
+                        if (name === 'revenue') return [formatCurrency(value, currency), 'Revenue'];
                         return [value, 'Tickets'];
                       }}
                     />
@@ -238,7 +242,7 @@ export function EventAnalyticsTab({ eventId }: EventAnalyticsTabProps) {
                     <Tooltip
                       {...CHART_CONFIG.tooltip}
                       formatter={(value: number, name: string, props: any) => [
-                        `${value} tickets (${formatCurrency(props.payload.revenue)})`,
+                        `${value} tickets (${formatCurrency(props.payload.revenue, currency)})`,
                         name,
                       ]}
                     />
@@ -350,7 +354,7 @@ export function EventAnalyticsTab({ eventId }: EventAnalyticsTabProps) {
                     <Tooltip
                       {...CHART_CONFIG.tooltip}
                       formatter={(value: number, name: string, props: any) => [
-                        `${formatCurrency(value)} (${props.payload.count} transactions)`,
+                        `${formatCurrency(value, currency)} (${props.payload.count} transactions)`,
                         name,
                       ]}
                     />

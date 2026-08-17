@@ -3,8 +3,11 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { Banknote, Wallet } from 'lucide-react';
 import { resellerPayoutsApi, type ResellerWithdrawal } from '@/lib/resellerApi';
+import { formatMoney } from '@/lib/currency';
 
-const money = (n: number) => `E ${n.toLocaleString()}`;
+// Commission balance spans every event the reseller has sold, so it stays
+// the base currency rather than one event's symbol.
+const money = (n: number) => formatMoney(n, 'SZL', { space: true, decimals: 0 });
 
 const STATUS_STYLES: Record<ResellerWithdrawal['status'], string> = {
   requested: 'bg-amber-50 text-amber-700 border-amber-200',

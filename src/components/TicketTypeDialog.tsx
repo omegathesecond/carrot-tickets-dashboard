@@ -1,23 +1,45 @@
 import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { TicketType } from '@/types';
+import { apiClient } from '@/lib/api';
+import { currencySymbol, type Currency } from '@/lib/currency';
+
+export interface TicketTypeSubmitData {
+  name: string;
+  description?: string;
+  price: number;
+  quantity: number;
+  isAllocation?: boolean;
+  resellerId?: string;
+  allocationUnitCost?: number;
+  restrictToMethod?: string;
+  waiveServiceFee?: boolean;
+}
 
 interface TicketTypeDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: {
-    name: string;
-    description?: string;
-    price: number;
-    quantity: number;
-  }) => void;
+  onSubmit: (data: TicketTypeSubmitData) => void;
   ticketType?: TicketType | null;
   isLoading?: boolean;
+  /** Super-admin only: reveals the reseller-allocation section (Carrot sets up
+   *  pre-bought blocks like a DeltaPay-exclusive tier). */
+  isAdmin?: boolean;
+  /** The event's display currency — labels the price fields with its symbol. */
+  currency?: Currency;
 }
+
+const ALLOC_METHODS = [
+  { value: 'deltapay', label: 'DeltaPay' },
+  { value: 'mtn_momo', label: 'MTN MoMo' },
+  { value: 'peach_card', label: 'Card' },
+  { value: 'keshless_wallet', label: 'Keshless Wallet' },
+];
 
 export function TicketTypeDialog({
   open,
@@ -25,12 +47,33 @@ export function TicketTypeDialog({
   onSubmit,
   ticketType,
   isLoading = false,
+  isAdmin = false,
+  currency = 'SZL',
 }: TicketTypeDialogProps) {
+  const sym = currencySymbol(currency);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     price: 0,
     quantity: 1,
+  });
+  // Reseller-allocation section (super-admin, new tiers only).
+  const [isAllocation, setIsAllocation] = useState(false);
+  const [alloc, setAlloc] = useState({
+    resellerId: '',
+    allocationUnitCost: 0,
+    restrictToMethod: 'deltapay',
+    waiveServiceFee: true,
+  });
+
+  const isEdit = !!ticketType;
+  const hasSold = ticketType && ticketType.sold > 0;
+  const showAllocation = isAdmin && !isEdit;
+
+  const { data: resellers = [] } = useQuery({
+    queryKey: ['admin', 'resellers'],
+    queryFn: () => apiClient.resellerAdmin.listResellers(),
+    enabled: open && showAllocation,
   });
 
   useEffect(() => {
@@ -42,13 +85,10 @@ export function TicketTypeDialog({
         quantity: ticketType.quantity,
       });
     } else {
-      setFormData({
-        name: '',
-        description: '',
-        price: 0,
-        quantity: 1,
-      });
+      setFormData({ name: '', description: '', price: 0, quantity: 1 });
     }
+    setIsAllocation(false);
+    setAlloc({ resellerId: '', allocationUnitCost: 0, restrictToMethod: 'deltapay', waiveServiceFee: true });
   }, [ticketType, open]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -58,11 +98,17 @@ export function TicketTypeDialog({
       description: formData.description || undefined,
       price: formData.price,
       quantity: formData.quantity,
+      ...(showAllocation && isAllocation
+        ? {
+            isAllocation: true,
+            resellerId: alloc.resellerId,
+            allocationUnitCost: alloc.allocationUnitCost,
+            restrictToMethod: alloc.restrictToMethod,
+            waiveServiceFee: alloc.waiveServiceFee,
+          }
+        : {}),
     });
   };
-
-  const isEdit = !!ticketType;
-  const hasSold = ticketType && ticketType.sold > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -103,7 +149,7 @@ export function TicketTypeDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="price">Price (E)</Label>
+              <Label htmlFor="price">Price ({sym})</Label>
               <Input
                 id="price"
                 type="number"
@@ -138,6 +184,75 @@ export function TicketTypeDialog({
               )}
             </div>
           </div>
+
+          {showAllocation && (
+            <div className="rounded-lg border border-dashed border-primary/40 bg-primary/5 p-3 space-y-3">
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  checked={isAllocation}
+                  onChange={(e) => setIsAllocation(e.target.checked)}
+                />
+                Reseller allocation block (pre-bought, resold on a reseller's behalf)
+              </label>
+              {isAllocation && (
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="alloc-reseller">Reseller</Label>
+                    <select
+                      id="alloc-reseller"
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      value={alloc.resellerId}
+                      onChange={(e) => setAlloc({ ...alloc, resellerId: e.target.value })}
+                      required
+                    >
+                      <option value="" disabled>Select a reseller…</option>
+                      {resellers.map((r) => (
+                        <option key={r._id} value={r._id}>{r.businessName}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="alloc-cost">Unit cost paid ({sym})</Label>
+                      <Input
+                        id="alloc-cost"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={alloc.allocationUnitCost}
+                        onChange={(e) => setAlloc({ ...alloc, allocationUnitCost: Number(e.target.value) })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="alloc-method">Pay method (locked)</Label>
+                      <select
+                        id="alloc-method"
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        value={alloc.restrictToMethod}
+                        onChange={(e) => setAlloc({ ...alloc, restrictToMethod: e.target.value })}
+                      >
+                        {ALLOC_METHODS.map((m) => (
+                          <option key={m.value} value={m.value}>{m.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={alloc.waiveServiceFee}
+                      onChange={(e) => setAlloc({ ...alloc, waiveServiceFee: e.target.checked })}
+                    />
+                    Waive the buyer service fee (buyer pays face)
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    Sales route to the reseller's settlement and stay off the organizer's revenue.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="flex justify-end gap-2 pt-4">
             <Button
