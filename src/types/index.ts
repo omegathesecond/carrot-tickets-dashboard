@@ -397,6 +397,8 @@ export interface EventQueryParams {
   limit?: number;
   status?: 'draft' | 'published' | 'cancelled' | 'completed';
   search?: string;
+  /** Platform staff only: narrow the platform-wide list to one organizer. */
+  vendorId?: string;
 }
 
 export interface SalesQueryParams {

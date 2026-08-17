@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { KeyRound, Plus, Power, UserPlus, ChevronRight } from 'lucide-react';
+import { CalendarRange, KeyRound, Plus, Power, UserPlus, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiClient, type CashierRow } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -15,12 +15,14 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { OperatorCredentialsDialog } from '@/components/OperatorCredentialsDialog';
+import { EventPicker } from '@/components/EventPicker';
+import { OperatorEventsDialog } from '@/components/OperatorEventsDialog';
 
 const initialsOf = (name: string) =>
   name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
 
-type AddForm = { fullName: string; phoneNumber: string; scope: 'platform' | 'organizer'; vendorId: string };
-const DEFAULT_FORM: AddForm = { fullName: '', phoneNumber: '', scope: 'organizer', vendorId: '' };
+type AddForm = { fullName: string; phoneNumber: string; scope: 'platform' | 'organizer'; vendorId: string; eventIds: string[] };
+const DEFAULT_FORM: AddForm = { fullName: '', phoneNumber: '', scope: 'organizer', vendorId: '', eventIds: [] };
 
 export function CashiersPage() {
   const { user } = useAuth();
@@ -29,6 +31,7 @@ export function CashiersPage() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [form, setForm] = useState<AddForm>(DEFAULT_FORM);
   const [issued, setIssued] = useState<{ title: string; loginCode?: string; pin: string } | null>(null);
+  const [editingEvents, setEditingEvents] = useState<CashierRow | null>(null);
 
   const { data: cashiers = [], isLoading } = useQuery({
     queryKey: ['cashiers'],
@@ -40,6 +43,7 @@ export function CashiersPage() {
       const data: Parameters<typeof apiClient.cashiers.create>[0] = {
         fullName: form.fullName,
         ...(form.phoneNumber.trim() ? { phoneNumber: form.phoneNumber.trim() } : {}),
+        ...(form.eventIds.length ? { eventIds: form.eventIds } : {}),
         ...(user?.isSuperAdmin
           ? { scope: form.scope, ...(form.scope === 'organizer' && form.vendorId.trim() ? { vendorId: form.vendorId.trim() } : {}) }
           : {}),
@@ -69,6 +73,16 @@ export function CashiersPage() {
       toast.success(vars.isActive ? 'Cashier activated' : 'Cashier deactivated');
     },
     onError: (e: any) => toast.error(e.message || 'Failed to update cashier'),
+  });
+
+  const setEvents = useMutation({
+    mutationFn: ({ id, eventIds }: { id: string; eventIds: string[] }) => apiClient.cashiers.setEvents(id, eventIds),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cashiers'] });
+      toast.success('Events updated');
+      setEditingEvents(null);
+    },
+    onError: (e: any) => toast.error(e.message || 'Failed to update events'),
   });
 
   const pendingActiveId = setActive.isPending ? setActive.variables?.id : undefined;
@@ -131,6 +145,16 @@ export function CashiersPage() {
                     )}
                   </>
                 )}
+                <div className="space-y-2">
+                  <Label>Events</Label>
+                  <EventPicker
+                    value={form.eventIds}
+                    onChange={(eventIds) => setForm((f) => ({ ...f, eventIds }))}
+                    {...(user?.isSuperAdmin && form.scope === 'organizer' && form.vendorId.trim()
+                      ? { vendorId: form.vendorId.trim() }
+                      : {})}
+                  />
+                </div>
                 <div className="flex justify-end space-x-2 pt-2">
                   <Button type="button" variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
                   <Button type="submit" disabled={createCashier.isPending || !isFormValid}
@@ -193,16 +217,27 @@ export function CashiersPage() {
                     <p className="font-mono text-sm text-slate-800">{c.loginCode}</p>
                   </div>
 
+                  <div className="rounded-lg bg-slate-50 px-3 py-2">
+                    <p className="text-[11px] uppercase tracking-wide text-slate-400">Events</p>
+                    <p className="text-sm text-slate-800">
+                      {c.eventIds?.length ? `${c.eventIds.length} assigned` : 'All events'}
+                    </p>
+                  </div>
+
                   <div className="mt-auto grid grid-cols-2 gap-2">
+                    <Button variant="outline" size="sm"
+                      onClick={(e) => { e.stopPropagation(); setEditingEvents(c); }}>
+                      <CalendarRange className="h-4 w-4 mr-1.5" /> Events
+                    </Button>
                     <Button variant="outline" size="sm" disabled={resetPin.isPending}
                       onClick={(e) => { e.stopPropagation(); resetPin.mutate(c._id); }}>
                       <KeyRound className="h-4 w-4 mr-1.5" /> Reset PIN
                     </Button>
                     <Button variant="outline" size="sm" disabled={pendingActiveId === c._id}
                       onClick={(e) => { e.stopPropagation(); setActive.mutate({ id: c._id, isActive: !c.isActive }); }}
-                      className={c.isActive
+                      className={`col-span-2 ${c.isActive
                         ? 'text-red-600 hover:text-red-700 hover:border-red-300'
-                        : 'text-emerald-600 hover:text-emerald-700 hover:border-emerald-300'}>
+                        : 'text-emerald-600 hover:text-emerald-700 hover:border-emerald-300'}`}>
                       <Power className="h-4 w-4 mr-1.5" />{c.isActive ? 'Disable' : 'Enable'}
                     </Button>
                   </div>
@@ -212,6 +247,17 @@ export function CashiersPage() {
           </div>
         )}
       </div>
+
+      {editingEvents && (
+        <OperatorEventsDialog
+          open={!!editingEvents}
+          onClose={() => setEditingEvents(null)}
+          personName={editingEvents.fullName}
+          initialEventIds={editingEvents.eventIds ?? []}
+          isSaving={setEvents.isPending}
+          onSave={(eventIds) => setEvents.mutate({ id: editingEvents._id, eventIds })}
+        />
+      )}
 
       {issued && (
         <OperatorCredentialsDialog open={!!issued} onClose={() => setIssued(null)}

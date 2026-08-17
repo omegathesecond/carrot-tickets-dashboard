@@ -331,6 +331,7 @@ export class ApiClient {
       if (params?.limit) query.append('limit', params.limit.toString());
       if (params?.status) query.append('status', params.status);
       if (params?.search) query.append('search', params.search);
+      if (params?.vendorId) query.append('vendorId', params.vendorId);
 
       return this.request<PaginatedResponse<Event>>(
         `/tickets/events?${query.toString()}`
@@ -1004,10 +1005,17 @@ export class ApiClient {
       phoneNumber?: string;
       scope?: 'platform' | 'organizer';
       vendorId?: string;
+      eventIds?: string[];
     }): Promise<IssuedGateCredentials> =>
       this.request<IssuedGateCredentials>(`/tickets/gate-operators`, {
         method: 'POST',
         body: JSON.stringify(data),
+      }),
+
+    setEvents: async (id: string, eventIds: string[]): Promise<GateOperatorRow> =>
+      this.request<GateOperatorRow>(`/tickets/gate-operators/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ eventIds }),
       }),
 
     resetPin: async (id: string, pin?: string): Promise<{ operatorId: string; pin: string }> =>
@@ -1033,10 +1041,17 @@ export class ApiClient {
       phoneNumber?: string;
       scope?: 'platform' | 'organizer';
       vendorId?: string;
+      eventIds?: string[];
     }): Promise<IssuedCashierCredentials> =>
       this.request<IssuedCashierCredentials>(`/tickets/cashiers`, {
         method: 'POST',
         body: JSON.stringify(data),
+      }),
+
+    setEvents: async (id: string, eventIds: string[]): Promise<CashierRow> =>
+      this.request<CashierRow>(`/tickets/cashiers/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ eventIds }),
       }),
 
     resetPin: async (id: string, pin?: string): Promise<{ cashierId: string; pin: string }> =>
@@ -1508,6 +1523,8 @@ export interface GateOperatorRow {
   phoneNumber?: string;
   scope: 'platform' | 'organizer';
   vendorId?: string | null;
+  /** Events this person may work. EMPTY = every event of their organizer. */
+  eventIds: string[];
   isActive: boolean;
   loginCode: string;
   createdAt: string;
@@ -1526,6 +1543,8 @@ export interface CashierRow {
   phoneNumber?: string;
   scope: 'platform' | 'organizer';
   vendorId?: string | null;
+  /** Events this person may work. EMPTY = every event of their organizer. */
+  eventIds: string[];
   isActive: boolean;
   loginCode: string;
   createdAt: string;
