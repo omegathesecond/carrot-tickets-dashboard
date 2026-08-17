@@ -47,6 +47,11 @@ import { HubDetailPage } from '@/pages/HubDetailPage';
 import { OrganizerPayoutsPage } from '@/pages/OrganizerPayoutsPage';
 import { FeesPage } from '@/pages/FeesPage';
 import { GateOperatorsPage } from '@/pages/GateOperatorsPage';
+import { CashiersPage } from '@/pages/CashiersPage';
+import { CashierDetailPage } from '@/pages/CashierDetailPage';
+import { VendorsPage } from '@/pages/VendorsPage';
+import { StockCataloguePage } from '@/pages/StockCataloguePage';
+import { VendorDetailPage } from '@/pages/VendorDetailPage';
 import { TransportRoute } from '@/components/TransportRoute';
 import { VehicleTypesPage } from '@/pages/VehicleTypesPage';
 import { TransportRoutesPage } from '@/pages/TransportRoutesPage';
@@ -101,6 +106,11 @@ function App() {
                   <Route path="fees" element={<AdminRoute><FeesPage /></AdminRoute>} />
                   <Route path="gate-operators" element={<GateOperatorsPage />} />
                   <Route path="get-pos-app" element={<GetPosAppPage />} />
+                  <Route path="cashiers" element={<CashiersPage />} />
+                  <Route path="cashiers/:id" element={<CashierDetailPage />} />
+                  <Route path="vendors" element={<VendorsPage />} />
+                  <Route path="vendors/:id" element={<VendorDetailPage />} />
+                  <Route path="stock" element={<StockCataloguePage />} />
                   <Route path="transport/vehicle-types" element={<TransportRoute><VehicleTypesPage /></TransportRoute>} />
                   <Route path="transport/routes" element={<TransportRoute><TransportRoutesPage /></TransportRoute>} />
                   <Route path="transport/trips" element={<TransportRoute><TripsPage /></TransportRoute>} />

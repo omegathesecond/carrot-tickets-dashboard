@@ -685,9 +685,13 @@ export interface CashlessTxn {
   type: 'topup' | 'withdrawal' | 'purchase';
   amount: number; // cents
   at: string;     // ISO
+  /** WHO moved the money: vendor name (purchase) or cashier/reseller name (top-up/cash-out). */
+  actorName?: string;
   actorType?: string;
+  actorId?: string | null;
   bandUid?: string;
   fee?: number;
+  netAmount?: number;
 }
 
 export interface CashlessTxnsResult {

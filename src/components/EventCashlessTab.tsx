@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,7 +12,10 @@ import {
   TableCell,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { CreditCard, ArrowDownCircle, ArrowUpCircle, Wallet, Loader2 } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { CreditCard, ArrowDownCircle, ArrowUpCircle, Wallet, Loader2, ArrowRight } from 'lucide-react';
+import { TransactionDetailDialog, type TxnDetail } from '@/components/TransactionDetailDialog';
+import { EventStockReport } from '@/components/EventStockReport';
 
 /** Cashless wallet amounts move in ZAR cents on the wire. */
 const fmtR = (cents: number) => `R${((cents ?? 0) / 100).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -54,27 +59,22 @@ export function EventCashlessTab({ eventId }: Props) {
     enabled: !!summary,
   });
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-16 text-muted-foreground">
-        <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading cashless report…
-      </div>
-    );
-  }
+  const [selected, setSelected] = useState<TxnDetail | null>(null);
+  const navigate = useNavigate();
 
-  if (error || !summary) {
-    return (
-      <Card>
-        <CardContent className="py-12 text-center text-muted-foreground">
-          {String((error as Error)?.message || '').toLowerCase().includes('not cashless')
-            ? 'This event is not a cashless event.'
-            : 'Could not load the cashless report.'}
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
+  const moneyBody = isLoading ? (
+    <div className="flex items-center justify-center py-16 text-muted-foreground">
+      <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading cashless report…
+    </div>
+  ) : error || !summary ? (
+    <Card>
+      <CardContent className="py-12 text-center text-muted-foreground">
+        {String((error as Error)?.message || '').toLowerCase().includes('not cashless')
+          ? 'This event is not a cashless event.'
+          : 'Could not load the cashless report.'}
+      </CardContent>
+    </Card>
+  ) : (
     <div className="space-y-6">
       {/* Totals */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -90,8 +90,11 @@ export function EventCashlessTab({ eventId }: Props) {
 
       {/* Per-vendor takings */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex-row items-center justify-between space-y-0">
           <CardTitle className="text-base">Vendor takings</CardTitle>
+          <Link to="/vendors" className="text-xs font-medium text-orange-600 hover:text-orange-700 inline-flex items-center gap-1">
+            Manage vendors <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
         </CardHeader>
         <CardContent>
           {summary.vendors.length === 0 ? (
@@ -110,8 +113,12 @@ export function EventCashlessTab({ eventId }: Props) {
                 </TableHeader>
                 <TableBody>
                   {summary.vendors.map((v) => (
-                    <TableRow key={v.merchantId}>
-                      <TableCell className="font-medium">{v.name}</TableCell>
+                    <TableRow
+                      key={v.merchantId}
+                      className="cursor-pointer hover:bg-slate-50"
+                      onClick={() => navigate(`/vendors/${v.merchantId}`)}
+                    >
+                      <TableCell className="font-medium text-orange-700">{v.name}</TableCell>
                       <TableCell className="text-right">{fmtR(v.gross)}</TableCell>
                       <TableCell className="text-right text-muted-foreground">{fmtR(v.commission)}</TableCell>
                       <TableCell className="text-right font-semibold">{fmtR(v.net)}</TableCell>
@@ -127,8 +134,11 @@ export function EventCashlessTab({ eventId }: Props) {
 
       {/* Per-cashier activity */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex-row items-center justify-between space-y-0">
           <CardTitle className="text-base">Cashier activity</CardTitle>
+          <Link to="/cashiers" className="text-xs font-medium text-orange-600 hover:text-orange-700 inline-flex items-center gap-1">
+            Manage cashiers <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
         </CardHeader>
         <CardContent>
           {summary.cashiers.length === 0 ? (
@@ -146,8 +156,12 @@ export function EventCashlessTab({ eventId }: Props) {
                 </TableHeader>
                 <TableBody>
                   {summary.cashiers.map((c) => (
-                    <TableRow key={c.cashierId}>
-                      <TableCell className="font-medium">{c.name}</TableCell>
+                    <TableRow
+                      key={c.cashierId}
+                      className="cursor-pointer hover:bg-slate-50"
+                      onClick={() => navigate(`/cashiers/${c.cashierId}`)}
+                    >
+                      <TableCell className="font-medium text-orange-700">{c.name}</TableCell>
                       <TableCell className="text-right text-green-700">{fmtR(c.toppedUp)}</TableCell>
                       <TableCell className="text-right text-orange-700">{fmtR(c.withdrawn)}</TableCell>
                       <TableCell className="text-right">{c.txnCount}</TableCell>
@@ -174,20 +188,30 @@ export function EventCashlessTab({ eventId }: Props) {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Type</TableHead>
+                    <TableHead>By</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
-                    <TableHead>When</TableHead>
+                    <TableHead className="hidden sm:table-cell">When</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {txns.transactions.map((t) => {
                     const meta = TXN_LABEL[t.type] ?? { label: t.type, className: 'bg-gray-100 text-gray-800' };
                     return (
-                      <TableRow key={t.id}>
+                      <TableRow
+                        key={t.id}
+                        className="cursor-pointer hover:bg-slate-50"
+                        onClick={() => setSelected({
+                          id: t.id, type: t.type, amount: t.amount, at: t.at,
+                          actorName: t.actorName, actorType: t.actorType,
+                          bandUid: t.bandUid, fee: t.fee, netAmount: t.netAmount,
+                        })}
+                      >
                         <TableCell>
                           <Badge variant="secondary" className={meta.className}>{meta.label}</Badge>
                         </TableCell>
+                        <TableCell className="font-medium">{t.actorName ?? '—'}</TableCell>
                         <TableCell className="text-right font-medium">{fmtR(t.amount)}</TableCell>
-                        <TableCell className="text-muted-foreground">{fmtTime(t.at)}</TableCell>
+                        <TableCell className="text-muted-foreground hidden sm:table-cell">{fmtTime(t.at)}</TableCell>
                       </TableRow>
                     );
                   })}
@@ -200,7 +224,22 @@ export function EventCashlessTab({ eventId }: Props) {
           )}
         </CardContent>
       </Card>
+
+      <TransactionDetailDialog txn={selected} onClose={() => setSelected(null)} />
     </div>
+  );
+
+  return (
+    <Tabs defaultValue="money" className="space-y-4">
+      <TabsList>
+        <TabsTrigger value="money">Money</TabsTrigger>
+        <TabsTrigger value="stock">Stock</TabsTrigger>
+      </TabsList>
+      <TabsContent value="money">{moneyBody}</TabsContent>
+      <TabsContent value="stock">
+        <EventStockReport eventId={eventId} />
+      </TabsContent>
+    </Tabs>
   );
 }
 

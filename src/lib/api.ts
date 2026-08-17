@@ -369,6 +369,31 @@ export class ApiClient {
       );
     },
 
+    // ---- Cashless STOCK reporting (Slice 4 endpoints; VIEW_REVENUE, ownership server-side) ----
+    getEventStockBoard: async (id: string): Promise<StockBoard> =>
+      this.request<StockBoard>(`/tickets/events/${id}/stock/board`),
+
+    getEventStockReconciliation: async (id: string): Promise<StockReconciliation> =>
+      this.request<StockReconciliation>(`/tickets/events/${id}/stock/reconciliation`),
+
+    getEventStockDashboard: async (id: string): Promise<StockDashboard> =>
+      this.request<StockDashboard>(`/tickets/events/${id}/stock/dashboard`),
+
+    getEventStockMovements: async (
+      id: string,
+      params: { productId?: string; merchantId?: string; cursor?: string; limit?: number } = {},
+    ): Promise<StockMovementsPage> => {
+      const q = new URLSearchParams();
+      if (params.productId) q.set('productId', params.productId);
+      if (params.merchantId) q.set('merchantId', params.merchantId);
+      if (params.cursor) q.set('cursor', params.cursor);
+      if (params.limit) q.set('limit', String(params.limit));
+      const qs = q.toString();
+      return this.request<StockMovementsPage>(
+        `/tickets/events/${id}/stock/movements${qs ? `?${qs}` : ''}`,
+      );
+    },
+
     createEvent: async (data: EventFormData): Promise<Event> => {
       return this.request<Event>(`/tickets/events`, {
         method: 'POST',
@@ -998,6 +1023,132 @@ export class ApiClient {
       }),
   };
 
+  // Cashiers — the organizer's in-venue money desk staff (top-up + cash-out).
+  cashiers = {
+    list: async (): Promise<CashierRow[]> =>
+      this.request<CashierRow[]>(`/tickets/cashiers`),
+
+    create: async (data: {
+      fullName: string;
+      phoneNumber?: string;
+      scope?: 'platform' | 'organizer';
+      vendorId?: string;
+    }): Promise<IssuedCashierCredentials> =>
+      this.request<IssuedCashierCredentials>(`/tickets/cashiers`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    resetPin: async (id: string, pin?: string): Promise<{ cashierId: string; pin: string }> =>
+      this.request<{ cashierId: string; pin: string }>(`/tickets/cashiers/${id}/reset-pin`, {
+        method: 'POST',
+        body: JSON.stringify(pin ? { pin } : {}),
+      }),
+
+    setActive: async (id: string, isActive: boolean): Promise<CashierRow> =>
+      this.request<CashierRow>(`/tickets/cashiers/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ isActive }),
+      }),
+
+    transactions: async (id: string, eventId?: string): Promise<CashierDetail> =>
+      this.request<CashierDetail>(
+        `/tickets/cashiers/${id}/transactions${eventId ? `?eventId=${eventId}` : ''}`,
+      ),
+  };
+
+  // Vendors (in-event merchants) — the stalls that charge bands. Scoped to one event.
+  merchants = {
+    list: async (eventId: string): Promise<MerchantRow[]> =>
+      this.request<MerchantRow[]>(`/tickets/merchants?eventId=${eventId}`),
+
+    create: async (data: {
+      eventId: string;
+      name: string;
+      commissionPercent?: number;
+    }): Promise<IssuedMerchantCredentials> =>
+      this.request<IssuedMerchantCredentials>(`/tickets/merchants`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    update: async (
+      id: string,
+      data: { name?: string; commissionPercent?: number; isActive?: boolean },
+    ): Promise<MerchantRow> =>
+      this.request<MerchantRow>(`/tickets/merchants/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+
+    resetPin: async (id: string, pin?: string): Promise<{ merchantId: string; pin: string }> =>
+      this.request<{ merchantId: string; pin: string }>(`/tickets/merchants/${id}/reset-pin`, {
+        method: 'POST',
+        body: JSON.stringify(pin ? { pin } : {}),
+      }),
+
+    transactions: async (id: string, limit = 100): Promise<MerchantDetail> =>
+      this.request<MerchantDetail>(`/tickets/merchants/${id}/transactions?limit=${limit}`),
+  };
+
+  // Cashless STOCK management (Slices 1/3; MANAGE_STOCK, ownership server-side) —
+  // product catalogue + per-bar stock ops for ONE event.
+  stock = {
+    listProducts: async (eventId: string): Promise<StockProductRow[]> =>
+      this.request<StockProductRow[]>(`/tickets/events/${eventId}/products`),
+
+    createProduct: async (eventId: string, data: NewProduct): Promise<StockProductRow> =>
+      this.request<StockProductRow>(`/tickets/events/${eventId}/products`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    updateProduct: async (
+      productId: string,
+      data: UpdateProduct,
+    ): Promise<StockProductRow> =>
+      this.request<StockProductRow>(`/tickets/products/${productId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+
+    receive: async (
+      eventId: string,
+      data: { merchantId: string; productId: string; quantity: number; unit: 'unit' | 'pack'; note?: string },
+    ): Promise<{ onHand: number; movementId: string }> =>
+      this.request(`/tickets/events/${eventId}/stock/receive`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    transfer: async (
+      eventId: string,
+      data: { productId: string; fromMerchantId: string; toMerchantId: string; qty: number; note?: string },
+    ): Promise<{ transferId: string; fromOnHand: number; toOnHand: number }> =>
+      this.request(`/tickets/events/${eventId}/stock/transfer`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    recordCount: async (
+      eventId: string,
+      data: { merchantId: string; productId: string; countedOnHand: number; phase?: string },
+    ): Promise<{ countId: string; expectedOnHand: number; countedOnHand: number; variance: number; onHand: number }> =>
+      this.request(`/tickets/events/${eventId}/stock/count`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    setThreshold: async (
+      eventId: string,
+      data: { merchantId: string; productId: string; lowStockThreshold: number | null },
+    ): Promise<{ merchantId: string; productId: string; lowStockThreshold: number | null }> =>
+      this.request(`/tickets/events/${eventId}/stock/threshold`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+  };
+
   // Wristband design + batch-issue endpoints
   wristbands = {
     listDesigns: async (eventId: string): Promise<WristbandDesignDoc[]> =>
@@ -1366,6 +1517,217 @@ export interface IssuedGateCredentials {
   operator: GateOperatorRow;
   loginCode: string;
   pin: string;
+}
+
+// ── Cashiers (organizer money desk) ────────────────────────────────────────
+export interface CashierRow {
+  _id: string;
+  fullName: string;
+  phoneNumber?: string;
+  scope: 'platform' | 'organizer';
+  vendorId?: string | null;
+  isActive: boolean;
+  loginCode: string;
+  createdAt: string;
+}
+
+export interface IssuedCashierCredentials {
+  cashier: CashierRow;
+  loginCode: string;
+  pin: string;
+}
+
+export interface CashierDeskTxn {
+  id: string;
+  type: 'topup' | 'withdrawal';
+  amount: number; // cents
+  status: string;
+  at: string; // ISO
+}
+
+export interface CashierDetail {
+  cashier: CashierRow;
+  transactions: CashierDeskTxn[];
+  summary: { toppedUp: number; withdrawn: number; net: number; count: number };
+}
+
+// ── Vendors (in-event merchants) ───────────────────────────────────────────
+export interface MerchantRow {
+  _id: string;
+  name: string;
+  eventId: string;
+  commissionPercent: number;
+  loginCode: string;
+  status: 'active' | 'suspended';
+  createdAt: string;
+}
+
+// ---- Cashless stock (Slices 4/6) — mirror the API payloads exactly ----
+export type StockStatus = 'in_stock' | 'low' | 'sold_out';
+
+export interface ProductCategoryOption {
+  value: string;
+  label: string;
+}
+/** The ProductCategory enum values (api/src/interfaces/stock.interface.ts). */
+export const PRODUCT_CATEGORIES: ProductCategoryOption[] = [
+  { value: 'beer', label: 'Beer' },
+  { value: 'spirits', label: 'Spirits' },
+  { value: 'wine', label: 'Wine' },
+  { value: 'soft_drink', label: 'Soft drink' },
+  { value: 'water', label: 'Water' },
+  { value: 'food', label: 'Food' },
+  { value: 'merch', label: 'Merch' },
+  { value: 'cigarettes', label: 'Cigarettes' },
+  { value: 'other', label: 'Other' },
+];
+
+export interface StockProductRow {
+  _id: string;
+  eventId: string;
+  name: string;
+  category: string;
+  price: number; // ZAR cents, per base unit
+  barcode?: string | null;
+  unitLabel: string;
+  unitsPerPack?: number | null;
+  packLabel?: string | null;
+  imageUrl?: string | null;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NewProduct {
+  name: string;
+  category: string;
+  price: number; // ZAR cents
+  barcode?: string;
+  unitLabel?: string;
+  unitsPerPack?: number;
+  packLabel?: string;
+}
+
+/**
+ * The edit payload — like NewProduct but the optional fields accept `null` so an
+ * organiser can CLEAR a barcode/pack size (the API's updateProductSchema allows
+ * null; omitting the key would leave the old value, a silent no-op).
+ */
+export interface UpdateProduct {
+  name?: string;
+  category?: string;
+  price?: number;
+  barcode?: string | null;
+  unitLabel?: string;
+  unitsPerPack?: number | null;
+  packLabel?: string | null;
+  active?: boolean;
+}
+
+export interface StockBoardBarRow {
+  merchantId: string;
+  merchantName: string;
+  productId: string;
+  productName: string;
+  category: string;
+  onHand: number;
+  lowStockThreshold: number | null;
+  status: StockStatus;
+}
+export interface StockBoardProductRow {
+  productId: string;
+  productName: string;
+  category: string;
+  totalOnHand: number;
+  status: StockStatus;
+}
+export interface StockBoard {
+  event: { id: string; name: string };
+  perBar: StockBoardBarRow[];
+  byProduct: StockBoardProductRow[];
+}
+
+export interface ReconRow {
+  merchantId?: string;
+  merchantName?: string;
+  productId: string;
+  productName: string;
+  opening: number;
+  added: number;
+  transferIn: number;
+  transferOut: number;
+  sold: number;
+  countAdjust: number;
+  spoilage: number;
+  manual: number;
+  expectedClosing: number;
+  physicalCount: number | null;
+  variance: number | null;
+}
+export interface StockReconciliation {
+  event: { id: string; name: string };
+  perBar: ReconRow[];
+  byProduct: ReconRow[];
+  total: Omit<ReconRow, 'merchantId' | 'merchantName' | 'productId' | 'productName'>;
+}
+
+export interface StockDashboard {
+  event: { id: string; name: string };
+  revenueByProduct: { productId: string; productName: string; revenue: number; units: number }[];
+  bestSellers: { productId: string; productName: string; revenue: number; units: number }[];
+  salesByBar: { merchantId: string; merchantName: string; gross: number; fee: number; net: number; count: number }[];
+  salesByEmployee: { staffName: string | null; label: string; gross: number; count: number }[];
+  itemisedSplit: { itemised: { gross: number; count: number }; unitemised: { gross: number; count: number } };
+  peakTimes: { hour: number; units: number }[];
+  variances: { merchantId: string; merchantName: string; productId: string; productName: string; variance: number }[];
+  totalShrinkageUnits: number;
+  predictedStockOut: { merchantId: string; merchantName: string; productId: string; productName: string; onHand: number; ratePerMin: number; minutesToStockOut: number }[];
+  noRecentSales: number;
+}
+
+export interface StockMovementRow {
+  id: string;
+  at: string;
+  merchantId: string;
+  merchantName: string;
+  productId: string;
+  productName: string;
+  delta: number;
+  reason: string;
+  balanceAfter: number;
+  refType: string | null;
+  refId: string | null;
+  byType: string;
+  by: string;
+  note: string | null;
+}
+export interface StockMovementsPage {
+  movements: StockMovementRow[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
+export interface IssuedMerchantCredentials {
+  merchant: MerchantRow;
+  loginCode: string;
+  pin: string;
+}
+
+export interface MerchantChargeTxn {
+  id: string;
+  amount: number; // cents
+  fee: number;
+  netAmount: number;
+  bandUid: string;
+  status: string;
+  createdAt: string; // ISO
+}
+
+export interface MerchantDetail {
+  merchant: MerchantRow;
+  event: { id: string; name: string };
+  transactions: MerchantChargeTxn[];
+  summary: { totalCharged: number; totalNet: number; totalFee: number; count: number };
 }
 
 export interface WristbandBatch {

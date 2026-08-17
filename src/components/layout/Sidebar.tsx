@@ -25,6 +25,9 @@ import {
   Armchair,
   Receipt,
   Smartphone,
+  Store,
+  Boxes,
+  type LucideIcon,
 } from 'lucide-react';
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -40,12 +43,13 @@ import {
   canPrintWristbands,
   canModerateSocial,
   canManageTransport,
+  canManageStock,
 } from '@/lib/permissions';
 
 interface NavigationItem {
   name: string;
   href: string;
-  icon: any;
+  icon: LucideIcon;
   show: boolean;
 }
 
@@ -119,6 +123,24 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       href: '/gate-operators',
       icon: ShieldCheck,
       show: canManageAccess(user),
+    },
+    {
+      name: 'Cashiers',
+      href: '/cashiers',
+      icon: Banknote,
+      show: canManageAccess(user),
+    },
+    {
+      name: 'Vendors',
+      href: '/vendors',
+      icon: Store,
+      show: canManageAccess(user),
+    },
+    {
+      name: 'Catalogue',
+      href: '/stock',
+      icon: Boxes,
+      show: canManageStock(user),
     },
     {
       name: 'Analytics',
