@@ -78,7 +78,7 @@ function BoardSection({ eventId }: { eventId: string }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data!.byProduct.map((p) => {
+                {(data?.byProduct ?? []).map((p) => {
                   const bars = barsByProduct.get(p.productId) ?? [];
                   const expandable = bars.length > 1;
                   const open = expandable && expanded.has(p.productId);
@@ -268,7 +268,7 @@ function ReconciliationSection({ eventId }: { eventId: string }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data!.byProduct.map((r) => (
+                {(data?.byProduct ?? []).map((r) => (
                   <TableRow key={r.productId}>
                     <TableCell className="font-medium">{r.productName}</TableCell>
                     <TableCell className="text-right">{r.opening}</TableCell>
@@ -281,17 +281,19 @@ function ReconciliationSection({ eventId }: { eventId: string }) {
                     <TableCell className="text-right">{variance(r.variance)}</TableCell>
                   </TableRow>
                 ))}
-                <TableRow className="border-t-2 font-semibold">
-                  <TableCell>Total</TableCell>
-                  <TableCell className="text-right">{data!.total.opening}</TableCell>
-                  <TableCell className="text-right">{data!.total.added}</TableCell>
-                  <TableCell className="text-right">{data!.total.transferIn}</TableCell>
-                  <TableCell className="text-right">{data!.total.transferOut}</TableCell>
-                  <TableCell className="text-right">{data!.total.sold}</TableCell>
-                  <TableCell className="text-right">{data!.total.expectedClosing}</TableCell>
-                  <TableCell className="text-right">{num(data!.total.physicalCount)}</TableCell>
-                  <TableCell className="text-right">{variance(data!.total.variance)}</TableCell>
-                </TableRow>
+                {data && (
+                  <TableRow className="border-t-2 font-semibold">
+                    <TableCell>Total</TableCell>
+                    <TableCell className="text-right">{data.total.opening}</TableCell>
+                    <TableCell className="text-right">{data.total.added}</TableCell>
+                    <TableCell className="text-right">{data.total.transferIn}</TableCell>
+                    <TableCell className="text-right">{data.total.transferOut}</TableCell>
+                    <TableCell className="text-right">{data.total.sold}</TableCell>
+                    <TableCell className="text-right">{data.total.expectedClosing}</TableCell>
+                    <TableCell className="text-right">{num(data.total.physicalCount)}</TableCell>
+                    <TableCell className="text-right">{variance(data.total.variance)}</TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </div>
