@@ -330,14 +330,6 @@ export function EventsPage() {
                 <div className="space-y-2">
                   <Label htmlFor="name">Event Name</Label>
                   <Input id="name" name="name" required placeholder="e.g., Summer Music Festival" />
-                  {/* Organizers can't rename an event once it's created (only
-                      Keshless admins can, to prevent bait-and-switch). Set
-                      expectations up front so they choose carefully. */}
-                  {!isAdmin && (
-                    <p className="text-xs text-amber-600">
-                      Choose carefully — the event name can’t be changed after saving.
-                    </p>
-                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="venue">Venue</Label>
