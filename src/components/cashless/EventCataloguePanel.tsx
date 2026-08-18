@@ -59,48 +59,38 @@ const categoryLabel = (v: string) =>
   PRODUCT_CATEGORIES.find((c) => c.value === v)?.label ?? v;
 
 /**
- * Cashless Catalogue & Stock management (Slice 6 / parent §9). An event picker
- * (cashless events) drives the product catalogue + per-bar stock operations for
- * that event. Mirrors VendorsPage's pattern; the API enforces MANAGE_STOCK +
- * event ownership on every call.
+ * Cashless catalogue & stock management for ONE event (Slice 6 / parent §9).
+ * Products and stock are event-scoped in the model — a Product carries an
+ * eventId and a ProductStock row is per (stall x product) — so this panel takes
+ * the event it lives under instead of asking the organizer to pick one. The API
+ * enforces MANAGE_STOCK + event ownership on every call.
  */
-export function StockCataloguePage() {
+export function EventCataloguePanel({ eventId }: { eventId: string }) {
   const queryClient = useQueryClient();
-  const [eventId, setEventId] = useState<string>('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<StockProductRow | null>(null);
   const [form, setForm] = useState<ProductForm>(EMPTY_FORM);
 
-  const { data: eventsData } = useQuery({
-    queryKey: ['events', 'for-catalogue'],
-    queryFn: () => apiClient.events.getEvents({ limit: 100 }),
-  });
-  const cashlessEvents = useMemo(
-    () => (eventsData?.data ?? []).filter((e) => e.cashless),
-    [eventsData],
-  );
-  const selectedEventId = eventId || cashlessEvents[0]?._id || '';
-
   const { data: products = [], isLoading } = useQuery({
-    queryKey: ['stock-products', selectedEventId],
-    queryFn: () => apiClient.stock.listProducts(selectedEventId),
-    enabled: !!selectedEventId,
+    queryKey: ['stock-products', eventId],
+    queryFn: () => apiClient.stock.listProducts(eventId),
+    enabled: !!eventId,
   });
 
-  const { data: bars = [] } = useQuery({
-    queryKey: ['merchants', selectedEventId],
-    queryFn: () => apiClient.merchants.list(selectedEventId),
-    enabled: !!selectedEventId,
+  const { data: stalls = [] } = useQuery({
+    queryKey: ['merchants', eventId],
+    queryFn: () => apiClient.merchants.list(eventId),
+    enabled: !!eventId,
   });
 
   const { data: board } = useQuery({
-    queryKey: ['stock-board', selectedEventId],
-    queryFn: () => apiClient.events.getEventStockBoard(selectedEventId),
-    enabled: !!selectedEventId,
+    queryKey: ['stock-board', eventId],
+    queryFn: () => apiClient.events.getEventStockBoard(eventId),
+    enabled: !!eventId,
   });
 
-  // board.perBar grouped by bar, for the levels panel.
-  const levelsByBar = useMemo(() => {
+  // board.perBar grouped by stall, for the levels panel.
+  const levelsByStall = useMemo(() => {
     const m = new Map<string, { name: string; rows: NonNullable<typeof board>['perBar'] }>();
     (board?.perBar ?? []).forEach((r) => {
       const g = m.get(r.merchantId) ?? { name: r.merchantName, rows: [] };
@@ -111,15 +101,15 @@ export function StockCataloguePage() {
   }, [board]);
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ['stock-products', selectedEventId] });
-    queryClient.invalidateQueries({ queryKey: ['stock-board', selectedEventId] });
+    queryClient.invalidateQueries({ queryKey: ['stock-products', eventId] });
+    queryClient.invalidateQueries({ queryKey: ['stock-board', eventId] });
   };
 
   const saveProduct = useMutation({
     mutationFn: (payload: { create?: NewProduct; update?: UpdateProduct }) =>
       payload.update
         ? apiClient.stock.updateProduct(editing!._id, payload.update)
-        : apiClient.stock.createProduct(selectedEventId, payload.create!),
+        : apiClient.stock.createProduct(eventId, payload.create!),
     onSuccess: () => {
       invalidate();
       toast.success(editing ? 'Product updated' : 'Product added');
@@ -133,7 +123,7 @@ export function StockCataloguePage() {
   const [opForm, setOpForm] = useState<OpForm>(EMPTY_OP);
 
   const receiveM = useMutation({
-    mutationFn: () => apiClient.stock.receive(selectedEventId, {
+    mutationFn: () => apiClient.stock.receive(eventId, {
       merchantId: opForm.merchantId, productId: opForm.productId,
       quantity: Number(opForm.quantity), unit: opForm.unit,
       ...(opForm.note.trim() ? { note: opForm.note.trim() } : {}),
@@ -143,16 +133,16 @@ export function StockCataloguePage() {
   });
 
   const transferM = useMutation({
-    mutationFn: () => apiClient.stock.transfer(selectedEventId, {
+    mutationFn: () => apiClient.stock.transfer(eventId, {
       productId: opForm.productId, fromMerchantId: opForm.fromMerchantId, toMerchantId: opForm.toMerchantId,
       qty: Number(opForm.quantity), ...(opForm.note.trim() ? { note: opForm.note.trim() } : {}),
     }),
     onSuccess: (r) => { invalidate(); toast.success(`Transferred — source now ${r.fromOnHand}`); setOp(null); },
-    onError: (e: Error) => toast.error(e.message || 'Not enough stock at the source bar'),
+    onError: (e: Error) => toast.error(e.message || 'Not enough stock at the source stall'),
   });
 
   const countM = useMutation({
-    mutationFn: () => apiClient.stock.recordCount(selectedEventId, {
+    mutationFn: () => apiClient.stock.recordCount(eventId, {
       merchantId: opForm.merchantId, productId: opForm.productId, countedOnHand: Number(opForm.quantity),
     }),
     onSuccess: (r) => {
@@ -165,7 +155,7 @@ export function StockCataloguePage() {
   });
 
   const thresholdM = useMutation({
-    mutationFn: (clear: boolean) => apiClient.stock.setThreshold(selectedEventId, {
+    mutationFn: (clear: boolean) => apiClient.stock.setThreshold(eventId, {
       merchantId: opForm.merchantId, productId: opForm.productId,
       lowStockThreshold: clear ? null : Number(opForm.quantity),
     }),
@@ -174,7 +164,7 @@ export function StockCataloguePage() {
   });
 
   const openOp = (kind: 'receive' | 'transfer' | 'count' | 'threshold') => {
-    setOpForm({ ...EMPTY_OP, productId: products[0]?._id ?? '', merchantId: bars[0]?._id ?? '', fromMerchantId: bars[0]?._id ?? '', toMerchantId: bars[1]?._id ?? '' });
+    setOpForm({ ...EMPTY_OP, productId: products[0]?._id ?? '', merchantId: stalls[0]?._id ?? '', fromMerchantId: stalls[0]?._id ?? '', toMerchantId: stalls[1]?._id ?? '' });
     setOp(kind);
   };
 
@@ -240,28 +230,16 @@ export function StockCataloguePage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Package className="h-5 w-5 text-orange-600" />
-          <h1 className="text-xl font-bold">Catalogue</h1>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Package className="h-4 w-4 text-orange-600" />
+          What this event's stalls sell — priced per unit, stocked per stall
         </div>
-        <div className="flex items-center gap-2">
-          <Select value={selectedEventId} onValueChange={setEventId}>
-            <SelectTrigger className="w-[220px]"><SelectValue placeholder="Select a cashless event" /></SelectTrigger>
-            <SelectContent>
-              {cashlessEvents.map((e) => (
-                <SelectItem key={e._id} value={e._id}>{e.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button onClick={openAdd} disabled={!selectedEventId} className="bg-orange-600 hover:bg-orange-700">
-            <Plus className="h-4 w-4 mr-1" /> Add product
-          </Button>
-        </div>
+        <Button onClick={openAdd} className="bg-orange-600 hover:bg-orange-700">
+          <Plus className="h-4 w-4 mr-1" /> Add product
+        </Button>
       </div>
 
-      {!selectedEventId ? (
-        <Card><CardContent className="py-12 text-center text-muted-foreground">Create a cashless event first, then add its products here.</CardContent></Card>
-      ) : isLoading ? (
+      {isLoading ? (
         <Card><CardContent className="py-12 text-center text-muted-foreground">Loading products…</CardContent></Card>
       ) : products.length === 0 ? (
         <Card><CardContent className="py-12 text-center text-muted-foreground">No products yet. Add your first one.</CardContent></Card>
@@ -304,50 +282,48 @@ export function StockCataloguePage() {
         </Card>
       )}
 
-      {selectedEventId && (
-        <Card>
-          <CardHeader className="flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-base">Stock levels</CardTitle>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" disabled={!products.length || !bars.length} onClick={() => openOp('receive')}>Receive</Button>
-              <Button size="sm" variant="outline" disabled={!products.length || bars.length < 2} onClick={() => openOp('transfer')}>Transfer</Button>
-              <Button size="sm" variant="outline" disabled={!products.length || !bars.length} onClick={() => openOp('count')}>Count</Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {levelsByBar.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-2">No stock loaded yet. Use <span className="font-medium">Receive</span> to load a bar.</p>
-            ) : (
-              <div className="space-y-4">
-                {levelsByBar.map(([merchantId, g]) => (
-                  <div key={merchantId}>
-                    <div className="text-sm font-semibold mb-1">{g.name}</div>
-                    <div className="grid sm:grid-cols-2 gap-x-6 gap-y-1">
-                      {g.rows.map((r) => (
-                        <div key={r.productId} className="flex items-center justify-between text-sm border-b border-slate-100 py-1">
-                          <span className="truncate">{r.productName}</span>
-                          <span className="flex items-center gap-2 shrink-0">
-                            <span className="tabular-nums">{r.onHand}</span>
-                            <StatusPill status={r.status} />
-                            <Button variant="ghost" size="icon" className="h-6 w-6" title="Low-stock alert"
-                              onClick={() => { setOpForm({ ...EMPTY_OP, merchantId, productId: r.productId, quantity: r.lowStockThreshold != null ? String(r.lowStockThreshold) : '' }); setOp('threshold'); }}>
-                              <Bell className="h-3.5 w-3.5" />
-                            </Button>
-                          </span>
-                        </div>
-                      ))}
-                    </div>
+      <Card>
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <CardTitle className="text-base">Stock levels</CardTitle>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" disabled={!products.length || !stalls.length} onClick={() => openOp('receive')}>Receive</Button>
+            <Button size="sm" variant="outline" disabled={!products.length || stalls.length < 2} onClick={() => openOp('transfer')}>Transfer</Button>
+            <Button size="sm" variant="outline" disabled={!products.length || !stalls.length} onClick={() => openOp('count')}>Count</Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {levelsByStall.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-2">No stock loaded yet. Use <span className="font-medium">Receive</span> to load a stall.</p>
+          ) : (
+            <div className="space-y-4">
+              {levelsByStall.map(([merchantId, g]) => (
+                <div key={merchantId}>
+                  <div className="text-sm font-semibold mb-1">{g.name}</div>
+                  <div className="grid sm:grid-cols-2 gap-x-6 gap-y-1">
+                    {g.rows.map((r) => (
+                      <div key={r.productId} className="flex items-center justify-between text-sm border-b border-slate-100 py-1">
+                        <span className="truncate">{r.productName}</span>
+                        <span className="flex items-center gap-2 shrink-0">
+                          <span className="tabular-nums">{r.onHand}</span>
+                          <StatusPill status={r.status} />
+                          <Button variant="ghost" size="icon" className="h-6 w-6" title="Low-stock alert"
+                            onClick={() => { setOpForm({ ...EMPTY_OP, merchantId, productId: r.productId, quantity: r.lowStockThreshold != null ? String(r.lowStockThreshold) : '' }); setOp('threshold'); }}>
+                            <Bell className="h-3.5 w-3.5" />
+                          </Button>
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <StockOpDialogs
         op={op} setOp={setOp} form={opForm} setForm={setOpForm}
-        products={products} bars={bars}
+        products={products} stalls={stalls}
         receiveM={receiveM} transferM={transferM} countM={countM} thresholdM={thresholdM}
       />
 
@@ -425,16 +401,16 @@ function StatusPill({ status }: { status: StockStatus }) {
 type Mut = { mutate: () => void; isPending: boolean };
 type MutBool = { mutate: (clear: boolean) => void; isPending: boolean };
 
-/** The four per-bar stock operations, one Dialog shown at a time driven by `op`. */
+/** The four per-stall stock operations, one Dialog shown at a time driven by `op`. */
 function StockOpDialogs({
-  op, setOp, form, setForm, products, bars, receiveM, transferM, countM, thresholdM,
+  op, setOp, form, setForm, products, stalls, receiveM, transferM, countM, thresholdM,
 }: {
   op: null | 'receive' | 'transfer' | 'count' | 'threshold';
   setOp: (v: null) => void;
   form: OpForm;
   setForm: (f: OpForm) => void;
   products: StockProductRow[];
-  bars: { _id: string; name: string }[];
+  stalls: { _id: string; name: string }[];
   receiveM: Mut; transferM: Mut; countM: Mut; thresholdM: MutBool;
 }) {
   const productSelect = (
@@ -446,12 +422,12 @@ function StockOpDialogs({
       </Select>
     </div>
   );
-  const barSelect = (label: string, value: string, key: 'merchantId' | 'fromMerchantId' | 'toMerchantId') => (
+  const stallSelect = (label: string, value: string, key: 'merchantId' | 'fromMerchantId' | 'toMerchantId') => (
     <div className="space-y-1">
       <Label>{label}</Label>
       <Select value={value} onValueChange={(v) => setForm({ ...form, [key]: v })}>
-        <SelectTrigger><SelectValue placeholder="Select a bar" /></SelectTrigger>
-        <SelectContent>{bars.map((b) => <SelectItem key={b._id} value={b._id}>{b.name}</SelectItem>)}</SelectContent>
+        <SelectTrigger><SelectValue placeholder="Select a stall" /></SelectTrigger>
+        <SelectContent>{stalls.map((b) => <SelectItem key={b._id} value={b._id}>{b.name}</SelectItem>)}</SelectContent>
       </Select>
     </div>
   );
@@ -468,7 +444,7 @@ function StockOpDialogs({
     </div>
   );
   const qtyValid = Number.isInteger(Number(form.quantity)) && Number(form.quantity) >= 1;
-  // A count of 0 is legitimate (bar sold out), so it can't reuse qtyValid's >= 1.
+  // A count of 0 is legitimate (stall sold out), so it can't reuse qtyValid's >= 1.
   const countValid = form.quantity.trim() !== '' && Number.isInteger(Number(form.quantity)) && Number(form.quantity) >= 0;
 
   return (
@@ -478,7 +454,7 @@ function StockOpDialogs({
           <>
             <DialogHeader><DialogTitle>Receive stock</DialogTitle></DialogHeader>
             <div className="space-y-3">
-              {barSelect('Bar', form.merchantId, 'merchantId')}
+              {stallSelect('Stall', form.merchantId, 'merchantId')}
               {productSelect}
               <div className="grid grid-cols-2 gap-3">
                 {qtyInput('Quantity')}
@@ -501,15 +477,15 @@ function StockOpDialogs({
             <div className="space-y-3">
               {productSelect}
               <div className="grid grid-cols-2 gap-3">
-                {barSelect('From bar', form.fromMerchantId, 'fromMerchantId')}
-                {barSelect('To bar', form.toMerchantId, 'toMerchantId')}
+                {stallSelect('From stall', form.fromMerchantId, 'fromMerchantId')}
+                {stallSelect('To stall', form.toMerchantId, 'toMerchantId')}
               </div>
               {qtyInput('Quantity (units)')}
               {noteInput}
               <OpActions onCancel={() => setOp(null)} onConfirm={() => transferM.mutate()} pending={transferM.isPending}
                 disabled={!form.productId || !form.fromMerchantId || !form.toMerchantId || form.fromMerchantId === form.toMerchantId || !qtyValid} label="Transfer" />
               {form.fromMerchantId === form.toMerchantId && form.fromMerchantId !== '' && (
-                <p className="text-xs text-red-600">Pick two different bars.</p>
+                <p className="text-xs text-red-600">Pick two different stalls.</p>
               )}
             </div>
           </>
@@ -518,7 +494,7 @@ function StockOpDialogs({
           <>
             <DialogHeader><DialogTitle>Physical count</DialogTitle></DialogHeader>
             <div className="space-y-3">
-              {barSelect('Bar', form.merchantId, 'merchantId')}
+              {stallSelect('Stall', form.merchantId, 'merchantId')}
               {productSelect}
               {qtyInput('Counted on hand')}
               <OpActions onCancel={() => setOp(null)} onConfirm={() => countM.mutate()} pending={countM.isPending}
@@ -530,7 +506,7 @@ function StockOpDialogs({
           <>
             <DialogHeader><DialogTitle>Low-stock alert</DialogTitle></DialogHeader>
             <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">Alert the organiser when this bar drops to or below the level below. Clear it to switch the alert off.</p>
+              <p className="text-sm text-muted-foreground">Alert the organiser when this stall drops to or below the level below. Clear it to switch the alert off.</p>
               {qtyInput('Alert at (units)')}
               <div className="flex justify-between gap-2 pt-1">
                 <Button variant="ghost" onClick={() => thresholdM.mutate(true)} disabled={thresholdM.isPending}>Clear alert</Button>

@@ -16,22 +16,29 @@ const fmtTime = (iso: string) => {
 };
 const bandRef = (uid: string) => (!uid ? '—' : `••${(uid.length > 6 ? uid.slice(-6) : uid).toUpperCase()}`);
 
-export function VendorDetailPage() {
-  const { id = '' } = useParams();
+/**
+ * One stall's takings, reached from its event's Cashless > Stalls tab. The
+ * route carries both ids (/events/:id/stalls/:merchantId) because a merchant
+ * belongs to exactly one event — the event id is what makes the URL, and the
+ * back link, honest about where this stall lives.
+ */
+export function StallDetailPage() {
+  const { id = '', merchantId = '' } = useParams();
   const navigate = useNavigate();
   const [selected, setSelected] = useState<TxnDetail | null>(null);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['vendor-detail', id],
-    queryFn: () => apiClient.merchants.transactions(id),
+    queryKey: ['stall-detail', merchantId],
+    queryFn: () => apiClient.merchants.transactions(merchantId),
     retry: false,
   });
 
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        <Button variant="ghost" size="sm" className="text-slate-500" onClick={() => navigate('/vendors')}>
-          <ArrowLeft className="h-4 w-4 mr-1.5" /> Vendors
+        <Button variant="ghost" size="sm" className="text-slate-500"
+          onClick={() => navigate(`/events/${id}?tab=cashless&sub=stalls`)}>
+          <ArrowLeft className="h-4 w-4 mr-1.5" /> Stalls
         </Button>
 
         {isLoading ? (
@@ -39,7 +46,7 @@ export function VendorDetailPage() {
             <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading…
           </div>
         ) : error || !data ? (
-          <Card><CardContent className="py-12 text-center text-muted-foreground">Could not load this vendor.</CardContent></Card>
+          <Card><CardContent className="py-12 text-center text-muted-foreground">Could not load this stall.</CardContent></Card>
         ) : (
           <>
             <div className="flex items-start justify-between gap-3">

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,6 +16,10 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { CreditCard, ArrowDownCircle, ArrowUpCircle, Wallet, Loader2, ArrowRight } from 'lucide-react';
 import { TransactionDetailDialog, type TxnDetail } from '@/components/TransactionDetailDialog';
 import { EventStockReport } from '@/components/EventStockReport';
+import { EventStallsPanel } from '@/components/cashless/EventStallsPanel';
+import { EventCataloguePanel } from '@/components/cashless/EventCataloguePanel';
+import { useAuth } from '@/contexts/AuthContext';
+import { canManageAccess, canManageStock } from '@/lib/permissions';
 
 /** Cashless wallet amounts move in ZAR cents on the wire. */
 const fmtR = (cents: number) => `R${((cents ?? 0) / 100).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -36,10 +40,13 @@ interface Props {
 }
 
 /**
- * The organizer's cashless report for ONE event — "you're in charge, here's
- * every rand that moved". Totals (circulated / spent / withdrawn / left-behind),
- * per-vendor takings, per-cashier activity, and the full transaction log. All
- * figures come from the authoritative ledger + wallets, server-side.
+ * Everything cashless for ONE event. Money is the organizer's report — "you're
+ * in charge, here's every rand that moved" (totals, per-stall takings,
+ * per-cashier activity, transaction log, all from the authoritative ledger).
+ * Stock reports on the stock journal, while Stalls and Catalogue manage the
+ * merchants and products that belong to this event. Stalls, products and stock
+ * are all eventId-bound in the model, so they live here rather than on a
+ * top-level page that asks which event you meant.
  */
 export function EventCashlessTab({ eventId }: Props) {
   const {
@@ -61,6 +68,23 @@ export function EventCashlessTab({ eventId }: Props) {
 
   const [selected, setSelected] = useState<TxnDetail | null>(null);
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const showStalls = canManageAccess(user);
+  const showCatalogue = canManageStock(user);
+  const requestedSub = searchParams.get('sub') ?? 'money';
+  // Fall back to Money rather than render an empty pane when the URL names a
+  // sub-tab this user can't see (shared link, or permissions changed).
+  const sub =
+    (requestedSub === 'stalls' && !showStalls) || (requestedSub === 'catalogue' && !showCatalogue)
+      ? 'money'
+      : requestedSub;
+  const setSub = (v: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('sub', v);
+    setSearchParams(next, { replace: true });
+  };
 
   const moneyBody = isLoading ? (
     <div className="flex items-center justify-center py-16 text-muted-foreground">
@@ -79,7 +103,7 @@ export function EventCashlessTab({ eventId }: Props) {
       {/* Totals */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard icon={<CreditCard className="h-4 w-4" />} label="Circulated" value={fmtR(summary.circulated)} hint="loaded onto bands" tone="ink" />
-        <StatCard icon={<ArrowUpCircle className="h-4 w-4" />} label="Spent" value={fmtR(summary.spent)} hint="at vendors" tone="blue" />
+        <StatCard icon={<ArrowUpCircle className="h-4 w-4" />} label="Spent" value={fmtR(summary.spent)} hint="at stalls" tone="blue" />
         <StatCard icon={<ArrowDownCircle className="h-4 w-4" />} label="Withdrawn" value={fmtR(summary.withdrawn)} hint="handed back" tone="orange" />
         <StatCard icon={<Wallet className="h-4 w-4" />} label="Left behind" value={fmtR(summary.leftBehind)} hint="still on bands" tone="green" />
       </div>
@@ -88,23 +112,26 @@ export function EventCashlessTab({ eventId }: Props) {
         {summary.walletsFunded} wallet{summary.walletsFunded === 1 ? '' : 's'} funded · {fmtR(summary.fees)} platform fees collected
       </div>
 
-      {/* Per-vendor takings */}
+      {/* Per-stall takings */}
       <Card>
         <CardHeader className="flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-base">Vendor takings</CardTitle>
-          <Link to="/vendors" className="text-xs font-medium text-orange-600 hover:text-orange-700 inline-flex items-center gap-1">
-            Manage vendors <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
+          <CardTitle className="text-base">Stall takings</CardTitle>
+          {showStalls && (
+            <button type="button" onClick={() => setSub('stalls')}
+              className="text-xs font-medium text-orange-600 hover:text-orange-700 inline-flex items-center gap-1">
+              Manage stalls <ArrowRight className="h-3.5 w-3.5" />
+            </button>
+          )}
         </CardHeader>
         <CardContent>
           {summary.vendors.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4">No vendor charges yet.</p>
+            <p className="text-sm text-muted-foreground py-4">No stall charges yet.</p>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Vendor</TableHead>
+                    <TableHead>Stall</TableHead>
                     <TableHead className="text-right">Gross</TableHead>
                     <TableHead className="text-right">Commission</TableHead>
                     <TableHead className="text-right">Net owed</TableHead>
@@ -116,7 +143,7 @@ export function EventCashlessTab({ eventId }: Props) {
                     <TableRow
                       key={v.merchantId}
                       className="cursor-pointer hover:bg-slate-50"
-                      onClick={() => navigate(`/vendors/${v.merchantId}`)}
+                      onClick={() => navigate(`/events/${eventId}/stalls/${v.merchantId}`)}
                     >
                       <TableCell className="font-medium text-orange-700">{v.name}</TableCell>
                       <TableCell className="text-right">{fmtR(v.gross)}</TableCell>
@@ -230,15 +257,27 @@ export function EventCashlessTab({ eventId }: Props) {
   );
 
   return (
-    <Tabs defaultValue="money" className="space-y-4">
+    <Tabs value={sub} onValueChange={setSub} className="space-y-4">
       <TabsList>
         <TabsTrigger value="money">Money</TabsTrigger>
         <TabsTrigger value="stock">Stock</TabsTrigger>
+        {showStalls && <TabsTrigger value="stalls">Stalls</TabsTrigger>}
+        {showCatalogue && <TabsTrigger value="catalogue">Catalogue</TabsTrigger>}
       </TabsList>
       <TabsContent value="money">{moneyBody}</TabsContent>
       <TabsContent value="stock">
         <EventStockReport eventId={eventId} />
       </TabsContent>
+      {showStalls && (
+        <TabsContent value="stalls">
+          <EventStallsPanel eventId={eventId} />
+        </TabsContent>
+      )}
+      {showCatalogue && (
+        <TabsContent value="catalogue">
+          <EventCataloguePanel eventId={eventId} />
+        </TabsContent>
+      )}
     </Tabs>
   );
 }

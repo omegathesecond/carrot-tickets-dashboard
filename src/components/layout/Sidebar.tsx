@@ -25,8 +25,6 @@ import {
   Armchair,
   Receipt,
   Smartphone,
-  Store,
-  Boxes,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -43,7 +41,6 @@ import {
   canPrintWristbands,
   canModerateSocial,
   canManageTransport,
-  canManageStock,
 } from '@/lib/permissions';
 
 interface NavigationItem {
@@ -129,18 +126,6 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       href: '/cashiers',
       icon: Banknote,
       show: canManageAccess(user),
-    },
-    {
-      name: 'Vendors',
-      href: '/vendors',
-      icon: Store,
-      show: canManageAccess(user),
-    },
-    {
-      name: 'Catalogue',
-      href: '/stock',
-      icon: Boxes,
-      show: canManageStock(user),
     },
     {
       name: 'Analytics',

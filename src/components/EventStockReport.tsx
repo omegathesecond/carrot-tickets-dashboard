@@ -56,7 +56,7 @@ function BoardSection({ eventId }: { eventId: string }) {
   const toggle = (id: string) =>
     setExpanded((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
-  const barsByProduct = useMemo(() => {
+  const stallsByProduct = useMemo(() => {
     const m = new Map<string, typeof data.perBar>() as Map<string, NonNullable<typeof data>['perBar']>;
     (data?.perBar ?? []).forEach((r) => { const a = m.get(r.productId) ?? []; a.push(r); m.set(r.productId, a); });
     return m;
@@ -79,8 +79,8 @@ function BoardSection({ eventId }: { eventId: string }) {
               </TableHeader>
               <TableBody>
                 {(data?.byProduct ?? []).map((p) => {
-                  const bars = barsByProduct.get(p.productId) ?? [];
-                  const expandable = bars.length > 1;
+                  const stalls = stallsByProduct.get(p.productId) ?? [];
+                  const expandable = stalls.length > 1;
                   const open = expandable && expanded.has(p.productId);
                   return (
                     <Fragment key={p.productId}>
@@ -90,7 +90,7 @@ function BoardSection({ eventId }: { eventId: string }) {
                         <TableCell className="text-right font-semibold">{p.totalOnHand}</TableCell>
                         <TableCell><StatusPill status={p.status} /></TableCell>
                       </TableRow>
-                      {open && bars.map((b) => (
+                      {open && stalls.map((b) => (
                         <TableRow key={`${p.productId}-${b.merchantId}`} className="bg-slate-50/50 text-sm">
                           <TableCell />
                           <TableCell className="pl-6 text-muted-foreground">{b.merchantName}</TableCell>
@@ -148,8 +148,8 @@ function DashboardSection({ eventId }: { eventId: string }) {
               {/* Best sellers */}
               <TwoColTable title="Best sellers" rows={data.bestSellers.map((p) => ({ k: p.productId, label: p.productName, right: `${p.units} · ${fmtR(p.revenue)}` }))} emptyText="No itemised sales yet." />
 
-              {/* Sales by bar */}
-              <TwoColTable title="Sales by bar" rows={data.salesByBar.map((b) => ({ k: b.merchantId, label: b.merchantName, right: `${fmtR(b.gross)} · ${b.count}` }))} emptyText="No charges yet." />
+              {/* Sales by stall */}
+              <TwoColTable title="Sales by stall" rows={data.salesByBar.map((b) => ({ k: b.merchantId, label: b.merchantName, right: `${fmtR(b.gross)} · ${b.count}` }))} emptyText="No charges yet." />
 
               {/* Sales by employee */}
               <TwoColTable title="Sales by till" rows={data.salesByEmployee.map((e, i) => ({ k: `${e.staffName ?? 'none'}-${i}`, label: e.label, right: `${fmtR(e.gross)} · ${e.count}` }))} emptyText="No charges yet." />
@@ -175,7 +175,7 @@ function DashboardSection({ eventId }: { eventId: string }) {
                 ) : (
                   <div className="overflow-x-auto">
                     <Table>
-                      <TableHeader><TableRow><TableHead>Product</TableHead><TableHead>Bar</TableHead><TableHead className="text-right">On hand</TableHead><TableHead className="text-right">≈ time to out</TableHead></TableRow></TableHeader>
+                      <TableHeader><TableRow><TableHead>Product</TableHead><TableHead>Stall</TableHead><TableHead className="text-right">On hand</TableHead><TableHead className="text-right">≈ time to out</TableHead></TableRow></TableHeader>
                       <TableBody>
                         {data.predictedStockOut.slice(0, 10).map((r) => (
                           <TableRow key={`${r.productId}-${r.merchantId}`}>
@@ -364,7 +364,7 @@ function MovementsSection({ eventId }: { eventId: string }) {
               <TableHeader>
                 <TableRow>
                   <TableHead className="hidden sm:table-cell">When</TableHead>
-                  <TableHead>Bar</TableHead>
+                  <TableHead>Stall</TableHead>
                   <TableHead>Product</TableHead>
                   <TableHead>Reason</TableHead>
                   <TableHead className="text-right">Δ</TableHead>
