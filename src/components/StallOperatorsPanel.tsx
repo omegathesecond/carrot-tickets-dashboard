@@ -24,7 +24,7 @@ export function StallOperatorsPanel({ merchantId, stallName }: { merchantId: str
   const [form, setForm] = useState({ fullName: '', phoneNumber: '' });
   const [credentials, setCredentials] = useState<Credentials | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ['merchantOperators', merchantId],
     queryFn: () => apiClient.merchantOperators.list(merchantId),
   });
@@ -59,6 +59,11 @@ export function StallOperatorsPanel({ merchantId, stallName }: { merchantId: str
   });
 
   const operators = data?.operators ?? [];
+  // Per-row pending ids — a mutation in flight for one operator must not
+  // disable the same action on every other row (mirrors EventStallsPanel's
+  // pendingActiveId in this same commit).
+  const pendingResetId = resetPin.isPending ? resetPin.variables : undefined;
+  const pendingActiveId = setActive.isPending ? setActive.variables?.id : undefined;
 
   return (
     <div className="space-y-4">
@@ -73,13 +78,18 @@ export function StallOperatorsPanel({ merchantId, stallName }: { merchantId: str
       </div>
 
       {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
-      {!isLoading && operators.length === 0 && (
+      {isError && (
+        <p className="text-sm text-red-600 py-4">
+          Could not load the people on this till{error instanceof Error && error.message ? ` — ${error.message}` : ''}.
+        </p>
+      )}
+      {!isLoading && !isError && operators.length === 0 && (
         <p className="text-sm text-muted-foreground py-4">
           Nobody can sell at this stall yet — add the first person.
         </p>
       )}
 
-      {operators.length > 0 && (
+      {!isError && operators.length > 0 && (
         <ul className="divide-y rounded-md border">
           {operators.map((op) => (
             <li key={op._id} className="flex items-center justify-between gap-4 p-3">
@@ -92,14 +102,14 @@ export function StallOperatorsPanel({ merchantId, stallName }: { merchantId: str
                 </p>
               </div>
               <div className="flex shrink-0 gap-2">
-                <Button size="sm" variant="outline" disabled={resetPin.isPending}
+                <Button size="sm" variant="outline" disabled={pendingResetId === op._id}
                   onClick={() => resetPin.mutate(op._id)}>
                   Reset PIN
                 </Button>
                 <Button
                   size="sm"
                   variant={op.isActive ? 'outline' : 'default'}
-                  disabled={setActive.isPending}
+                  disabled={pendingActiveId === op._id}
                   onClick={() => setActive.mutate({ id: op._id, isActive: !op.isActive })}
                 >
                   {op.isActive ? 'Deactivate' : 'Reactivate'}
