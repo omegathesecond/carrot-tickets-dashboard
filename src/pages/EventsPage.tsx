@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import {
-  Plus, Calendar, MapPin, Trash2, CheckCircle, XCircle,
+  Plus, Calendar, MapPin, Trash2, CheckCircle, XCircle, Nfc,
   CalendarDays, Ticket as TicketIcon, DollarSign, Activity,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -472,6 +472,14 @@ export function EventsPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
+                    {/* A cashless ask is only actionable by Carrot staff, so it
+                        surfaces here for them rather than in the organizer's list. */}
+                    {isAdmin && event.cashlessRequestedAt && !event.cashless && (
+                      <div className="flex items-center gap-1.5 text-xs font-medium text-orange-700">
+                        <Nfc className="h-3.5 w-3.5" />
+                        Cashless requested
+                      </div>
+                    )}
                     <div className="space-y-2 text-sm">
                       <div className="flex items-center text-slate-600">
                         <MapPin className="h-4 w-4 mr-2" />

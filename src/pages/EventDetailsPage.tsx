@@ -26,6 +26,7 @@ import { GalleryManager } from '@/components/GalleryManager';
 import { EventAnalyticsTab } from '@/components/EventAnalyticsTab';
 import { EventCreatorTab } from '@/components/EventCreatorTab';
 import { EventCashlessTab } from '@/components/EventCashlessTab';
+import { EventCashlessSetting } from '@/components/cashless/EventCashlessSetting';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ChannelsManager } from '@/components/community/ChannelsManager';
 import { AnnouncementComposer } from '@/components/community/AnnouncementComposer';
@@ -832,6 +833,11 @@ export function EventDetailsPage() {
               </Button>
             </CardContent>
           </Card>
+
+          {/* Cashless Card — admin-held switch, organizer request path. Sits
+              with Ticketing because it's the other "how does money work at
+              this event" decision. */}
+          {event && <EventCashlessSetting event={event} isAdmin={isAdmin} />}
 
           {/* Ticket Types Card — Carrot's own tier editor. Not applicable
               when the organizer sells tickets externally: there's nothing

@@ -402,6 +402,23 @@ export class ApiClient {
       });
     },
 
+    // Admin-only in practice: the API 403s `cashless` from anyone else, on
+    // create as well as update (EventService gates it at every event status).
+    setCashless: async (id: string, cashless: boolean): Promise<Event> => {
+      return this.request<Event>(`/tickets/events/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ cashless }),
+      });
+    },
+
+    // The organizer's side of that gate — ask Carrot to turn it on.
+    requestCashless: async (id: string, note?: string): Promise<Event> => {
+      return this.request<Event>(`/tickets/events/${id}/cashless-request`, {
+        method: 'POST',
+        body: JSON.stringify(note ? { note } : {}),
+      });
+    },
+
     updateEvent: async (id: string, data: Partial<EventFormData>): Promise<Event> => {
       return this.request<Event>(`/tickets/events/${id}`, {
         method: 'PUT',
