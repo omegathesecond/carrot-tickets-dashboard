@@ -1035,6 +1035,22 @@ export class ApiClient {
 
     detail: async (eventId: string, walletId: string): Promise<TagDetail> =>
       this.request<TagDetail>(`/tickets/events/${eventId}/tags/${walletId}`),
+
+    deactivate: async (eventId: string, walletId: string, reason: string): Promise<{ walletId: string; bandUid: string | null }> =>
+      this.request(`/tickets/events/${eventId}/tags/${walletId}/deactivate`, {
+        method: 'POST', body: JSON.stringify({ reason }),
+      }),
+
+    reissue: async (eventId: string, walletId: string, bandUid: string): Promise<{ walletId: string; bandUid: string | null }> =>
+      this.request(`/tickets/events/${eventId}/tags/${walletId}/reissue`, {
+        method: 'POST', body: JSON.stringify({ bandUid }),
+      }),
+
+    // amount is integer cents; clientTxnId makes a double submit idempotent.
+    refund: async (eventId: string, walletId: string, amount: number, clientTxnId: string): Promise<{ walletId: string; balance: number }> =>
+      this.request(`/tickets/events/${eventId}/tags/${walletId}/refund`, {
+        method: 'POST', body: JSON.stringify({ amount, clientTxnId }),
+      }),
   };
 
   gateOperators = {
