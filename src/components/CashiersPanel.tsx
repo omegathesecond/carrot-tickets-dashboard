@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { KeyRound, Plus, Power, UserPlus, ChevronRight } from 'lucide-react';
-import { apiClient, type CashierRow } from '@/lib/api';
+import { type OperatorGrant, apiClient, type CashierRow } from '@/lib/api';
+import { OperatorGrantsField } from '@/components/OperatorGrantsField';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,8 +16,8 @@ import { OperatorCredentialsDialog } from '@/components/OperatorCredentialsDialo
 const initialsOf = (name: string) =>
   name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
 
-type AddForm = { fullName: string; phoneNumber: string };
-const DEFAULT_FORM: AddForm = { fullName: '', phoneNumber: '' };
+type AddForm = { fullName: string; phoneNumber: string; grants: OperatorGrant[] };
+const DEFAULT_FORM: AddForm = { fullName: '', phoneNumber: '', grants: [] };
 
 /**
  * The organizer's in-venue money desk staff for ONE event — top-up and
@@ -46,6 +47,7 @@ export function CashiersPanel({ eventId }: { eventId: string }) {
     mutationFn: () => apiClient.cashiers.create({
       fullName: form.fullName,
       ...(form.phoneNumber.trim() ? { phoneNumber: form.phoneNumber.trim() } : {}),
+      ...(form.grants.length ? { grants: form.grants } : {}),
       eventId,
     }),
     onSuccess: (res) => {
@@ -107,6 +109,14 @@ export function CashiersPanel({ eventId }: { eventId: string }) {
                 <Label htmlFor="c-phone">Phone number (optional)</Label>
                 <Input id="c-phone" value={form.phoneNumber} className="h-12" placeholder="+268..."
                   onChange={(e) => setForm((f) => ({ ...f, phoneNumber: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>Extra permissions</Label>
+                <OperatorGrantsField
+                  idPrefix="cashier"
+                  value={form.grants}
+                  onChange={(grants) => setForm((f) => ({ ...f, grants }))}
+                />
               </div>
               <div className="flex justify-end space-x-2 pt-2">
                 <Button type="button" variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>

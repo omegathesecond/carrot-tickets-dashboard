@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { CalendarRange, KeyRound, Plus, Power, UserPlus } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { apiClient, type GateOperatorRow } from '@/lib/api';
+import { type OperatorGrant, apiClient, type GateOperatorRow } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/select';
 import { OperatorCredentialsDialog } from '@/components/OperatorCredentialsDialog';
 import { EventPicker } from '@/components/EventPicker';
+import { OperatorGrantsField } from '@/components/OperatorGrantsField';
 import { OperatorEventsDialog } from '@/components/OperatorEventsDialog';
 
 const initialsOf = (name: string) =>
@@ -33,6 +34,7 @@ type AddForm = {
   scope: 'platform' | 'organizer';
   vendorId: string;
   eventIds: string[];
+  grants: OperatorGrant[];
 };
 
 const DEFAULT_FORM: AddForm = {
@@ -41,6 +43,7 @@ const DEFAULT_FORM: AddForm = {
   scope: 'organizer',
   vendorId: '',
   eventIds: [],
+  grants: [],
 };
 
 export function GateOperatorsPage() {
@@ -50,6 +53,16 @@ export function GateOperatorsPage() {
   const [form, setForm] = useState<AddForm>(DEFAULT_FORM);
   const [issued, setIssued] = useState<{ title: string; loginCode?: string; pin: string } | null>(null);
   const [editingEvents, setEditingEvents] = useState<GateOperatorRow | null>(null);
+
+  const setGrants = useMutation({
+    mutationFn: ({ id, grants }: { id: string; grants: OperatorGrant[] }) =>
+      apiClient.gateOperators.setGrants(id, grants),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['gate-operators'] });
+      toast.success('Permissions updated');
+    },
+    onError: (e: Error) => toast.error(e.message || 'Failed to update permissions'),
+  });
 
   const { data: operators = [], isLoading } = useQuery({
     queryKey: ['gate-operators'],
@@ -62,6 +75,7 @@ export function GateOperatorsPage() {
         fullName: form.fullName,
         ...(form.phoneNumber.trim() ? { phoneNumber: form.phoneNumber.trim() } : {}),
         ...(form.eventIds.length ? { eventIds: form.eventIds } : {}),
+        ...(form.grants.length ? { grants: form.grants } : {}),
         ...(user?.isSuperAdmin
           ? {
               scope: form.scope,
@@ -204,6 +218,14 @@ export function GateOperatorsPage() {
                       : {})}
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label>Extra permissions</Label>
+                  <OperatorGrantsField
+                    idPrefix="go"
+                    value={form.grants}
+                    onChange={(grants) => setForm((f) => ({ ...f, grants }))}
+                  />
+                </div>
                 <div className="flex justify-end space-x-2 pt-2">
                   <Button type="button" variant="outline" onClick={() => setIsAddOpen(false)}>
                     Cancel
@@ -300,6 +322,14 @@ export function GateOperatorsPage() {
                     >
                       <KeyRound className="h-4 w-4 mr-1.5" /> Reset PIN
                     </Button>
+                    <div className="col-span-2">
+                      <OperatorGrantsField
+                        idPrefix={`go-${op._id}`}
+                        value={op.grants ?? []}
+                        disabled={setGrants.isPending}
+                        onChange={(grants) => setGrants.mutate({ id: op._id, grants })}
+                      />
+                    </div>
                     <Button
                       variant="outline"
                       size="sm"

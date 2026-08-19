@@ -1023,10 +1023,18 @@ export class ApiClient {
       scope?: 'platform' | 'organizer';
       vendorId?: string;
       eventIds?: string[];
+      /** Per-person capabilities on top of the role — see OPERATOR_GRANTS. */
+      grants?: OperatorGrant[];
     }): Promise<IssuedGateCredentials> =>
       this.request<IssuedGateCredentials>(`/tickets/gate-operators`, {
         method: 'POST',
         body: JSON.stringify(data),
+      }),
+
+    setGrants: async (id: string, grants: OperatorGrant[]): Promise<GateOperatorRow> =>
+      this.request<GateOperatorRow>(`/tickets/gate-operators/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ grants }),
       }),
 
     setEvents: async (id: string, eventIds: string[]): Promise<GateOperatorRow> =>
@@ -1063,10 +1071,17 @@ export class ApiClient {
       vendorId?: string;
       /** Required for organizer scope; platform-scoped cashiers take none. */
       eventId?: string;
+      grants?: OperatorGrant[];
     }): Promise<IssuedCashierCredentials> =>
       this.request<IssuedCashierCredentials>(`/tickets/cashiers`, {
         method: 'POST',
         body: JSON.stringify(data),
+      }),
+
+    setGrants: async (id: string, grants: OperatorGrant[]): Promise<CashierRow> =>
+      this.request<CashierRow>(`/tickets/cashiers/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ grants }),
       }),
 
     resetPin: async (id: string, pin?: string): Promise<{ cashierId: string; pin: string }> =>
@@ -1559,6 +1574,20 @@ export interface ResellerWithdrawal {
   createdAt: string;
 }
 
+/**
+ * Per-person capabilities an organizer can grant to an operator, on top of
+ * whatever their role already carries. Mirrors OperatorGrant in the API; the
+ * server drops any value it doesn't recognise.
+ */
+export type OperatorGrant = 'issue_tags';
+
+export const OPERATOR_GRANT_LABELS: Record<OperatorGrant, { label: string; hint: string }> = {
+  issue_tags: {
+    label: 'Can issue tags',
+    hint: 'Bind a blank NFC tag to an attendee\'s ticket at the tag desk',
+  },
+};
+
 export interface GateOperatorRow {
   _id: string;
   fullName: string;
@@ -1569,6 +1598,7 @@ export interface GateOperatorRow {
   eventIds: string[];
   isActive: boolean;
   loginCode: string;
+  grants?: OperatorGrant[];
   createdAt: string;
 }
 
@@ -1589,6 +1619,7 @@ export interface CashierRow {
   eventId?: string | null;
   isActive: boolean;
   loginCode: string;
+  grants?: OperatorGrant[];
   createdAt: string;
 }
 
