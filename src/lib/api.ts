@@ -1013,6 +1013,30 @@ export class ApiClient {
   };
 
   // Gate Operators endpoints
+  // Tags — the wallets behind the NFC tags at a cashless event. A tag's
+  // identity on the wire is its walletId, never its UID: a UID can be unbound
+  // and reissued to someone else, the wallet is what has continuity.
+  tags = {
+    summary: async (eventId: string): Promise<TagSummary> =>
+      this.request<TagSummary>(`/tickets/events/${eventId}/tags/summary`),
+
+    list: async (
+      eventId: string,
+      params: { limit?: number; cursor?: string; status?: TagStatus; q?: string } = {},
+    ): Promise<{ tags: TagRow[]; hasMore: boolean; nextCursor: string | null }> => {
+      const qs = new URLSearchParams();
+      if (params.limit) qs.set('limit', String(params.limit));
+      if (params.cursor) qs.set('cursor', params.cursor);
+      if (params.status) qs.set('status', params.status);
+      if (params.q) qs.set('q', params.q);
+      const query = qs.toString();
+      return this.request(`/tickets/events/${eventId}/tags${query ? `?${query}` : ''}`);
+    },
+
+    detail: async (eventId: string, walletId: string): Promise<TagDetail> =>
+      this.request<TagDetail>(`/tickets/events/${eventId}/tags/${walletId}`),
+  };
+
   gateOperators = {
     list: async (): Promise<GateOperatorRow[]> =>
       this.request<GateOperatorRow[]>(`/tickets/gate-operators`),
@@ -1587,6 +1611,43 @@ export const OPERATOR_GRANT_LABELS: Record<OperatorGrant, { label: string; hint:
     hint: 'Bind a blank NFC tag to an attendee\'s ticket at the tag desk',
   },
 };
+// ── Tags (the wallets behind an event's NFC tags) ──────────────────────────
+export type TagStatus = 'active' | 'unbound' | 'frozen' | 'closed';
+
+export interface TagSummary {
+  tagsInUse: number;
+  activeTags: number;
+  unboundTags: number;
+  balanceOutstanding: number;
+  cashFundedOutstanding: number;
+  averageBalance: number;
+}
+
+export interface TagRow {
+  walletId: string;
+  bandUid: string | null;
+  status: TagStatus;
+  balance: number;
+  cashFundedBalance: number;
+  holder: { name: string | null; phone: string | null; ticketCode: string | null };
+}
+
+export interface TagBinding {
+  bandUid: string;
+  boundAt: string;
+  boundBy: string | null;
+  unboundAt: string | null;
+  unboundReason: string | null;
+}
+
+export interface TagMovement {
+  kind: 'topup' | 'spend' | 'cashout';
+  amount: number;
+  at: string;
+  label: string;
+}
+
+export type TagDetail = TagRow & { bindings: TagBinding[]; movements: TagMovement[] };
 
 export interface GateOperatorRow {
   _id: string;

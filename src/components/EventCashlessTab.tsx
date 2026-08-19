@@ -17,6 +17,7 @@ import { CreditCard, ArrowDownCircle, ArrowUpCircle, Wallet, Loader2, ArrowRight
 import { TransactionDetailDialog, type TxnDetail } from '@/components/TransactionDetailDialog';
 import { EventStockReport } from '@/components/EventStockReport';
 import { EventStallsPanel } from '@/components/cashless/EventStallsPanel';
+import { EventTagsPanel } from '@/components/cashless/EventTagsPanel';
 import { EventCataloguePanel } from '@/components/cashless/EventCataloguePanel';
 import { CashiersPanel } from '@/components/CashiersPanel';
 import { useAuth } from '@/contexts/AuthContext';
@@ -270,6 +271,7 @@ export function EventCashlessTab({ eventId }: Props) {
       <TabsList>
         <TabsTrigger value="money">Money</TabsTrigger>
         <TabsTrigger value="stock">Stock</TabsTrigger>
+        <TabsTrigger value="tags">Tags</TabsTrigger>
         {showStalls && <TabsTrigger value="stalls">Stalls</TabsTrigger>}
         {showCatalogue && <TabsTrigger value="catalogue">Catalogue</TabsTrigger>}
         {showCashiers && <TabsTrigger value="cashiers">Cashiers</TabsTrigger>}
@@ -277,6 +279,9 @@ export function EventCashlessTab({ eventId }: Props) {
       <TabsContent value="money">{moneyBody}</TabsContent>
       <TabsContent value="stock">
         <EventStockReport eventId={eventId} />
+      </TabsContent>
+      <TabsContent value="tags">
+        <EventTagsPanel eventId={eventId} />
       </TabsContent>
       {showStalls && (
         <TabsContent value="stalls">

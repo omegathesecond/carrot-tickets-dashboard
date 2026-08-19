@@ -4,7 +4,7 @@
  * rand and converted here so the API only ever sees integer cents.
  */
 
-/** Format integer cents as `R1,234.50`. */
+/** Format integer cents as rand, using the en-ZA locale's own separators. */
 export function fmtR(cents: number): string {
   return `R${((cents ?? 0) / 100).toLocaleString('en-ZA', {
     minimumFractionDigits: 2,
