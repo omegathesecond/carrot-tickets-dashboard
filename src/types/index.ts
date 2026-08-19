@@ -79,6 +79,7 @@ export interface PaymentMethodSettings {
   cashEnabled: boolean;
   peachCardEnabled: boolean;
   deltapayEnabled: boolean;
+  yocoEnabled: boolean;
   defaultResellerCommissionPercent: number;
   platformFeePercent: number;
   // Buyer-paid FLAT service fee (E) per online method (added on top at checkout).
@@ -86,6 +87,7 @@ export interface PaymentMethodSettings {
   momoServiceFee: number;
   cardServiceFee: number;
   deltapayServiceFee: number;
+  yocoServiceFee: number;
 }
 
 // Event Types
