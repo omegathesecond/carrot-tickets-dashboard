@@ -64,7 +64,13 @@ function BoardSection({ eventId }: { eventId: string }) {
 
   return (
     <Card>
-      <CardHeader><CardTitle className="text-base">Live stock</CardTitle></CardHeader>
+      <CardHeader>
+        <CardTitle className="text-base">Live stock</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          What each product sold, what it took, and what is left on the shelf. Only itemised
+          charges carry a product line — see the split below for the rest.
+        </p>
+      </CardHeader>
       <CardContent>
         <SectionState loading={isLoading} error={!!error} empty={!data || data.byProduct.length === 0} emptyText="No stock loaded yet.">
           <div className="overflow-x-auto">
@@ -73,7 +79,9 @@ function BoardSection({ eventId }: { eventId: string }) {
                 <TableRow>
                   <TableHead className="w-8" />
                   <TableHead>Product</TableHead>
+                  <TableHead className="text-right">Sold</TableHead>
                   <TableHead className="text-right">On hand</TableHead>
+                  <TableHead className="text-right">Sales</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
               </TableHeader>
@@ -87,14 +95,18 @@ function BoardSection({ eventId }: { eventId: string }) {
                       <TableRow className={expandable ? 'cursor-pointer hover:bg-slate-50' : ''} onClick={expandable ? () => toggle(p.productId) : undefined}>
                         <TableCell>{expandable ? (open ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />) : null}</TableCell>
                         <TableCell className="font-medium">{p.productName}</TableCell>
+                        <TableCell className="text-right">{p.unitsSold}</TableCell>
                         <TableCell className="text-right font-semibold">{p.totalOnHand}</TableCell>
+                        <TableCell className="text-right font-semibold">{fmtR(p.revenue)}</TableCell>
                         <TableCell><StatusPill status={p.status} /></TableCell>
                       </TableRow>
                       {open && stalls.map((b) => (
                         <TableRow key={`${p.productId}-${b.merchantId}`} className="bg-slate-50/50 text-sm">
                           <TableCell />
                           <TableCell className="pl-6 text-muted-foreground">{b.merchantName}</TableCell>
+                          <TableCell className="text-right">{b.unitsSold}</TableCell>
                           <TableCell className="text-right">{b.onHand}</TableCell>
+                          <TableCell className="text-right">{fmtR(b.revenue)}</TableCell>
                           <TableCell><StatusPill status={b.status} /></TableCell>
                         </TableRow>
                       ))}

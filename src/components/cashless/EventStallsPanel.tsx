@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Plus, Power, Store, ChevronRight } from 'lucide-react';
+import { Plus, Power, Store } from 'lucide-react';
 import { apiClient, type MerchantRow } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { ViewAffordance } from '@/components/ViewAffordance';
 
 const initialsOf = (name: string) =>
   name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
@@ -142,11 +143,10 @@ export function EventStallsPanel({ eventId }: { eventId: string }) {
                       <p className="font-semibold text-slate-900 leading-tight truncate group-hover:text-orange-600">{v.name}</p>
                       <p className="text-xs text-slate-500 mt-0.5">{v.commissionPercent}% commission</p>
                     </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <Badge variant={active ? 'default' : 'secondary'}>{active ? 'Active' : 'Disabled'}</Badge>
-                      <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-orange-400" />
-                    </div>
+                    <Badge variant={active ? 'default' : 'secondary'}>{active ? 'Active' : 'Disabled'}</Badge>
                   </div>
+
+                  <ViewAffordance label="View stall" />
 
                   <div className="mt-auto">
                     <Button variant="outline" size="sm" disabled={pendingActiveId === v._id}

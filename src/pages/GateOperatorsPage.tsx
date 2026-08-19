@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { CalendarRange, KeyRound, Plus, Power, UserPlus } from 'lucide-react';
@@ -19,6 +20,7 @@ import { OperatorCredentialsDialog } from '@/components/OperatorCredentialsDialo
 import { EventPicker } from '@/components/EventPicker';
 import { OperatorGrantsField } from '@/components/OperatorGrantsField';
 import { OperatorEventsDialog } from '@/components/OperatorEventsDialog';
+import { ViewAffordance } from '@/components/ViewAffordance';
 
 const initialsOf = (name: string) =>
   name
@@ -48,6 +50,7 @@ const DEFAULT_FORM: AddForm = {
 
 export function GateOperatorsPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [form, setForm] = useState<AddForm>(DEFAULT_FORM);
@@ -270,14 +273,18 @@ export function GateOperatorsPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {operators.map((op: GateOperatorRow) => (
-              <Card key={op._id} className={op.isActive ? '' : 'opacity-75'}>
+              <Card
+                key={op._id}
+                onClick={() => navigate(`/gate-operators/${op._id}`)}
+                className={`group transition hover:shadow-md cursor-pointer ${op.isActive ? '' : 'opacity-75'}`}
+              >
                 <CardContent className="pt-5 flex flex-col gap-4 h-full">
                   <div className="flex items-start gap-3">
                     <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-amber-500 text-white font-bold">
                       {initialsOf(op.fullName)}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-slate-900 leading-tight truncate">{op.fullName}</p>
+                      <p className="font-semibold text-slate-900 leading-tight truncate group-hover:text-orange-600">{op.fullName}</p>
                       {op.phoneNumber && (
                         <p className="text-xs text-slate-500 mt-0.5">{op.phoneNumber}</p>
                       )}
@@ -306,7 +313,9 @@ export function GateOperatorsPage() {
                     </p>
                   </div>
 
-                  <div className="mt-auto grid grid-cols-2 gap-2">
+                  <ViewAffordance label="View activity" />
+
+                  <div className="mt-auto grid grid-cols-2 gap-2" onClick={(e) => e.stopPropagation()}>
                     <Button
                       variant="outline"
                       size="sm"
