@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { publicEventUrl } from '@/lib/eventUrl';
@@ -25,6 +25,8 @@ import { ImageUploadInput } from '@/components/ImageUploadInput';
 import { GalleryManager } from '@/components/GalleryManager';
 import { EventAnalyticsTab } from '@/components/EventAnalyticsTab';
 import { EventCreatorTab } from '@/components/EventCreatorTab';
+import { EventCashlessTab } from '@/components/EventCashlessTab';
+import { EventCashlessSetting } from '@/components/cashless/EventCashlessSetting';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ChannelsManager } from '@/components/community/ChannelsManager';
 import { AnnouncementComposer } from '@/components/community/AnnouncementComposer';
@@ -41,7 +43,7 @@ import { getSaleTicketType, getSaleTicketCodes } from '@/lib/sales';
 import {
   ArrowLeft, Calendar, MapPin, Users, CheckCircle, Clock,
   Edit, Trash2, Eye, EyeOff, QrCode, Plus, TrendingUp, TrendingDown, Image, BarChart3, UserCircle,
-  Share2, Link as LinkIcon, MessagesSquare
+  Share2, Link as LinkIcon, MessagesSquare, CreditCard
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -56,6 +58,15 @@ export function EventDetailsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') ?? 'overview';
+  const setActiveTab = (v: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('tab', v);
+    // Switching the top-level tab drops any sub-tab the cashless pane set.
+    if (v !== 'cashless') next.delete('sub');
+    setSearchParams(next, { replace: true });
+  };
   const [ticketDialogOpen, setTicketDialogOpen] = useState(false);
   const [editingTicket, setEditingTicket] = useState<TicketType | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -557,8 +568,15 @@ export function EventDetailsPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="overview" className="w-full">
-        <TabsList className={`grid w-full max-w-lg ${canManageCommunity ? 'grid-cols-4' : 'grid-cols-3'}`}>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList
+          className={`grid w-full max-w-2xl ${
+            // overview + analytics + creator, plus community and/or cashless when shown
+            { 3: 'grid-cols-3', 4: 'grid-cols-4', 5: 'grid-cols-5' }[
+              3 + (canManageCommunity ? 1 : 0) + (event?.cashless ? 1 : 0)
+            ]
+          }`}
+        >
           <TabsTrigger value="overview" className="flex items-center gap-2">
             <Calendar className="h-4 w-4" />
             Overview
@@ -571,6 +589,12 @@ export function EventDetailsPage() {
             <UserCircle className="h-4 w-4" />
             Creator
           </TabsTrigger>
+          {event?.cashless && (
+            <TabsTrigger value="cashless" className="flex items-center gap-2">
+              <CreditCard className="h-4 w-4" />
+              Cashless
+            </TabsTrigger>
+          )}
           {canManageCommunity && (
             <TabsTrigger value="community" className="flex items-center gap-2">
               <MessagesSquare className="h-4 w-4" />
@@ -809,6 +833,11 @@ export function EventDetailsPage() {
               </Button>
             </CardContent>
           </Card>
+
+          {/* Cashless Card — admin-held switch, organizer request path. Sits
+              with Ticketing because it's the other "how does money work at
+              this event" decision. */}
+          {event && <EventCashlessSetting event={event} isAdmin={isAdmin} />}
 
           {/* Ticket Types Card — Carrot's own tier editor. Not applicable
               when the organizer sells tickets externally: there's nothing
@@ -1163,6 +1192,13 @@ export function EventDetailsPage() {
         <TabsContent value="creator" className="mt-6">
           <EventCreatorTab eventId={id!} />
         </TabsContent>
+
+        {/* Cashless Tab — organizer's money report for a cashless event */}
+        {event?.cashless && (
+          <TabsContent value="cashless" className="mt-6">
+            <EventCashlessTab eventId={id!} />
+          </TabsContent>
+        )}
 
         {/* Community Tab — channels, announcements, member moderation.
             "Recent messages" (per-channel delete/pin panel) is deferred to

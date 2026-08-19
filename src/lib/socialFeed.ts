@@ -1,11 +1,19 @@
 import type { AuthUser } from '@/types';
 import { apiClient } from '@/lib/api';
 import { canManageEvents } from '@/lib/permissions';
+import { LANDING_URL } from '@/lib/constants';
 
 // The organizer's brand social feed lives on the consumer site (same login).
 // This is the single door from the dashboard so organizers don't need a 2nd URL.
-export const SOCIAL_LOGIN_URL = 'https://carrottickets.com/brand/login';
-export const SOCIAL_SSO_URL = 'https://carrottickets.com/brand/sso';
+//
+// Built from the env-aware LANDING_URL so the SSO handoff is minted AND exchanged
+// on the SAME environment. A DEV dashboard (VITE_LANDING_URL=dev.carrottickets.com)
+// must send the handoff to the DEV landing → DEV api; hardcoding the prod host made
+// dev mint on dev-api (dev JWT secret) but exchange on prod api (prod JWT secret),
+// so verification failed and surfaced as "this sign-in link has expired". Prod has
+// no VITE_LANDING_URL, so it falls back to www.carrottickets.com (unchanged).
+export const SOCIAL_LOGIN_URL = `${LANDING_URL}/brand/login`;
+export const SOCIAL_SSO_URL = `${LANDING_URL}/brand/sso`;
 
 /**
  * Whether this account should LAND on the brand social feed after login.

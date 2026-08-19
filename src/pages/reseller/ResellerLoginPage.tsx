@@ -48,11 +48,11 @@ export function ResellerLoginPage() {
               <Label htmlFor="loginCode">User ID</Label>
               <Input
                 id="loginCode"
-                inputMode="numeric"
+                className="uppercase"
                 autoComplete="off"
-                placeholder="6-digit user ID"
+                placeholder="6-character user ID"
                 value={loginCode}
-                onChange={(e) => setLoginCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                onChange={(e) => setLoginCode(e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 6))}
                 required
               />
             </div>

@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeft, KeyRound, Plus, Power, UserPlus } from 'lucide-react';
+import { ArrowLeft, CalendarRange, KeyRound, Plus, Power, UserPlus } from 'lucide-react';
 import { useResellerAuth } from '@/contexts/ResellerAuthContext';
-import { resellerOperatorsApi } from '@/lib/resellerApi';
+import { resellerApi, resellerOperatorsApi, type OperatorAdminRow } from '@/lib/resellerApi';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,8 +17,16 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { OperatorCredentialsDialog } from '@/components/OperatorCredentialsDialog';
+import { EventPicker, type PickableEvent } from '@/components/EventPicker';
+import { OperatorEventsDialog } from '@/components/OperatorEventsDialog';
 
 const MANAGER_ROLES = ['reseller_admin', 'reseller_hub_manager'];
+
+/** The reseller portal authenticates with its own token against its own route. */
+const searchResellerEvents = async (search: string): Promise<PickableEvent[]> => {
+  const events = await resellerApi.getEvents(search || undefined);
+  return events.map((event) => ({ id: event.id, name: event.name, venue: event.venue }));
+};
 
 const ROLE_LABELS: Record<string, string> = {
   reseller_admin: 'Admin',
@@ -38,8 +46,9 @@ export function ResellerOperatorsPage() {
   const { operator } = useResellerAuth();
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [form, setForm] = useState({ fullName: '', role: 'reseller_operator' });
+  const [form, setForm] = useState({ fullName: '', role: 'reseller_operator', eventIds: [] as string[] });
   const [issued, setIssued] = useState<{ title: string; loginCode?: string; pin: string } | null>(null);
+  const [editingEvents, setEditingEvents] = useState<OperatorAdminRow | null>(null);
 
   const { data: operators = [], isLoading } = useQuery({
     queryKey: ['portal-operators'],
@@ -47,13 +56,17 @@ export function ResellerOperatorsPage() {
   });
 
   const createOperator = useMutation({
-    mutationFn: () => resellerOperatorsApi.create({ fullName: form.fullName, role: form.role }),
+    mutationFn: () => resellerOperatorsApi.create({
+      fullName: form.fullName,
+      role: form.role,
+      ...(form.eventIds.length ? { eventIds: form.eventIds } : {}),
+    }),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['portal-operators'] });
       toast.success('Operator created');
       setIssued({ title: 'Operator created', loginCode: res.loginCode, pin: res.pin });
       setIsAddOpen(false);
-      setForm({ fullName: '', role: 'reseller_operator' });
+      setForm({ fullName: '', role: 'reseller_operator', eventIds: [] });
     },
     onError: (e: any) => toast.error(e.message || 'Failed to create operator'),
   });
@@ -62,6 +75,17 @@ export function ResellerOperatorsPage() {
     mutationFn: (id: string) => resellerOperatorsApi.resetPin(id),
     onSuccess: (res) => setIssued({ title: 'PIN reset', pin: res.pin }),
     onError: (e: any) => toast.error(e.message || 'Failed to reset PIN'),
+  });
+
+  const setEvents = useMutation({
+    mutationFn: ({ id, eventIds }: { id: string; eventIds: string[] }) =>
+      resellerOperatorsApi.setEvents(id, eventIds),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['portal-operators'] });
+      toast.success('Events updated');
+      setEditingEvents(null);
+    },
+    onError: (e: any) => toast.error(e.message || 'Failed to update events'),
   });
 
   const setActive = useMutation({
@@ -128,6 +152,14 @@ export function ResellerOperatorsPage() {
                     </Select>
                   </div>
                 )}
+                <div className="space-y-2">
+                  <Label>Events</Label>
+                  <EventPicker
+                    value={form.eventIds}
+                    onChange={(eventIds) => setForm((f) => ({ ...f, eventIds }))}
+                    searchEvents={searchResellerEvents}
+                  />
+                </div>
                 <div className="flex justify-end space-x-2 pt-2">
                   <Button type="button" variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
                   <Button type="submit" disabled={createOperator.isPending || !form.fullName.trim()}
@@ -185,7 +217,17 @@ export function ResellerOperatorsPage() {
                     <p className="font-mono text-sm text-slate-800">{op.loginCode}</p>
                   </div>
 
+                  <div className="rounded-lg bg-slate-50 px-3 py-2">
+                    <p className="text-[11px] uppercase tracking-wide text-slate-400">Events</p>
+                    <p className="text-sm text-slate-800">
+                      {op.eventIds?.length ? `${op.eventIds.length} assigned` : 'All events'}
+                    </p>
+                  </div>
+
                   <div className="mt-auto grid grid-cols-2 gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setEditingEvents(op)}>
+                      <CalendarRange className="h-4 w-4 mr-1.5" /> Events
+                    </Button>
                     <Button
                       variant="outline" size="sm"
                       disabled={resetPin.isPending}
@@ -197,9 +239,9 @@ export function ResellerOperatorsPage() {
                       variant="outline" size="sm"
                       disabled={pendingActiveId === op._id}
                       onClick={() => setActive.mutate({ id: op._id, isActive: !op.isActive })}
-                      className={op.isActive
+                      className={`col-span-2 ${op.isActive
                         ? 'text-red-600 hover:text-red-700 hover:border-red-300'
-                        : 'text-emerald-600 hover:text-emerald-700 hover:border-emerald-300'}
+                        : 'text-emerald-600 hover:text-emerald-700 hover:border-emerald-300'}`}
                     >
                       <Power className="h-4 w-4 mr-1.5" />
                       {op.isActive ? 'Disable' : 'Enable'}
@@ -211,6 +253,18 @@ export function ResellerOperatorsPage() {
           </div>
         )}
       </div>
+
+      {editingEvents && (
+        <OperatorEventsDialog
+          open={!!editingEvents}
+          onClose={() => setEditingEvents(null)}
+          personName={editingEvents.fullName}
+          initialEventIds={editingEvents.eventIds ?? []}
+          isSaving={setEvents.isPending}
+          searchEvents={searchResellerEvents}
+          onSave={(eventIds) => setEvents.mutate({ id: editingEvents._id, eventIds })}
+        />
+      )}
 
       {issued && (
         <OperatorCredentialsDialog

@@ -51,6 +51,8 @@ import type {
   TripStatus,
   TripDetail,
   TransportBooking,
+  CashlessSummary,
+  CashlessTxnsResult,
 } from '@/types';
 import type { WristbandDesignDoc } from '@/lib/wristband/design';
 
@@ -329,6 +331,7 @@ export class ApiClient {
       if (params?.limit) query.append('limit', params.limit.toString());
       if (params?.status) query.append('status', params.status);
       if (params?.search) query.append('search', params.search);
+      if (params?.vendorId) query.append('vendorId', params.vendorId);
 
       return this.request<PaginatedResponse<Event>>(
         `/tickets/events?${query.toString()}`
@@ -344,10 +347,75 @@ export class ApiClient {
       return this.request<EventCreatorSummary>(`/tickets/events/${id}/creator`);
     },
 
+    // Organizer cashless report — money moved at ONE cashless event. Totals
+    // (circulated / spent / withdrawn / left-behind) + per-vendor takings +
+    // per-cashier activity. Ownership is enforced server-side.
+    getEventCashlessSummary: async (id: string): Promise<CashlessSummary> => {
+      return this.request<CashlessSummary>(`/tickets/events/${id}/cashless/summary`);
+    },
+
+    // Full cashless transaction log for one event — top-ups, cash-outs and
+    // vendor charges, paginated. `type` filters to one kind.
+    getEventCashlessTransactions: async (
+      id: string,
+      params: { type?: 'topup' | 'withdrawal' | 'purchase'; page?: number; limit?: number } = {},
+    ): Promise<CashlessTxnsResult> => {
+      const q = new URLSearchParams();
+      if (params.type) q.set('type', params.type);
+      if (params.page) q.set('page', String(params.page));
+      if (params.limit) q.set('limit', String(params.limit));
+      const qs = q.toString();
+      return this.request<CashlessTxnsResult>(
+        `/tickets/events/${id}/cashless/transactions${qs ? `?${qs}` : ''}`,
+      );
+    },
+
+    // ---- Cashless STOCK reporting (Slice 4 endpoints; VIEW_REVENUE, ownership server-side) ----
+    getEventStockBoard: async (id: string): Promise<StockBoard> =>
+      this.request<StockBoard>(`/tickets/events/${id}/stock/board`),
+
+    getEventStockReconciliation: async (id: string): Promise<StockReconciliation> =>
+      this.request<StockReconciliation>(`/tickets/events/${id}/stock/reconciliation`),
+
+    getEventStockDashboard: async (id: string): Promise<StockDashboard> =>
+      this.request<StockDashboard>(`/tickets/events/${id}/stock/dashboard`),
+
+    getEventStockMovements: async (
+      id: string,
+      params: { productId?: string; merchantId?: string; cursor?: string; limit?: number } = {},
+    ): Promise<StockMovementsPage> => {
+      const q = new URLSearchParams();
+      if (params.productId) q.set('productId', params.productId);
+      if (params.merchantId) q.set('merchantId', params.merchantId);
+      if (params.cursor) q.set('cursor', params.cursor);
+      if (params.limit) q.set('limit', String(params.limit));
+      const qs = q.toString();
+      return this.request<StockMovementsPage>(
+        `/tickets/events/${id}/stock/movements${qs ? `?${qs}` : ''}`,
+      );
+    },
+
     createEvent: async (data: EventFormData): Promise<Event> => {
       return this.request<Event>(`/tickets/events`, {
         method: 'POST',
         body: JSON.stringify(data),
+      });
+    },
+
+    // Admin-only in practice: the API 403s `cashless` from anyone else, on
+    // create as well as update (EventService gates it at every event status).
+    setCashless: async (id: string, cashless: boolean): Promise<Event> => {
+      return this.request<Event>(`/tickets/events/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ cashless }),
+      });
+    },
+
+    // The organizer's side of that gate — ask Carrot to turn it on.
+    requestCashless: async (id: string, note?: string): Promise<Event> => {
+      return this.request<Event>(`/tickets/events/${id}/cashless-request`, {
+        method: 'POST',
+        body: JSON.stringify(note ? { note } : {}),
       });
     },
 
@@ -721,10 +789,11 @@ export class ApiClient {
 
   // Organizers admin endpoints (super-admin only)
   organizers = {
-    list: async (params?: { search?: string; status?: string; page?: number; limit?: number }): Promise<OrganizersListResponse> => {
+    list: async (params?: { search?: string; status?: string; operatorType?: string; page?: number; limit?: number }): Promise<OrganizersListResponse> => {
       const query = new URLSearchParams();
       if (params?.search) query.append('search', params.search);
       if (params?.status) query.append('status', params.status);
+      if (params?.operatorType) query.append('operatorType', params.operatorType);
       if (params?.page) query.append('page', String(params.page));
       if (params?.limit) query.append('limit', String(params.limit));
       return this.request<OrganizersListResponse>(`/tickets/admin/organizers?${query.toString()}`);
@@ -944,6 +1013,46 @@ export class ApiClient {
   };
 
   // Gate Operators endpoints
+  // Tags — the wallets behind the NFC tags at a cashless event. A tag's
+  // identity on the wire is its walletId, never its UID: a UID can be unbound
+  // and reissued to someone else, the wallet is what has continuity.
+  tags = {
+    summary: async (eventId: string): Promise<TagSummary> =>
+      this.request<TagSummary>(`/tickets/events/${eventId}/tags/summary`),
+
+    list: async (
+      eventId: string,
+      params: { limit?: number; cursor?: string; status?: TagStatus; q?: string } = {},
+    ): Promise<{ tags: TagRow[]; hasMore: boolean; nextCursor: string | null }> => {
+      const qs = new URLSearchParams();
+      if (params.limit) qs.set('limit', String(params.limit));
+      if (params.cursor) qs.set('cursor', params.cursor);
+      if (params.status) qs.set('status', params.status);
+      if (params.q) qs.set('q', params.q);
+      const query = qs.toString();
+      return this.request(`/tickets/events/${eventId}/tags${query ? `?${query}` : ''}`);
+    },
+
+    detail: async (eventId: string, walletId: string): Promise<TagDetail> =>
+      this.request<TagDetail>(`/tickets/events/${eventId}/tags/${walletId}`),
+
+    deactivate: async (eventId: string, walletId: string, reason: string): Promise<{ walletId: string; bandUid: string | null }> =>
+      this.request(`/tickets/events/${eventId}/tags/${walletId}/deactivate`, {
+        method: 'POST', body: JSON.stringify({ reason }),
+      }),
+
+    reissue: async (eventId: string, walletId: string, bandUid: string): Promise<{ walletId: string; bandUid: string | null }> =>
+      this.request(`/tickets/events/${eventId}/tags/${walletId}/reissue`, {
+        method: 'POST', body: JSON.stringify({ bandUid }),
+      }),
+
+    // amount is integer cents; clientTxnId makes a double submit idempotent.
+    refund: async (eventId: string, walletId: string, amount: number, clientTxnId: string): Promise<{ walletId: string; balance: number }> =>
+      this.request(`/tickets/events/${eventId}/tags/${walletId}/refund`, {
+        method: 'POST', body: JSON.stringify({ amount, clientTxnId }),
+      }),
+  };
+
   gateOperators = {
     list: async (): Promise<GateOperatorRow[]> =>
       this.request<GateOperatorRow[]>(`/tickets/gate-operators`),
@@ -953,10 +1062,25 @@ export class ApiClient {
       phoneNumber?: string;
       scope?: 'platform' | 'organizer';
       vendorId?: string;
+      eventIds?: string[];
+      /** Per-person capabilities on top of the role — see OPERATOR_GRANTS. */
+      grants?: OperatorGrant[];
     }): Promise<IssuedGateCredentials> =>
       this.request<IssuedGateCredentials>(`/tickets/gate-operators`, {
         method: 'POST',
         body: JSON.stringify(data),
+      }),
+
+    setGrants: async (id: string, grants: OperatorGrant[]): Promise<GateOperatorRow> =>
+      this.request<GateOperatorRow>(`/tickets/gate-operators/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ grants }),
+      }),
+
+    setEvents: async (id: string, eventIds: string[]): Promise<GateOperatorRow> =>
+      this.request<GateOperatorRow>(`/tickets/gate-operators/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ eventIds }),
       }),
 
     resetPin: async (id: string, pin?: string): Promise<{ operatorId: string; pin: string }> =>
@@ -969,6 +1093,171 @@ export class ApiClient {
       this.request<GateOperatorRow>(`/tickets/gate-operators/${id}`, {
         method: 'PATCH',
         body: JSON.stringify({ isActive }),
+      }),
+  };
+
+  // Cashiers — the organizer's in-venue money desk staff (top-up + cash-out).
+  // A cashier belongs to exactly ONE event (immutable at the API), unlike
+  // GateOperator/ResellerOperator's multi-event `eventIds` set.
+  cashiers = {
+    /** Omit eventId for the unscoped list (super-admin platform page). */
+    list: async (eventId?: string): Promise<CashierRow[]> =>
+      this.request<CashierRow[]>(`/tickets/cashiers${eventId ? `?eventId=${eventId}` : ''}`),
+
+    create: async (data: {
+      fullName: string;
+      phoneNumber?: string;
+      scope?: 'platform' | 'organizer';
+      vendorId?: string;
+      /** Required for organizer scope; platform-scoped cashiers take none. */
+      eventId?: string;
+      grants?: OperatorGrant[];
+    }): Promise<IssuedCashierCredentials> =>
+      this.request<IssuedCashierCredentials>(`/tickets/cashiers`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    setGrants: async (id: string, grants: OperatorGrant[]): Promise<CashierRow> =>
+      this.request<CashierRow>(`/tickets/cashiers/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ grants }),
+      }),
+
+    resetPin: async (id: string, pin?: string): Promise<{ cashierId: string; pin: string }> =>
+      this.request<{ cashierId: string; pin: string }>(`/tickets/cashiers/${id}/reset-pin`, {
+        method: 'POST',
+        body: JSON.stringify(pin ? { pin } : {}),
+      }),
+
+    setActive: async (id: string, isActive: boolean): Promise<CashierRow> =>
+      this.request<CashierRow>(`/tickets/cashiers/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ isActive }),
+      }),
+
+    transactions: async (id: string, eventId?: string): Promise<CashierDetail> =>
+      this.request<CashierDetail>(
+        `/tickets/cashiers/${id}/transactions${eventId ? `?eventId=${eventId}` : ''}`,
+      ),
+  };
+
+  // Vendors (in-event merchants) — the stalls that charge bands. Scoped to one event.
+  // A stall holds no credentials of its own (see MerchantOperator below) —
+  // create/update just return the merchant record.
+  merchants = {
+    list: async (eventId: string): Promise<MerchantRow[]> =>
+      this.request<MerchantRow[]>(`/tickets/merchants?eventId=${eventId}`),
+
+    create: async (data: {
+      eventId: string;
+      name: string;
+      commissionPercent?: number;
+    }): Promise<{ merchant: MerchantRow }> =>
+      this.request<{ merchant: MerchantRow }>(`/tickets/merchants`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    update: async (
+      id: string,
+      data: { name?: string; commissionPercent?: number; isActive?: boolean },
+    ): Promise<MerchantRow> =>
+      this.request<MerchantRow>(`/tickets/merchants/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+
+    transactions: async (id: string, limit = 100): Promise<MerchantDetail> =>
+      this.request<MerchantDetail>(`/tickets/merchants/${id}/transactions?limit=${limit}`),
+  };
+
+  // MerchantOperators — the people who actually work a stall's till, each
+  // with their own loginCode + PIN so a charge names a human (MANAGE_ACCESS;
+  // ownership is enforced server-side off the stall's event, never the body).
+  merchantOperators = {
+    list: async (merchantId: string): Promise<{ operators: MerchantOperatorRow[] }> =>
+      this.request<{ operators: MerchantOperatorRow[] }>(`/tickets/merchants/${merchantId}/operators`),
+
+    create: async (
+      merchantId: string,
+      data: { fullName: string; phoneNumber?: string },
+    ): Promise<IssuedMerchantOperatorCredentials> =>
+      this.request<IssuedMerchantOperatorCredentials>(`/tickets/merchants/${merchantId}/operators`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    update: async (
+      id: string,
+      data: { fullName?: string; isActive?: boolean },
+    ): Promise<{ operator: MerchantOperatorRow }> =>
+      this.request<{ operator: MerchantOperatorRow }>(`/tickets/merchant-operators/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+
+    resetPin: async (id: string): Promise<{ operatorId: string; pin: string }> =>
+      this.request<{ operatorId: string; pin: string }>(`/tickets/merchant-operators/${id}/reset-pin`, {
+        method: 'POST',
+      }),
+  };
+
+  // Cashless STOCK management (Slices 1/3; MANAGE_STOCK, ownership server-side) —
+  // product catalogue + per-bar stock ops for ONE event.
+  stock = {
+    listProducts: async (eventId: string): Promise<StockProductRow[]> =>
+      this.request<StockProductRow[]>(`/tickets/events/${eventId}/products`),
+
+    createProduct: async (eventId: string, data: NewProduct): Promise<StockProductRow> =>
+      this.request<StockProductRow>(`/tickets/events/${eventId}/products`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    updateProduct: async (
+      productId: string,
+      data: UpdateProduct,
+    ): Promise<StockProductRow> =>
+      this.request<StockProductRow>(`/tickets/products/${productId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+
+    receive: async (
+      eventId: string,
+      data: { merchantId: string; productId: string; quantity: number; unit: 'unit' | 'pack'; note?: string },
+    ): Promise<{ onHand: number; movementId: string }> =>
+      this.request(`/tickets/events/${eventId}/stock/receive`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    transfer: async (
+      eventId: string,
+      data: { productId: string; fromMerchantId: string; toMerchantId: string; qty: number; note?: string },
+    ): Promise<{ transferId: string; fromOnHand: number; toOnHand: number }> =>
+      this.request(`/tickets/events/${eventId}/stock/transfer`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    recordCount: async (
+      eventId: string,
+      data: { merchantId: string; productId: string; countedOnHand: number; phase?: string },
+    ): Promise<{ countId: string; expectedOnHand: number; countedOnHand: number; variance: number; onHand: number }> =>
+      this.request(`/tickets/events/${eventId}/stock/count`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    setThreshold: async (
+      eventId: string,
+      data: { merchantId: string; productId: string; lowStockThreshold: number | null },
+    ): Promise<{ merchantId: string; productId: string; lowStockThreshold: number | null }> =>
+      this.request(`/tickets/events/${eventId}/stock/threshold`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
       }),
   };
 
@@ -1325,14 +1614,68 @@ export interface ResellerWithdrawal {
   createdAt: string;
 }
 
+/**
+ * Per-person capabilities an organizer can grant to an operator, on top of
+ * whatever their role already carries. Mirrors OperatorGrant in the API; the
+ * server drops any value it doesn't recognise.
+ */
+export type OperatorGrant = 'issue_tags';
+
+export const OPERATOR_GRANT_LABELS: Record<OperatorGrant, { label: string; hint: string }> = {
+  issue_tags: {
+    label: 'Can issue tags',
+    hint: 'Bind a blank NFC tag to an attendee\'s ticket at the tag desk',
+  },
+};
+// ── Tags (the wallets behind an event's NFC tags) ──────────────────────────
+export type TagStatus = 'active' | 'unbound' | 'frozen' | 'closed';
+
+export interface TagSummary {
+  tagsInUse: number;
+  activeTags: number;
+  unboundTags: number;
+  balanceOutstanding: number;
+  cashFundedOutstanding: number;
+  averageBalance: number;
+}
+
+export interface TagRow {
+  walletId: string;
+  bandUid: string | null;
+  status: TagStatus;
+  balance: number;
+  cashFundedBalance: number;
+  holder: { name: string | null; phone: string | null; ticketCode: string | null };
+}
+
+export interface TagBinding {
+  bandUid: string;
+  boundAt: string;
+  boundBy: string | null;
+  unboundAt: string | null;
+  unboundReason: string | null;
+}
+
+export interface TagMovement {
+  kind: 'topup' | 'spend' | 'cashout';
+  amount: number;
+  at: string;
+  label: string;
+}
+
+export type TagDetail = TagRow & { bindings: TagBinding[]; movements: TagMovement[] };
+
 export interface GateOperatorRow {
   _id: string;
   fullName: string;
   phoneNumber?: string;
   scope: 'platform' | 'organizer';
   vendorId?: string | null;
+  /** Events this person may work. EMPTY = every event of their organizer. */
+  eventIds: string[];
   isActive: boolean;
   loginCode: string;
+  grants?: OperatorGrant[];
   createdAt: string;
 }
 
@@ -1340,6 +1683,233 @@ export interface IssuedGateCredentials {
   operator: GateOperatorRow;
   loginCode: string;
   pin: string;
+}
+
+// ── Cashiers (organizer money desk) ────────────────────────────────────────
+export interface CashierRow {
+  _id: string;
+  fullName: string;
+  phoneNumber?: string;
+  scope: 'platform' | 'organizer';
+  vendorId?: string | null;
+  /** The single event this cashier works. Unset only for platform scope. Immutable. */
+  eventId?: string | null;
+  isActive: boolean;
+  loginCode: string;
+  grants?: OperatorGrant[];
+  createdAt: string;
+}
+
+export interface IssuedCashierCredentials {
+  cashier: CashierRow;
+  loginCode: string;
+  pin: string;
+}
+
+export interface CashierDeskTxn {
+  id: string;
+  type: 'topup' | 'withdrawal';
+  amount: number; // cents
+  status: string;
+  at: string; // ISO
+}
+
+export interface CashierDetail {
+  cashier: CashierRow;
+  transactions: CashierDeskTxn[];
+  summary: { toppedUp: number; withdrawn: number; net: number; count: number };
+}
+
+// ── Vendors (in-event merchants) ───────────────────────────────────────────
+// A stall (Merchant) holds no credentials of its own — the people who work
+// its till are MerchantOperators (below), each with their own loginCode+PIN.
+export interface MerchantRow {
+  _id: string;
+  name: string;
+  eventId: string;
+  commissionPercent: number;
+  status: 'active' | 'suspended';
+  createdAt: string;
+}
+
+export interface MerchantOperatorRow {
+  _id: string;
+  fullName: string;
+  phoneNumber?: string;
+  merchantId: string;
+  eventId: string;
+  loginCode: string;
+  isActive: boolean;
+  lastLoginAt?: string;
+  createdAt: string;
+}
+
+export interface IssuedMerchantOperatorCredentials {
+  operator: MerchantOperatorRow;
+  loginCode: string;
+  pin: string;
+}
+
+// ---- Cashless stock (Slices 4/6) — mirror the API payloads exactly ----
+export type StockStatus = 'in_stock' | 'low' | 'sold_out';
+
+export interface ProductCategoryOption {
+  value: string;
+  label: string;
+}
+/** The ProductCategory enum values (api/src/interfaces/stock.interface.ts). */
+export const PRODUCT_CATEGORIES: ProductCategoryOption[] = [
+  { value: 'beer', label: 'Beer' },
+  { value: 'spirits', label: 'Spirits' },
+  { value: 'wine', label: 'Wine' },
+  { value: 'soft_drink', label: 'Soft drink' },
+  { value: 'water', label: 'Water' },
+  { value: 'food', label: 'Food' },
+  { value: 'merch', label: 'Merch' },
+  { value: 'cigarettes', label: 'Cigarettes' },
+  { value: 'other', label: 'Other' },
+];
+
+export interface StockProductRow {
+  _id: string;
+  eventId: string;
+  name: string;
+  category: string;
+  price: number; // ZAR cents, per base unit
+  barcode?: string | null;
+  unitLabel: string;
+  unitsPerPack?: number | null;
+  packLabel?: string | null;
+  imageUrl?: string | null;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NewProduct {
+  name: string;
+  category: string;
+  price: number; // ZAR cents
+  barcode?: string;
+  unitLabel?: string;
+  unitsPerPack?: number;
+  packLabel?: string;
+}
+
+/**
+ * The edit payload — like NewProduct but the optional fields accept `null` so an
+ * organiser can CLEAR a barcode/pack size (the API's updateProductSchema allows
+ * null; omitting the key would leave the old value, a silent no-op).
+ */
+export interface UpdateProduct {
+  name?: string;
+  category?: string;
+  price?: number;
+  barcode?: string | null;
+  unitLabel?: string;
+  unitsPerPack?: number | null;
+  packLabel?: string | null;
+  active?: boolean;
+}
+
+export interface StockBoardBarRow {
+  merchantId: string;
+  merchantName: string;
+  productId: string;
+  productName: string;
+  category: string;
+  onHand: number;
+  lowStockThreshold: number | null;
+  status: StockStatus;
+}
+export interface StockBoardProductRow {
+  productId: string;
+  productName: string;
+  category: string;
+  totalOnHand: number;
+  status: StockStatus;
+}
+export interface StockBoard {
+  event: { id: string; name: string };
+  perBar: StockBoardBarRow[];
+  byProduct: StockBoardProductRow[];
+}
+
+export interface ReconRow {
+  merchantId?: string;
+  merchantName?: string;
+  productId: string;
+  productName: string;
+  opening: number;
+  added: number;
+  transferIn: number;
+  transferOut: number;
+  sold: number;
+  countAdjust: number;
+  spoilage: number;
+  manual: number;
+  expectedClosing: number;
+  physicalCount: number | null;
+  variance: number | null;
+}
+export interface StockReconciliation {
+  event: { id: string; name: string };
+  perBar: ReconRow[];
+  byProduct: ReconRow[];
+  total: Omit<ReconRow, 'merchantId' | 'merchantName' | 'productId' | 'productName'>;
+}
+
+export interface StockDashboard {
+  event: { id: string; name: string };
+  revenueByProduct: { productId: string; productName: string; revenue: number; units: number }[];
+  bestSellers: { productId: string; productName: string; revenue: number; units: number }[];
+  salesByBar: { merchantId: string; merchantName: string; gross: number; fee: number; net: number; count: number }[];
+  salesByEmployee: { staffName: string | null; label: string; gross: number; count: number }[];
+  itemisedSplit: { itemised: { gross: number; count: number }; unitemised: { gross: number; count: number } };
+  peakTimes: { hour: number; units: number }[];
+  variances: { merchantId: string; merchantName: string; productId: string; productName: string; variance: number }[];
+  totalShrinkageUnits: number;
+  predictedStockOut: { merchantId: string; merchantName: string; productId: string; productName: string; onHand: number; ratePerMin: number; minutesToStockOut: number }[];
+  noRecentSales: number;
+}
+
+export interface StockMovementRow {
+  id: string;
+  at: string;
+  merchantId: string;
+  merchantName: string;
+  productId: string;
+  productName: string;
+  delta: number;
+  reason: string;
+  balanceAfter: number;
+  refType: string | null;
+  refId: string | null;
+  byType: string;
+  by: string;
+  note: string | null;
+}
+export interface StockMovementsPage {
+  movements: StockMovementRow[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
+export interface MerchantChargeTxn {
+  id: string;
+  amount: number; // cents
+  fee: number;
+  netAmount: number;
+  bandUid: string;
+  status: string;
+  createdAt: string; // ISO
+}
+
+export interface MerchantDetail {
+  merchant: MerchantRow;
+  event: { id: string; name: string };
+  transactions: MerchantChargeTxn[];
+  summary: { totalCharged: number; totalNet: number; totalFee: number; count: number };
 }
 
 export interface WristbandBatch {

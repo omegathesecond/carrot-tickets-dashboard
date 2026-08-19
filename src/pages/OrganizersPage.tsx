@@ -45,6 +45,24 @@ const STATUS_BADGE: Record<OrganizerVerificationStatus, string> = {
   suspended: 'bg-slate-200 text-slate-700 border-slate-300',
 };
 
+// Vendor "type" filter for the directory. 'events' covers organizers whose
+// operatorType is events/transport/both (i.e. everything that isn't a
+// service business) — the API doesn't take a combined param for that, so we
+// pass no operatorType and filter services out client-side instead.
+type TypeFilterValue = '' | 'events' | 'services';
+
+const TYPE_FILTERS: { value: TypeFilterValue; label: string }[] = [
+  { value: '', label: 'All types' },
+  { value: 'events', label: 'Event organizers' },
+  { value: 'services', label: 'Service businesses' },
+];
+
+function humanize(value: string): string {
+  return value
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 const OPERATOR_TYPES: { value: CreateOrganizerData['operatorType']; label: string }[] = [
   { value: 'events', label: 'Event Organizer' },
   { value: 'transport', label: 'Bus Operator' },
@@ -70,6 +88,7 @@ export function OrganizersPage() {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<'' | OrganizerVerificationStatus>('');
+  const [typeFilter, setTypeFilter] = useState<TypeFilterValue>('');
   const [page, setPage] = useState(1);
 
   // "Reject / suspend needs a reason" dialog state.
@@ -91,8 +110,15 @@ export function OrganizersPage() {
   }, [searchInput]);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['organizers', search, status, page],
-    queryFn: () => apiClient.organizers.list({ search, status: status || undefined, page, limit: PAGE_SIZE }),
+    queryKey: ['organizers', search, status, typeFilter, page],
+    queryFn: () =>
+      apiClient.organizers.list({
+        search,
+        status: status || undefined,
+        operatorType: typeFilter === 'services' ? 'services' : undefined,
+        page,
+        limit: PAGE_SIZE,
+      }),
     placeholderData: keepPreviousData,
   });
 
@@ -149,7 +175,9 @@ export function OrganizersPage() {
     verification.mutate({ id: organizer.id, status: next });
   };
 
-  const organizers = data?.organizers ?? [];
+  const rawOrganizers = data?.organizers ?? [];
+  const organizers =
+    typeFilter === 'events' ? rawOrganizers.filter((o) => o.operatorType !== 'services') : rawOrganizers;
   const pagination = data?.pagination;
   const counts = data?.statusCounts ?? {};
   const totalOrganizers = Object.values(counts).reduce((a, b) => a + (b ?? 0), 0);
@@ -159,7 +187,7 @@ export function OrganizersPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Organizers</h1>
-          <p className="text-sm text-slate-500">Event organizer accounts and their verification status.</p>
+          <p className="text-sm text-slate-500">Organizer &amp; service-business accounts and their verification status.</p>
         </div>
         <Button onClick={() => setCreateOpen(true)}>Add Operator</Button>
       </div>
@@ -216,6 +244,19 @@ export function OrganizersPage() {
                 </Button>
               ))}
             </div>
+            <select
+              aria-label="Filter by type"
+              className="flex h-8 rounded-md border border-input bg-transparent px-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              value={typeFilter}
+              onChange={(e) => {
+                setTypeFilter(e.target.value as TypeFilterValue);
+                setPage(1);
+              }}
+            >
+              {TYPE_FILTERS.map((f) => (
+                <option key={f.value} value={f.value}>{f.label}</option>
+              ))}
+            </select>
             <Input
               placeholder="Search name, email or phone…"
               value={searchInput}
@@ -247,7 +288,7 @@ export function OrganizersPage() {
                 ) : organizers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center text-slate-500 py-8">
-                      {search || status ? 'No organizers match your filters.' : 'No organizers yet.'}
+                      {search || status || typeFilter ? 'No organizers match your filters.' : 'No organizers yet.'}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -255,9 +296,15 @@ export function OrganizersPage() {
                     <TableRow key={o.id}>
                       <TableCell>
                         <div className="font-medium">{o.businessName}</div>
-                        <div className="text-xs text-slate-500 capitalize">
-                          {(o.businessType ?? '').replace(/_/g, ' ') || '—'}
-                        </div>
+                        {o.operatorType === 'services' ? (
+                          <Badge variant="outline" className="mt-1 bg-purple-100 text-purple-800 border-purple-200">
+                            Service · {o.serviceCategory ? humanize(o.serviceCategory) : '—'}
+                          </Badge>
+                        ) : (
+                          <div className="text-xs text-slate-500 capitalize">
+                            {(o.businessType ?? '').replace(/_/g, ' ') || '—'}
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">{o.primaryContact || '—'}</div>

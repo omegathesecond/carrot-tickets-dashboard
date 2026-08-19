@@ -170,14 +170,16 @@ export const resellerApi = {
     }
   },
 
-  async getEvents(): Promise<ResellerEvent[]> {
+  async getEvents(search?: string): Promise<ResellerEvent[]> {
     // Backend wraps events in a paginated envelope: { data: <raw event docs>, pagination }.
     // The generic request() strips the outer ApiResponse.data, leaving that envelope —
     // so pull the array out here rather than handing the POS page a non-iterable object.
     // Raw docs are lean Mongo documents (_id / eventDate), so normalize to the fields
     // the POS uses. Mapping _id -> id is critical: without a stable unique id every card
     // matches the (undefined) selected id and they all appear selected at once.
-    const result = await request<{ data?: any[] } | any[]>('/reseller/events');
+    const result = await request<{ data?: any[] } | any[]>(
+      `/reseller/events${search ? `?search=${encodeURIComponent(search)}` : ''}`
+    );
     const list = Array.isArray(result) ? result : result?.data ?? [];
     return list.map((ev: any) => ({
       id: ev.id ?? ev._id,
@@ -269,6 +271,8 @@ export interface OperatorAdminRow {
   loginCode: string;
   role: string;
   hubId: string;
+  /** Events this operator may sell. EMPTY = every event. */
+  eventIds: string[];
   isActive: boolean;
 }
 export type IssuedCredentials = { operator: OperatorAdminRow; loginCode: string; pin: string };
@@ -276,8 +280,12 @@ export type IssuedCredentials = { operator: OperatorAdminRow; loginCode: string;
 export const resellerOperatorsApi = {
   list: (hubId?: string) =>
     request<OperatorAdminRow[]>(`/reseller/operators${hubId ? `?hubId=${encodeURIComponent(hubId)}` : ''}`),
-  create: (data: { fullName: string; role: string; hubId?: string; pin?: string }) =>
+  create: (data: { fullName: string; role: string; hubId?: string; pin?: string; eventIds?: string[] }) =>
     request<IssuedCredentials>('/reseller/operators', { method: 'POST', body: JSON.stringify(data) }),
+  setEvents: (id: string, eventIds: string[]) =>
+    request<OperatorAdminRow>(`/reseller/operators/${id}`, {
+      method: 'PATCH', body: JSON.stringify({ eventIds }),
+    }),
   resetPin: (id: string, pin?: string) =>
     request<{ operatorId: string; pin: string }>(`/reseller/operators/${id}/reset-pin`, {
       method: 'POST', body: JSON.stringify(pin ? { pin } : {}),
