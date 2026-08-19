@@ -1073,6 +1073,8 @@ export class ApiClient {
   };
 
   // Vendors (in-event merchants) — the stalls that charge bands. Scoped to one event.
+  // A stall holds no credentials of its own (see MerchantOperator below) —
+  // create/update just return the merchant record.
   merchants = {
     list: async (eventId: string): Promise<MerchantRow[]> =>
       this.request<MerchantRow[]>(`/tickets/merchants?eventId=${eventId}`),
@@ -1081,8 +1083,8 @@ export class ApiClient {
       eventId: string;
       name: string;
       commissionPercent?: number;
-    }): Promise<IssuedMerchantCredentials> =>
-      this.request<IssuedMerchantCredentials>(`/tickets/merchants`, {
+    }): Promise<{ merchant: MerchantRow }> =>
+      this.request<{ merchant: MerchantRow }>(`/tickets/merchants`, {
         method: 'POST',
         body: JSON.stringify(data),
       }),
@@ -1096,14 +1098,39 @@ export class ApiClient {
         body: JSON.stringify(data),
       }),
 
-    resetPin: async (id: string, pin?: string): Promise<{ merchantId: string; pin: string }> =>
-      this.request<{ merchantId: string; pin: string }>(`/tickets/merchants/${id}/reset-pin`, {
-        method: 'POST',
-        body: JSON.stringify(pin ? { pin } : {}),
-      }),
-
     transactions: async (id: string, limit = 100): Promise<MerchantDetail> =>
       this.request<MerchantDetail>(`/tickets/merchants/${id}/transactions?limit=${limit}`),
+  };
+
+  // MerchantOperators — the people who actually work a stall's till, each
+  // with their own loginCode + PIN so a charge names a human (MANAGE_ACCESS;
+  // ownership is enforced server-side off the stall's event, never the body).
+  merchantOperators = {
+    list: async (merchantId: string): Promise<{ operators: MerchantOperatorRow[] }> =>
+      this.request<{ operators: MerchantOperatorRow[] }>(`/tickets/merchants/${merchantId}/operators`),
+
+    create: async (
+      merchantId: string,
+      data: { fullName: string; phoneNumber?: string },
+    ): Promise<IssuedMerchantOperatorCredentials> =>
+      this.request<IssuedMerchantOperatorCredentials>(`/tickets/merchants/${merchantId}/operators`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    update: async (
+      id: string,
+      data: { fullName?: string; isActive?: boolean },
+    ): Promise<{ operator: MerchantOperatorRow }> =>
+      this.request<{ operator: MerchantOperatorRow }>(`/tickets/merchant-operators/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+
+    resetPin: async (id: string): Promise<{ operatorId: string; pin: string }> =>
+      this.request<{ operatorId: string; pin: string }>(`/tickets/merchant-operators/${id}/reset-pin`, {
+        method: 'POST',
+      }),
   };
 
   // Cashless STOCK management (Slices 1/3; MANAGE_STOCK, ownership server-side) —
@@ -1571,14 +1598,33 @@ export interface CashierDetail {
 }
 
 // ── Vendors (in-event merchants) ───────────────────────────────────────────
+// A stall (Merchant) holds no credentials of its own — the people who work
+// its till are MerchantOperators (below), each with their own loginCode+PIN.
 export interface MerchantRow {
   _id: string;
   name: string;
   eventId: string;
   commissionPercent: number;
-  loginCode: string;
   status: 'active' | 'suspended';
   createdAt: string;
+}
+
+export interface MerchantOperatorRow {
+  _id: string;
+  fullName: string;
+  phoneNumber?: string;
+  merchantId: string;
+  eventId: string;
+  loginCode: string;
+  isActive: boolean;
+  lastLoginAt?: string;
+  createdAt: string;
+}
+
+export interface IssuedMerchantOperatorCredentials {
+  operator: MerchantOperatorRow;
+  loginCode: string;
+  pin: string;
 }
 
 // ---- Cashless stock (Slices 4/6) — mirror the API payloads exactly ----
@@ -1724,12 +1770,6 @@ export interface StockMovementsPage {
   movements: StockMovementRow[];
   nextCursor: string | null;
   hasMore: boolean;
-}
-
-export interface IssuedMerchantCredentials {
-  merchant: MerchantRow;
-  loginCode: string;
-  pin: string;
 }
 
 export interface MerchantChargeTxn {

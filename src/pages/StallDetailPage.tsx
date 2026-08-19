@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { TransactionDetailDialog, type TxnDetail } from '@/components/TransactionDetailDialog';
+import { StallOperatorsPanel } from '@/components/StallOperatorsPanel';
 
 const fmtR = (c: number) => `R${((c ?? 0) / 100).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtTime = (iso: string) => {
@@ -53,8 +54,7 @@ export function StallDetailPage() {
               <div>
                 <h1 className="text-2xl font-bold text-slate-900">{data.merchant.name}</h1>
                 <p className="text-sm text-slate-500 mt-0.5">
-                  Login <span className="font-mono text-slate-700">{data.merchant.loginCode}</span>
-                  {' · '}{data.merchant.commissionPercent}% commission
+                  {data.merchant.commissionPercent}% commission
                   {data.event?.name ? ` · ${data.event.name}` : ''}
                 </p>
               </div>
@@ -81,6 +81,12 @@ export function StallDetailPage() {
                 <div className="text-2xl font-bold mt-1">{data.summary.count}</div>
               </CardContent></Card>
             </div>
+
+            <Card>
+              <CardContent className="pt-6">
+                <StallOperatorsPanel merchantId={merchantId} stallName={data.merchant.name} />
+              </CardContent>
+            </Card>
 
             <Card>
               <CardContent className="pt-6">

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { KeyRound, Plus, Power, Store, ChevronRight } from 'lucide-react';
+import { Plus, Power, Store, ChevronRight } from 'lucide-react';
 import { apiClient, type MerchantRow } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,6 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { OperatorCredentialsDialog } from '@/components/OperatorCredentialsDialog';
 
 const initialsOf = (name: string) =>
   name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
@@ -29,7 +28,6 @@ export function EventStallsPanel({ eventId }: { eventId: string }) {
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [form, setForm] = useState<AddForm>(DEFAULT_FORM);
-  const [issued, setIssued] = useState<{ title: string; loginCode?: string; pin: string } | null>(null);
 
   const { data: stalls = [], isLoading } = useQuery({
     queryKey: ['merchants', eventId],
@@ -44,20 +42,13 @@ export function EventStallsPanel({ eventId }: { eventId: string }) {
         name: form.name.trim(),
         commissionPercent: Number(form.commissionPercent) || 0,
       }),
-    onSuccess: (res) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['merchants', eventId] });
-      toast.success('Stall created');
-      setIssued({ title: 'Stall created', loginCode: res.loginCode, pin: res.pin });
+      toast.success('Stall created — add the people who work its till from the stall page');
       setIsAddOpen(false);
       setForm(DEFAULT_FORM);
     },
     onError: (e: Error) => toast.error(e.message || 'Failed to create stall'),
-  });
-
-  const resetPin = useMutation({
-    mutationFn: (id: string) => apiClient.merchants.resetPin(id),
-    onSuccess: (res) => setIssued({ title: 'PIN reset', pin: res.pin }),
-    onError: (e: Error) => toast.error(e.message || 'Failed to reset PIN'),
   });
 
   const setActive = useMutation({
@@ -127,7 +118,7 @@ export function EventStallsPanel({ eventId }: { eventId: string }) {
             </span>
             <p className="font-medium text-slate-700">No stalls yet</p>
             <p className="text-sm text-slate-500 max-w-xs">
-              Add a stall to give it its own login code + PIN for charging bands at this event.
+              Add a stall, then add the people who work its till so they can charge bands at this event.
             </p>
             <Button onClick={() => setIsAddOpen(true)}
               className="mt-1 bg-gradient-to-r from-orange-600 to-amber-600 text-white hover:opacity-90">
@@ -157,21 +148,12 @@ export function EventStallsPanel({ eventId }: { eventId: string }) {
                     </div>
                   </div>
 
-                  <div className="rounded-lg bg-slate-50 px-3 py-2">
-                    <p className="text-[11px] uppercase tracking-wide text-slate-400">Login code</p>
-                    <p className="font-mono text-sm text-slate-800">{v.loginCode}</p>
-                  </div>
-
-                  <div className="mt-auto grid grid-cols-2 gap-2">
-                    <Button variant="outline" size="sm" disabled={resetPin.isPending}
-                      onClick={(e) => { e.stopPropagation(); resetPin.mutate(v._id); }}>
-                      <KeyRound className="h-4 w-4 mr-1.5" /> Reset PIN
-                    </Button>
+                  <div className="mt-auto">
                     <Button variant="outline" size="sm" disabled={pendingActiveId === v._id}
                       onClick={(e) => { e.stopPropagation(); setActive.mutate({ id: v._id, isActive: !active }); }}
                       className={active
-                        ? 'text-red-600 hover:text-red-700 hover:border-red-300'
-                        : 'text-emerald-600 hover:text-emerald-700 hover:border-emerald-300'}>
+                        ? 'w-full text-red-600 hover:text-red-700 hover:border-red-300'
+                        : 'w-full text-emerald-600 hover:text-emerald-700 hover:border-emerald-300'}>
                       <Power className="h-4 w-4 mr-1.5" />{active ? 'Disable' : 'Enable'}
                     </Button>
                   </div>
@@ -180,11 +162,6 @@ export function EventStallsPanel({ eventId }: { eventId: string }) {
             );
           })}
         </div>
-      )}
-
-      {issued && (
-        <OperatorCredentialsDialog open={!!issued} onClose={() => setIssued(null)}
-          title={issued.title} loginCode={issued.loginCode} pin={issued.pin} />
       )}
     </div>
   );
