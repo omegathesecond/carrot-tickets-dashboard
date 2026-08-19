@@ -1032,26 +1032,24 @@ export class ApiClient {
   };
 
   // Cashiers — the organizer's in-venue money desk staff (top-up + cash-out).
+  // A cashier belongs to exactly ONE event (immutable at the API), unlike
+  // GateOperator/ResellerOperator's multi-event `eventIds` set.
   cashiers = {
-    list: async (): Promise<CashierRow[]> =>
-      this.request<CashierRow[]>(`/tickets/cashiers`),
+    /** Omit eventId for the unscoped list (super-admin platform page). */
+    list: async (eventId?: string): Promise<CashierRow[]> =>
+      this.request<CashierRow[]>(`/tickets/cashiers${eventId ? `?eventId=${eventId}` : ''}`),
 
     create: async (data: {
       fullName: string;
       phoneNumber?: string;
       scope?: 'platform' | 'organizer';
       vendorId?: string;
-      eventIds?: string[];
+      /** Required for organizer scope; platform-scoped cashiers take none. */
+      eventId?: string;
     }): Promise<IssuedCashierCredentials> =>
       this.request<IssuedCashierCredentials>(`/tickets/cashiers`, {
         method: 'POST',
         body: JSON.stringify(data),
-      }),
-
-    setEvents: async (id: string, eventIds: string[]): Promise<CashierRow> =>
-      this.request<CashierRow>(`/tickets/cashiers/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ eventIds }),
       }),
 
     resetPin: async (id: string, pin?: string): Promise<{ cashierId: string; pin: string }> =>
@@ -1570,8 +1568,8 @@ export interface CashierRow {
   phoneNumber?: string;
   scope: 'platform' | 'organizer';
   vendorId?: string | null;
-  /** Events this person may work. EMPTY = every event of their organizer. */
-  eventIds: string[];
+  /** The single event this cashier works. Unset only for platform scope. Immutable. */
+  eventId?: string | null;
   isActive: boolean;
   loginCode: string;
   createdAt: string;

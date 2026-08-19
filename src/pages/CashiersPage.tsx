@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { CalendarRange, KeyRound, Plus, Power, UserPlus, ChevronRight } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+import { KeyRound, Plus, Power, UserPlus, ChevronRight } from 'lucide-react';
 import { apiClient, type CashierRow } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,45 +10,42 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
 import { OperatorCredentialsDialog } from '@/components/OperatorCredentialsDialog';
-import { EventPicker } from '@/components/EventPicker';
-import { OperatorEventsDialog } from '@/components/OperatorEventsDialog';
 
 const initialsOf = (name: string) =>
   name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
 
-type AddForm = { fullName: string; phoneNumber: string; scope: 'platform' | 'organizer'; vendorId: string; eventIds: string[] };
-const DEFAULT_FORM: AddForm = { fullName: '', phoneNumber: '', scope: 'organizer', vendorId: '', eventIds: [] };
+type AddForm = { fullName: string; phoneNumber: string };
+const DEFAULT_FORM: AddForm = { fullName: '', phoneNumber: '' };
 
+/**
+ * Carrot's own platform-scoped staff — cashiers with no owning organizer or
+ * event, hired directly by the platform. Organizer cashiers are hired for
+ * ONE event now (immutable) and are managed from inside that event's
+ * Cashless > Cashiers sub-tab instead (CashiersPanel); this page only ever
+ * creates `scope: 'platform'` cashiers. It renders at /cashiers, which the
+ * sidebar now only shows to super-admins — see Sidebar.tsx.
+ */
 export function CashiersPage() {
-  const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [form, setForm] = useState<AddForm>(DEFAULT_FORM);
   const [issued, setIssued] = useState<{ title: string; loginCode?: string; pin: string } | null>(null);
-  const [editingEvents, setEditingEvents] = useState<CashierRow | null>(null);
 
-  const { data: cashiers = [], isLoading } = useQuery({
+  // Deliberately unscoped (no eventId filter) — a super-admin here sees every
+  // cashier in the system, platform and organizer alike, for oversight.
+  const { data: cashiers = [], isLoading, isError, error } = useQuery({
     queryKey: ['cashiers'],
     queryFn: () => apiClient.cashiers.list(),
   });
 
   const createCashier = useMutation({
-    mutationFn: () => {
-      const data: Parameters<typeof apiClient.cashiers.create>[0] = {
-        fullName: form.fullName,
-        ...(form.phoneNumber.trim() ? { phoneNumber: form.phoneNumber.trim() } : {}),
-        ...(form.eventIds.length ? { eventIds: form.eventIds } : {}),
-        ...(user?.isSuperAdmin
-          ? { scope: form.scope, ...(form.scope === 'organizer' && form.vendorId.trim() ? { vendorId: form.vendorId.trim() } : {}) }
-          : {}),
-      };
-      return apiClient.cashiers.create(data);
-    },
+    mutationFn: () => apiClient.cashiers.create({
+      fullName: form.fullName,
+      ...(form.phoneNumber.trim() ? { phoneNumber: form.phoneNumber.trim() } : {}),
+      scope: 'platform',
+    }),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['cashiers'] });
       toast.success('Cashier created');
@@ -57,13 +53,13 @@ export function CashiersPage() {
       setIsAddOpen(false);
       setForm(DEFAULT_FORM);
     },
-    onError: (e: any) => toast.error(e.message || 'Failed to create cashier'),
+    onError: (e: Error) => toast.error(e.message || 'Failed to create cashier'),
   });
 
   const resetPin = useMutation({
     mutationFn: (id: string) => apiClient.cashiers.resetPin(id),
     onSuccess: (res) => setIssued({ title: 'PIN reset', pin: res.pin }),
-    onError: (e: any) => toast.error(e.message || 'Failed to reset PIN'),
+    onError: (e: Error) => toast.error(e.message || 'Failed to reset PIN'),
   });
 
   const setActive = useMutation({
@@ -72,23 +68,14 @@ export function CashiersPage() {
       queryClient.invalidateQueries({ queryKey: ['cashiers'] });
       toast.success(vars.isActive ? 'Cashier activated' : 'Cashier deactivated');
     },
-    onError: (e: any) => toast.error(e.message || 'Failed to update cashier'),
+    onError: (e: Error) => toast.error(e.message || 'Failed to update cashier'),
   });
 
-  const setEvents = useMutation({
-    mutationFn: ({ id, eventIds }: { id: string; eventIds: string[] }) => apiClient.cashiers.setEvents(id, eventIds),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cashiers'] });
-      toast.success('Events updated');
-      setEditingEvents(null);
-    },
-    onError: (e: any) => toast.error(e.message || 'Failed to update events'),
-  });
-
+  // Per-row pending ids — a mutation in flight for one cashier must not
+  // disable the same action on every other row.
+  const pendingResetId = resetPin.isPending ? resetPin.variables : undefined;
   const pendingActiveId = setActive.isPending ? setActive.variables?.id : undefined;
-  const isFormValid =
-    form.fullName.trim().length > 0 &&
-    (!user?.isSuperAdmin || form.scope !== 'organizer' || form.vendorId.trim().length > 0);
+  const isFormValid = form.fullName.trim().length > 0;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -97,7 +84,7 @@ export function CashiersPage() {
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Cashiers</h1>
             <p className="text-sm text-slate-500">
-              {cashiers.length} {cashiers.length === 1 ? 'person' : 'people'} on the in-venue money desk (top-up &amp; cash-out)
+              Carrot's own platform-wide money desk staff
             </p>
           </div>
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
@@ -123,38 +110,6 @@ export function CashiersPage() {
                   <Input id="c-phone" value={form.phoneNumber} className="h-12" placeholder="+268..."
                     onChange={(e) => setForm((f) => ({ ...f, phoneNumber: e.target.value }))} />
                 </div>
-                {user?.isSuperAdmin && (
-                  <>
-                    <div className="space-y-2">
-                      <Label htmlFor="c-scope">Scope</Label>
-                      <Select value={form.scope}
-                        onValueChange={(v) => setForm((f) => ({ ...f, scope: v as 'platform' | 'organizer', vendorId: '' }))}>
-                        <SelectTrigger id="c-scope" className="h-12"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="platform">Platform-wide (all events)</SelectItem>
-                          <SelectItem value="organizer">Specific organizer</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {form.scope === 'organizer' && (
-                      <div className="space-y-2">
-                        <Label htmlFor="c-vendor">Organizer vendor ID</Label>
-                        <Input id="c-vendor" value={form.vendorId} required className="h-12" placeholder="e.g. 6642abc..."
-                          onChange={(e) => setForm((f) => ({ ...f, vendorId: e.target.value }))} />
-                      </div>
-                    )}
-                  </>
-                )}
-                <div className="space-y-2">
-                  <Label>Events</Label>
-                  <EventPicker
-                    value={form.eventIds}
-                    onChange={(eventIds) => setForm((f) => ({ ...f, eventIds }))}
-                    {...(user?.isSuperAdmin && form.scope === 'organizer' && form.vendorId.trim()
-                      ? { vendorId: form.vendorId.trim() }
-                      : {})}
-                  />
-                </div>
                 <div className="flex justify-end space-x-2 pt-2">
                   <Button type="button" variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
                   <Button type="submit" disabled={createCashier.isPending || !isFormValid}
@@ -173,6 +128,12 @@ export function CashiersPage() {
               <Card key={i}><CardContent className="h-40 animate-pulse bg-slate-100/60 rounded-xl" /></Card>
             ))}
           </div>
+        ) : isError ? (
+          <Card>
+            <CardContent className="py-12 text-center text-sm text-red-600">
+              Could not load cashiers{error instanceof Error && error.message ? ` — ${error.message}` : ''}.
+            </CardContent>
+          </Card>
         ) : cashiers.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center text-center py-14 gap-3">
@@ -181,7 +142,7 @@ export function CashiersPage() {
               </span>
               <p className="font-medium text-slate-700">No cashiers yet</p>
               <p className="text-sm text-slate-500 max-w-xs">
-                Add a cashier to give someone their own User ID and PIN for topping up and cashing out bands at your event.
+                Add a cashier to give someone their own User ID and PIN for topping up and cashing out bands.
               </p>
               <Button onClick={() => setIsAddOpen(true)}
                 className="mt-1 bg-gradient-to-r from-orange-600 to-amber-600 text-white hover:opacity-90">
@@ -217,27 +178,16 @@ export function CashiersPage() {
                     <p className="font-mono text-sm text-slate-800">{c.loginCode}</p>
                   </div>
 
-                  <div className="rounded-lg bg-slate-50 px-3 py-2">
-                    <p className="text-[11px] uppercase tracking-wide text-slate-400">Events</p>
-                    <p className="text-sm text-slate-800">
-                      {c.eventIds?.length ? `${c.eventIds.length} assigned` : 'All events'}
-                    </p>
-                  </div>
-
                   <div className="mt-auto grid grid-cols-2 gap-2">
-                    <Button variant="outline" size="sm"
-                      onClick={(e) => { e.stopPropagation(); setEditingEvents(c); }}>
-                      <CalendarRange className="h-4 w-4 mr-1.5" /> Events
-                    </Button>
-                    <Button variant="outline" size="sm" disabled={resetPin.isPending}
+                    <Button variant="outline" size="sm" disabled={pendingResetId === c._id}
                       onClick={(e) => { e.stopPropagation(); resetPin.mutate(c._id); }}>
                       <KeyRound className="h-4 w-4 mr-1.5" /> Reset PIN
                     </Button>
                     <Button variant="outline" size="sm" disabled={pendingActiveId === c._id}
                       onClick={(e) => { e.stopPropagation(); setActive.mutate({ id: c._id, isActive: !c.isActive }); }}
-                      className={`col-span-2 ${c.isActive
+                      className={c.isActive
                         ? 'text-red-600 hover:text-red-700 hover:border-red-300'
-                        : 'text-emerald-600 hover:text-emerald-700 hover:border-emerald-300'}`}>
+                        : 'text-emerald-600 hover:text-emerald-700 hover:border-emerald-300'}>
                       <Power className="h-4 w-4 mr-1.5" />{c.isActive ? 'Disable' : 'Enable'}
                     </Button>
                   </div>
@@ -247,17 +197,6 @@ export function CashiersPage() {
           </div>
         )}
       </div>
-
-      {editingEvents && (
-        <OperatorEventsDialog
-          open={!!editingEvents}
-          onClose={() => setEditingEvents(null)}
-          personName={editingEvents.fullName}
-          initialEventIds={editingEvents.eventIds ?? []}
-          isSaving={setEvents.isPending}
-          onSave={(eventIds) => setEvents.mutate({ id: editingEvents._id, eventIds })}
-        />
-      )}
 
       {issued && (
         <OperatorCredentialsDialog open={!!issued} onClose={() => setIssued(null)}

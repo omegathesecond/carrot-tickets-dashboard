@@ -19,6 +19,9 @@ vi.mock('@/components/cashless/EventStallsPanel', () => ({
 vi.mock('@/components/cashless/EventCataloguePanel', () => ({
   EventCataloguePanel: () => <div>catalogue-pane</div>,
 }));
+vi.mock('@/components/CashiersPanel', () => ({
+  CashiersPanel: () => <div>cashiers-pane</div>,
+}));
 vi.mock('@/lib/api', () => ({
   apiClient: {
     events: {
@@ -52,16 +55,18 @@ function renderTab(user: AuthUser | null, url = '/events/e1') {
 }
 
 describe('EventCashlessTab sub-tabs', () => {
-  it('offers Stalls and Catalogue to a user who can manage them', () => {
+  it('offers Stalls, Catalogue and Cashiers to a user who can manage them', () => {
     renderTab(SUPER_ADMIN);
     expect(screen.getByRole('tab', { name: 'Stalls' })).toBeDefined();
     expect(screen.getByRole('tab', { name: 'Catalogue' })).toBeDefined();
+    expect(screen.getByRole('tab', { name: 'Cashiers' })).toBeDefined();
   });
 
-  it('hides both management tabs from a restricted team member', () => {
+  it('hides all three management tabs from a restricted team member', () => {
     renderTab(RESTRICTED);
     expect(screen.queryByRole('tab', { name: 'Stalls' })).toBeNull();
     expect(screen.queryByRole('tab', { name: 'Catalogue' })).toBeNull();
+    expect(screen.queryByRole('tab', { name: 'Cashiers' })).toBeNull();
     expect(screen.getByRole('tab', { name: 'Money' })).toBeDefined();
   });
 
@@ -70,10 +75,21 @@ describe('EventCashlessTab sub-tabs', () => {
     expect(screen.getByText('stalls-pane')).toBeDefined();
   });
 
+  it('opens the Cashiers sub-tab named in the URL', () => {
+    renderTab(SUPER_ADMIN, '/events/e1?tab=cashless&sub=cashiers');
+    expect(screen.getByText('cashiers-pane')).toBeDefined();
+  });
+
   it('falls back to Money when the URL names a sub-tab the user cannot see', () => {
     renderTab(RESTRICTED, '/events/e1?tab=cashless&sub=catalogue');
     // Not an empty pane: the Money tab is selected instead.
     expect(screen.queryByText('catalogue-pane')).toBeNull();
+    expect(screen.getByRole('tab', { name: 'Money' }).getAttribute('data-state')).toBe('active');
+  });
+
+  it('falls back to Money when the URL names cashiers and the user cannot see it', () => {
+    renderTab(RESTRICTED, '/events/e1?tab=cashless&sub=cashiers');
+    expect(screen.queryByText('cashiers-pane')).toBeNull();
     expect(screen.getByRole('tab', { name: 'Money' }).getAttribute('data-state')).toBe('active');
   });
 });

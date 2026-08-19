@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,6 +18,7 @@ import { TransactionDetailDialog, type TxnDetail } from '@/components/Transactio
 import { EventStockReport } from '@/components/EventStockReport';
 import { EventStallsPanel } from '@/components/cashless/EventStallsPanel';
 import { EventCataloguePanel } from '@/components/cashless/EventCataloguePanel';
+import { CashiersPanel } from '@/components/CashiersPanel';
 import { useAuth } from '@/contexts/AuthContext';
 import { canManageAccess, canManageStock } from '@/lib/permissions';
 
@@ -73,11 +74,16 @@ export function EventCashlessTab({ eventId }: Props) {
 
   const showStalls = canManageAccess(user);
   const showCatalogue = canManageStock(user);
+  // Same gate as Stalls: cashiers are the organizer's own in-venue staff, so
+  // whoever can manage stall access can manage the money desk too.
+  const showCashiers = canManageAccess(user);
   const requestedSub = searchParams.get('sub') ?? 'money';
   // Fall back to Money rather than render an empty pane when the URL names a
   // sub-tab this user can't see (shared link, or permissions changed).
   const sub =
-    (requestedSub === 'stalls' && !showStalls) || (requestedSub === 'catalogue' && !showCatalogue)
+    (requestedSub === 'stalls' && !showStalls)
+    || (requestedSub === 'catalogue' && !showCatalogue)
+    || (requestedSub === 'cashiers' && !showCashiers)
       ? 'money'
       : requestedSub;
   const setSub = (v: string) => {
@@ -163,9 +169,12 @@ export function EventCashlessTab({ eventId }: Props) {
       <Card>
         <CardHeader className="flex-row items-center justify-between space-y-0">
           <CardTitle className="text-base">Cashier activity</CardTitle>
-          <Link to="/cashiers" className="text-xs font-medium text-orange-600 hover:text-orange-700 inline-flex items-center gap-1">
-            Manage cashiers <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
+          {showCashiers && (
+            <button type="button" onClick={() => setSub('cashiers')}
+              className="text-xs font-medium text-orange-600 hover:text-orange-700 inline-flex items-center gap-1">
+              Manage cashiers <ArrowRight className="h-3.5 w-3.5" />
+            </button>
+          )}
         </CardHeader>
         <CardContent>
           {summary.cashiers.length === 0 ? (
@@ -263,6 +272,7 @@ export function EventCashlessTab({ eventId }: Props) {
         <TabsTrigger value="stock">Stock</TabsTrigger>
         {showStalls && <TabsTrigger value="stalls">Stalls</TabsTrigger>}
         {showCatalogue && <TabsTrigger value="catalogue">Catalogue</TabsTrigger>}
+        {showCashiers && <TabsTrigger value="cashiers">Cashiers</TabsTrigger>}
       </TabsList>
       <TabsContent value="money">{moneyBody}</TabsContent>
       <TabsContent value="stock">
@@ -276,6 +286,11 @@ export function EventCashlessTab({ eventId }: Props) {
       {showCatalogue && (
         <TabsContent value="catalogue">
           <EventCataloguePanel eventId={eventId} />
+        </TabsContent>
+      )}
+      {showCashiers && (
+        <TabsContent value="cashiers">
+          <CashiersPanel eventId={eventId} />
         </TabsContent>
       )}
     </Tabs>

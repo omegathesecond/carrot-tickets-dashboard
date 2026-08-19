@@ -125,7 +125,9 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       name: 'Cashiers',
       href: '/cashiers',
       icon: Banknote,
-      show: canManageAccess(user),
+      // Organizer cashiers live inside their event (Cashless > Cashiers);
+      // this entry is now only Carrot's own platform-scoped staff.
+      show: !!user?.isSuperAdmin,
     },
     {
       name: 'Analytics',

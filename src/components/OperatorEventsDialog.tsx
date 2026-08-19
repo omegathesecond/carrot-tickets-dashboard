@@ -19,8 +19,9 @@ interface OperatorEventsDialogProps {
 
 /**
  * Reassign which events an operator may work. Shared by the gate-operator and
- * cashier pages — the two actors differ in what they DO at an event, not in
- * how they are assigned to one.
+ * reseller-operator pages — the two actors differ in what they DO at an
+ * event, not in how they are assigned to one. Cashiers do NOT use this: a
+ * cashier is hired for exactly one immutable event, not a reassignable set.
  */
 export function OperatorEventsDialog({
   open,
