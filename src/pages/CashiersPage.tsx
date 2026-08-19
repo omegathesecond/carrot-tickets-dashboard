@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { KeyRound, Plus, Power, UserPlus, ChevronRight } from 'lucide-react';
+import { KeyRound, Plus, Power, UserPlus } from 'lucide-react';
 import { apiClient, type CashierRow } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { OperatorCredentialsDialog } from '@/components/OperatorCredentialsDialog';
+import { ViewAffordance } from '@/components/ViewAffordance';
 
 const initialsOf = (name: string) =>
   name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
@@ -167,16 +168,15 @@ export function CashiersPage() {
                       <p className="font-semibold text-slate-900 leading-tight truncate group-hover:text-orange-600">{c.fullName}</p>
                       {c.phoneNumber && <p className="text-xs text-slate-500 mt-0.5">{c.phoneNumber}</p>}
                     </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <Badge variant={c.isActive ? 'default' : 'secondary'}>{c.isActive ? 'Active' : 'Inactive'}</Badge>
-                      <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-orange-400" />
-                    </div>
+                    <Badge variant={c.isActive ? 'default' : 'secondary'}>{c.isActive ? 'Active' : 'Inactive'}</Badge>
                   </div>
 
                   <div className="rounded-lg bg-slate-50 px-3 py-2">
                     <p className="text-[11px] uppercase tracking-wide text-slate-400">User ID</p>
                     <p className="font-mono text-sm text-slate-800">{c.loginCode}</p>
                   </div>
+
+                  <ViewAffordance label="View activity" />
 
                   <div className="mt-auto grid grid-cols-2 gap-2">
                     <Button variant="outline" size="sm" disabled={pendingResetId === c._id}

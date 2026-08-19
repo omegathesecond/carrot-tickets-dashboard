@@ -22,12 +22,22 @@ vi.mock('@/components/cashless/EventCataloguePanel', () => ({
 vi.mock('@/components/CashiersPanel', () => ({
   CashiersPanel: () => <div>cashiers-pane</div>,
 }));
+vi.mock('@/components/cashless/EventTagsPanel', () => ({
+  EventTagsPanel: () => <div>balances-pane</div>,
+}));
+vi.mock('@/components/cashless/EventRegisterPanel', () => ({
+  EventRegisterPanel: () => <div>register-pane</div>,
+}));
+vi.mock('@/components/cashless/EventTransactionLog', () => ({
+  EventTransactionLog: () => <div>transaction-log-pane</div>,
+}));
+// Rejects by default (the "not cashless" path most of these cases exercise);
+// the Money-pane suite resolves it to a real summary instead.
+const summary = vi.fn<() => Promise<unknown>>(() => Promise.reject(new Error('not cashless')));
 vi.mock('@/lib/api', () => ({
   apiClient: {
     events: {
-      getEventCashlessSummary: vi.fn(async () => {
-        throw new Error('not cashless');
-      }),
+      getEventCashlessSummary: () => summary(),
       getEventCashlessTransactions: vi.fn(async () => ({ transactions: [], hasMore: false })),
     },
   },
@@ -90,6 +100,65 @@ describe('EventCashlessTab sub-tabs', () => {
   it('falls back to Money when the URL names cashiers and the user cannot see it', () => {
     renderTab(RESTRICTED, '/events/e1?tab=cashless&sub=cashiers');
     expect(screen.queryByText('cashiers-pane')).toBeNull();
+    expect(screen.getByRole('tab', { name: 'Money' }).getAttribute('data-state')).toBe('active');
+  });
+
+  it('offers Register to a user who can manage access', () => {
+    renderTab(SUPER_ADMIN);
+    expect(screen.getByRole('tab', { name: 'Register' })).toBeDefined();
+  });
+
+  it('hides Register from a restricted team member', () => {
+    renderTab(RESTRICTED);
+    expect(screen.queryByRole('tab', { name: 'Register' })).toBeNull();
+  });
+
+  it('opens the Register sub-tab named in the URL', () => {
+    renderTab(SUPER_ADMIN, '/events/e1?tab=cashless&sub=register');
+    expect(screen.getByText('register-pane')).toBeDefined();
+  });
+});
+
+// The Money pane only renders its inner tabs once the summary has loaded — an
+// event that is not cashless has no money to break down.
+describe('EventCashlessTab Money panes', () => {
+  function renderLoaded(url = '/events/e1') {
+    authUser.mockReturnValue(SUPER_ADMIN);
+    summary.mockResolvedValue({
+      circulated: 164000, spent: 24200, withdrawn: 4000, leftBehind: 135800,
+      fees: 450, walletsFunded: 5, vendors: [], cashiers: [],
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={[url]}>
+          <EventCashlessTab eventId="e1" />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+  }
+
+  it('breaks Money down into the four questions it answers', async () => {
+    renderLoaded();
+    expect(await screen.findByRole('tab', { name: 'Transaction log' })).toBeDefined();
+    expect(screen.getByRole('tab', { name: 'Cashier activity' })).toBeDefined();
+    expect(screen.getByRole('tab', { name: 'Stall takings' })).toBeDefined();
+    expect(screen.getByRole('tab', { name: 'Balances' })).toBeDefined();
+  });
+
+  it('opens the transaction log first', async () => {
+    renderLoaded();
+    expect(await screen.findByText('transaction-log-pane')).toBeDefined();
+  });
+
+  it('opens the pane named in the URL', async () => {
+    renderLoaded('/events/e1?tab=cashless&sub=money&pane=balances');
+    expect(await screen.findByText('balances-pane')).toBeDefined();
+  });
+
+  it('lands an old ?sub=tags link on Balances, where tags now live', async () => {
+    renderLoaded('/events/e1?tab=cashless&sub=tags');
+    expect(await screen.findByText('balances-pane')).toBeDefined();
     expect(screen.getByRole('tab', { name: 'Money' }).getAttribute('data-state')).toBe('active');
   });
 });

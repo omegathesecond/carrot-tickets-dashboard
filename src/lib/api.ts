@@ -355,13 +355,15 @@ export class ApiClient {
     },
 
     // Full cashless transaction log for one event — top-ups, cash-outs and
-    // vendor charges, paginated. `type` filters to one kind.
+    // vendor charges, paginated. `type` filters to one kind; `tagUid` narrows
+    // to one tag, matched against every UID that tag has ever carried.
     getEventCashlessTransactions: async (
       id: string,
-      params: { type?: 'topup' | 'withdrawal' | 'purchase'; page?: number; limit?: number } = {},
+      params: { type?: 'topup' | 'withdrawal' | 'purchase'; tagUid?: string; page?: number; limit?: number } = {},
     ): Promise<CashlessTxnsResult> => {
       const q = new URLSearchParams();
       if (params.type) q.set('type', params.type);
+      if (params.tagUid) q.set('tagUid', params.tagUid);
       if (params.page) q.set('page', String(params.page));
       if (params.limit) q.set('limit', String(params.limit));
       const qs = q.toString();
@@ -1036,6 +1038,19 @@ export class ApiClient {
     detail: async (eventId: string, walletId: string): Promise<TagDetail> =>
       this.request<TagDetail>(`/tickets/events/${eventId}/tags/${walletId}`),
 
+    /** The register desk's log — every tag registered at this event, newest first. */
+    registrations: async (
+      eventId: string,
+      params: { limit?: number; cursor?: string; q?: string } = {},
+    ): Promise<{ registrations: TagRegistrationRow[]; hasMore: boolean; nextCursor: string | null }> => {
+      const qs = new URLSearchParams();
+      if (params.limit) qs.set('limit', String(params.limit));
+      if (params.cursor) qs.set('cursor', params.cursor);
+      if (params.q) qs.set('q', params.q);
+      const query = qs.toString();
+      return this.request(`/tickets/events/${eventId}/tags/registrations${query ? `?${query}` : ''}`);
+    },
+
     deactivate: async (eventId: string, walletId: string, reason: string): Promise<{ walletId: string; bandUid: string | null }> =>
       this.request(`/tickets/events/${eventId}/tags/${walletId}/deactivate`, {
         method: 'POST', body: JSON.stringify({ reason }),
@@ -1082,6 +1097,15 @@ export class ApiClient {
         method: 'PATCH',
         body: JSON.stringify({ eventIds }),
       }),
+
+    /** What this person did on the door — scans, admitted vs refused, tags registered. */
+    activity: async (id: string, params: { eventId?: string; limit?: number } = {}): Promise<GateOperatorActivity> => {
+      const qs = new URLSearchParams();
+      if (params.eventId) qs.set('eventId', params.eventId);
+      if (params.limit) qs.set('limit', String(params.limit));
+      const query = qs.toString();
+      return this.request<GateOperatorActivity>(`/tickets/gate-operators/${id}/activity${query ? `?${query}` : ''}`);
+    },
 
     resetPin: async (id: string, pin?: string): Promise<{ operatorId: string; pin: string }> =>
       this.request<{ operatorId: string; pin: string }>(`/tickets/gate-operators/${id}/reset-pin`, {
@@ -1665,6 +1689,50 @@ export interface TagMovement {
 
 export type TagDetail = TagRow & { bindings: TagBinding[]; movements: TagMovement[] };
 
+/** One tag handed to one attendee, as the register desk recorded it. */
+export interface TagRegistrationRow {
+  bandUid: string;
+  walletId: string;
+  at: string;
+  /** Set once the tag was released — reported lost, or reissued onto another. */
+  releasedAt: string | null;
+  balance: number;
+  registeredBy: string;
+  holder: { name: string | null; phone: string | null; ticketCode: string | null };
+}
+
+export interface OperatorScanRow {
+  id: string;
+  at: string;
+  eventId: string;
+  eventName: string;
+  result: string;
+  isValid: boolean;
+  ticketCode: string | null;
+  holderName: string | null;
+}
+
+export interface GateOperatorActivity {
+  operator: GateOperatorRow;
+  summary: {
+    scans: number;
+    admitted: number;
+    /** Everything the scanner turned away: duplicates, wrong event, cancelled. */
+    refused: number;
+    tagsRegistered: number;
+    firstScanAt: string | null;
+    lastScanAt: string | null;
+  };
+  byEvent: Array<{
+    eventId: string; eventName: string; scans: number; admitted: number; refused: number; lastScanAt: string | null;
+  }>;
+  recent: OperatorScanRow[];
+  registrations: Array<{
+    bandUid: string; walletId: string; at: string; releasedAt: string | null;
+    balance: number; holderName: string | null; ticketCode: string | null;
+  }>;
+}
+
 export interface GateOperatorRow {
   _id: string;
   fullName: string;
@@ -1819,6 +1887,10 @@ export interface StockBoardBarRow {
   productName: string;
   category: string;
   onHand: number;
+  /** Units rung up on itemised charges; un-itemised taps carry no product line. */
+  unitsSold: number;
+  /** What those units took, in cents. */
+  revenue: number;
   lowStockThreshold: number | null;
   status: StockStatus;
 }
@@ -1827,6 +1899,8 @@ export interface StockBoardProductRow {
   productName: string;
   category: string;
   totalOnHand: number;
+  unitsSold: number;
+  revenue: number;
   status: StockStatus;
 }
 export interface StockBoard {

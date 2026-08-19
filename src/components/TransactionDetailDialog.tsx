@@ -23,6 +23,8 @@ export interface TxnDetail {
   fee?: number;
   netAmount?: number;
   status?: string;
+  /** The caller's own reference (clientTxnId) — what a support query is quoted by. */
+  ref?: string | null;
 }
 
 const TYPE_META: Record<TxnDetail['type'], { label: string; className: string; sign: string }> = {
@@ -75,7 +77,8 @@ export function TransactionDetailDialog({ txn, onClose }: { txn: TxnDetail | nul
             {txn.status && (
               <Row label="Status" value={<Badge variant="secondary" className="bg-green-100 text-green-800">{txn.status}</Badge>} />
             )}
-            <Row label="Reference" value={txn.id} mono />
+            {txn.ref && <Row label="Reference" value={txn.ref} mono />}
+            <Row label="Transaction id" value={txn.id} mono />
           </div>
         </div>
       </DialogContent>

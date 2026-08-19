@@ -698,6 +698,15 @@ export interface CashlessTxn {
   actorType?: string;
   actorId?: string | null;
   bandUid?: string;
+  /** The caller's own reference (clientTxnId) — what a support query is traced by. */
+  ref?: string | null;
+  status?: string;
+  walletId?: string;
+  /**
+   * The tag this moved on, as it was AT THE TIME. Null when the wallet had no
+   * band bound then — a desk top-up before the attendee collected their tag.
+   */
+  tagUid?: string | null;
   fee?: number;
   netAmount?: number;
 }
