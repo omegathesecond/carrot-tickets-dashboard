@@ -48,6 +48,7 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { QRCodeSVG } from 'qrcode.react';
 import { TicketType, EventFormData } from '@/types';
+import { EventCashlessSettingsCard } from '@/components/EventCashlessSettingsCard';
 
 /** Draft state for the editable Event Information card. */
 type InfoDraft = { name: string; description: string; venue: string } & EventDateTimeFormValues;
@@ -832,6 +833,10 @@ export function EventDetailsPage() {
               </Button>
             </CardContent>
           </Card>
+
+          {/* Cashless — an admin grants it, an organizer can only ask. The
+              card renders both sides; which one you see is your role. */}
+          {event && <EventCashlessSettingsCard event={event} isAdmin={isAdmin} />}
 
           {/* Ticket Types Card — Carrot's own tier editor. Not applicable
               when the organizer sells tickets externally: there's nothing

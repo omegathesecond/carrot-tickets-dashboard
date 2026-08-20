@@ -409,6 +409,16 @@ export class ApiClient {
       });
     },
 
+    // The organizer's ask for cashless. Deliberately NOT part of updateEvent:
+    // the API refuses `cashless` from a non-admin token, so this is the only
+    // door an organizer has. Granting it is an admin PUT with cashless:true.
+    requestCashless: async (id: string, note?: string): Promise<{ requestedAt: string }> => {
+      return this.request<{ requestedAt: string }>(`/tickets/events/${id}/cashless-request`, {
+        method: 'POST',
+        body: JSON.stringify(note ? { note } : {}),
+      });
+    },
+
     deleteEvent: async (id: string): Promise<void> => {
       return this.request<void>(`/tickets/events/${id}`, {
         method: 'DELETE',

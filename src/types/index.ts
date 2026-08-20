@@ -113,6 +113,11 @@ export interface Event {
   // NFC closed-loop cashless event: attendees carry funded wristbands, vendors
   // charge them, cashiers top up + cash out. Gates the organizer Cashless tab.
   cashless?: boolean;
+  // The organizer's standing ask for cashless. Set by POST /cashless-request
+  // and cleared the moment an admin grants it, so a pending request and a
+  // live cashless event are never both true.
+  cashlessRequestedAt?: string | null;
+  cashlessRequestNote?: string | null;
   createdAt: string;
   updatedAt: string;
   // Who sells the tickets: 'carrot' (default, existing checkout) or
@@ -164,6 +169,9 @@ export interface EventFormData {
   currency?: 'SZL' | 'ZAR';
   priceMin?: number;
   priceMax?: number;
+  // Admin-only. The API rejects this from a non-super-admin token, so the
+  // form only ever sends it when the toggle was rendered for an admin.
+  cashless?: boolean;
 }
 
 // Event creator (organizer) + their event history — powers the admin
