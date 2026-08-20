@@ -355,13 +355,15 @@ export class ApiClient {
     },
 
     // Full cashless transaction log for one event — top-ups, cash-outs and
-    // vendor charges, paginated. `type` filters to one kind.
+    // vendor charges, paginated. `type` filters to one kind; `tagUid` narrows
+    // to one tag, matched against every UID that tag has ever carried.
     getEventCashlessTransactions: async (
       id: string,
-      params: { type?: 'topup' | 'withdrawal' | 'purchase'; page?: number; limit?: number } = {},
+      params: { type?: 'topup' | 'withdrawal' | 'purchase'; tagUid?: string; page?: number; limit?: number } = {},
     ): Promise<CashlessTxnsResult> => {
       const q = new URLSearchParams();
       if (params.type) q.set('type', params.type);
+      if (params.tagUid) q.set('tagUid', params.tagUid);
       if (params.page) q.set('page', String(params.page));
       if (params.limit) q.set('limit', String(params.limit));
       const qs = q.toString();
@@ -402,20 +404,27 @@ export class ApiClient {
       });
     },
 
+    // Admin-only in practice: the API 403s `cashless` from anyone else, on
+    // create as well as update (EventService gates it at every event status).
+    setCashless: async (id: string, cashless: boolean): Promise<Event> => {
+      return this.request<Event>(`/tickets/events/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ cashless }),
+      });
+    },
+
+    // The organizer's side of that gate — ask Carrot to turn it on.
+    requestCashless: async (id: string, note?: string): Promise<Event> => {
+      return this.request<Event>(`/tickets/events/${id}/cashless-request`, {
+        method: 'POST',
+        body: JSON.stringify(note ? { note } : {}),
+      });
+    },
+
     updateEvent: async (id: string, data: Partial<EventFormData>): Promise<Event> => {
       return this.request<Event>(`/tickets/events/${id}`, {
         method: 'PUT',
         body: JSON.stringify(data),
-      });
-    },
-
-    // The organizer's ask for cashless. Deliberately NOT part of updateEvent:
-    // the API refuses `cashless` from a non-admin token, so this is the only
-    // door an organizer has. Granting it is an admin PUT with cashless:true.
-    requestCashless: async (id: string, note?: string): Promise<{ requestedAt: string }> => {
-      return this.request<{ requestedAt: string }>(`/tickets/events/${id}/cashless-request`, {
-        method: 'POST',
-        body: JSON.stringify(note ? { note } : {}),
       });
     },
 
@@ -1006,6 +1015,59 @@ export class ApiClient {
   };
 
   // Gate Operators endpoints
+  // Tags — the wallets behind the NFC tags at a cashless event. A tag's
+  // identity on the wire is its walletId, never its UID: a UID can be unbound
+  // and reissued to someone else, the wallet is what has continuity.
+  tags = {
+    summary: async (eventId: string): Promise<TagSummary> =>
+      this.request<TagSummary>(`/tickets/events/${eventId}/tags/summary`),
+
+    list: async (
+      eventId: string,
+      params: { limit?: number; cursor?: string; status?: TagStatus; q?: string } = {},
+    ): Promise<{ tags: TagRow[]; hasMore: boolean; nextCursor: string | null }> => {
+      const qs = new URLSearchParams();
+      if (params.limit) qs.set('limit', String(params.limit));
+      if (params.cursor) qs.set('cursor', params.cursor);
+      if (params.status) qs.set('status', params.status);
+      if (params.q) qs.set('q', params.q);
+      const query = qs.toString();
+      return this.request(`/tickets/events/${eventId}/tags${query ? `?${query}` : ''}`);
+    },
+
+    detail: async (eventId: string, walletId: string): Promise<TagDetail> =>
+      this.request<TagDetail>(`/tickets/events/${eventId}/tags/${walletId}`),
+
+    /** The register desk's log — every tag registered at this event, newest first. */
+    registrations: async (
+      eventId: string,
+      params: { limit?: number; cursor?: string; q?: string } = {},
+    ): Promise<{ registrations: TagRegistrationRow[]; hasMore: boolean; nextCursor: string | null }> => {
+      const qs = new URLSearchParams();
+      if (params.limit) qs.set('limit', String(params.limit));
+      if (params.cursor) qs.set('cursor', params.cursor);
+      if (params.q) qs.set('q', params.q);
+      const query = qs.toString();
+      return this.request(`/tickets/events/${eventId}/tags/registrations${query ? `?${query}` : ''}`);
+    },
+
+    deactivate: async (eventId: string, walletId: string, reason: string): Promise<{ walletId: string; bandUid: string | null }> =>
+      this.request(`/tickets/events/${eventId}/tags/${walletId}/deactivate`, {
+        method: 'POST', body: JSON.stringify({ reason }),
+      }),
+
+    reissue: async (eventId: string, walletId: string, bandUid: string): Promise<{ walletId: string; bandUid: string | null }> =>
+      this.request(`/tickets/events/${eventId}/tags/${walletId}/reissue`, {
+        method: 'POST', body: JSON.stringify({ bandUid }),
+      }),
+
+    // amount is integer cents; clientTxnId makes a double submit idempotent.
+    refund: async (eventId: string, walletId: string, amount: number, clientTxnId: string): Promise<{ walletId: string; balance: number }> =>
+      this.request(`/tickets/events/${eventId}/tags/${walletId}/refund`, {
+        method: 'POST', body: JSON.stringify({ amount, clientTxnId }),
+      }),
+  };
+
   gateOperators = {
     list: async (): Promise<GateOperatorRow[]> =>
       this.request<GateOperatorRow[]>(`/tickets/gate-operators`),
@@ -1016,10 +1078,18 @@ export class ApiClient {
       scope?: 'platform' | 'organizer';
       vendorId?: string;
       eventIds?: string[];
+      /** Per-person capabilities on top of the role — see OPERATOR_GRANTS. */
+      grants?: OperatorGrant[];
     }): Promise<IssuedGateCredentials> =>
       this.request<IssuedGateCredentials>(`/tickets/gate-operators`, {
         method: 'POST',
         body: JSON.stringify(data),
+      }),
+
+    setGrants: async (id: string, grants: OperatorGrant[]): Promise<GateOperatorRow> =>
+      this.request<GateOperatorRow>(`/tickets/gate-operators/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ grants }),
       }),
 
     setEvents: async (id: string, eventIds: string[]): Promise<GateOperatorRow> =>
@@ -1027,6 +1097,15 @@ export class ApiClient {
         method: 'PATCH',
         body: JSON.stringify({ eventIds }),
       }),
+
+    /** What this person did on the door — scans, admitted vs refused, tags registered. */
+    activity: async (id: string, params: { eventId?: string; limit?: number } = {}): Promise<GateOperatorActivity> => {
+      const qs = new URLSearchParams();
+      if (params.eventId) qs.set('eventId', params.eventId);
+      if (params.limit) qs.set('limit', String(params.limit));
+      const query = qs.toString();
+      return this.request<GateOperatorActivity>(`/tickets/gate-operators/${id}/activity${query ? `?${query}` : ''}`);
+    },
 
     resetPin: async (id: string, pin?: string): Promise<{ operatorId: string; pin: string }> =>
       this.request<{ operatorId: string; pin: string }>(`/tickets/gate-operators/${id}/reset-pin`, {
@@ -1056,10 +1135,17 @@ export class ApiClient {
       vendorId?: string;
       /** Required for organizer scope; platform-scoped cashiers take none. */
       eventId?: string;
+      grants?: OperatorGrant[];
     }): Promise<IssuedCashierCredentials> =>
       this.request<IssuedCashierCredentials>(`/tickets/cashiers`, {
         method: 'POST',
         body: JSON.stringify(data),
+      }),
+
+    setGrants: async (id: string, grants: OperatorGrant[]): Promise<CashierRow> =>
+      this.request<CashierRow>(`/tickets/cashiers/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ grants }),
       }),
 
     resetPin: async (id: string, pin?: string): Promise<{ cashierId: string; pin: string }> =>
@@ -1552,6 +1638,101 @@ export interface ResellerWithdrawal {
   createdAt: string;
 }
 
+/**
+ * Per-person capabilities an organizer can grant to an operator, on top of
+ * whatever their role already carries. Mirrors OperatorGrant in the API; the
+ * server drops any value it doesn't recognise.
+ */
+export type OperatorGrant = 'issue_tags';
+
+export const OPERATOR_GRANT_LABELS: Record<OperatorGrant, { label: string; hint: string }> = {
+  issue_tags: {
+    label: 'Can issue tags',
+    hint: 'Bind a blank NFC tag to an attendee\'s ticket at the tag desk',
+  },
+};
+// ── Tags (the wallets behind an event's NFC tags) ──────────────────────────
+export type TagStatus = 'active' | 'unbound' | 'frozen' | 'closed';
+
+export interface TagSummary {
+  tagsInUse: number;
+  activeTags: number;
+  unboundTags: number;
+  balanceOutstanding: number;
+  cashFundedOutstanding: number;
+  averageBalance: number;
+}
+
+export interface TagRow {
+  walletId: string;
+  bandUid: string | null;
+  status: TagStatus;
+  balance: number;
+  cashFundedBalance: number;
+  holder: { name: string | null; phone: string | null; ticketCode: string | null };
+}
+
+export interface TagBinding {
+  bandUid: string;
+  boundAt: string;
+  boundBy: string | null;
+  unboundAt: string | null;
+  unboundReason: string | null;
+}
+
+export interface TagMovement {
+  kind: 'topup' | 'spend' | 'cashout';
+  amount: number;
+  at: string;
+  label: string;
+}
+
+export type TagDetail = TagRow & { bindings: TagBinding[]; movements: TagMovement[] };
+
+/** One tag handed to one attendee, as the register desk recorded it. */
+export interface TagRegistrationRow {
+  bandUid: string;
+  walletId: string;
+  at: string;
+  /** Set once the tag was released — reported lost, or reissued onto another. */
+  releasedAt: string | null;
+  balance: number;
+  registeredBy: string;
+  holder: { name: string | null; phone: string | null; ticketCode: string | null };
+}
+
+export interface OperatorScanRow {
+  id: string;
+  at: string;
+  eventId: string;
+  eventName: string;
+  result: string;
+  isValid: boolean;
+  ticketCode: string | null;
+  holderName: string | null;
+}
+
+export interface GateOperatorActivity {
+  operator: GateOperatorRow;
+  summary: {
+    scans: number;
+    admitted: number;
+    /** Everything the scanner turned away: duplicates, wrong event, cancelled. */
+    refused: number;
+    tagsRegistered: number;
+    firstScanAt: string | null;
+    lastScanAt: string | null;
+  };
+  byEvent: Array<{
+    eventId: string; eventName: string; scans: number; admitted: number; refused: number; lastScanAt: string | null;
+  }>;
+  recent: OperatorScanRow[];
+  registrations: Array<{
+    bandUid: string; walletId: string; at: string; releasedAt: string | null;
+    balance: number; holderName: string | null; ticketCode: string | null;
+  }>;
+}
+
 export interface GateOperatorRow {
   _id: string;
   fullName: string;
@@ -1562,6 +1743,7 @@ export interface GateOperatorRow {
   eventIds: string[];
   isActive: boolean;
   loginCode: string;
+  grants?: OperatorGrant[];
   createdAt: string;
 }
 
@@ -1582,6 +1764,7 @@ export interface CashierRow {
   eventId?: string | null;
   isActive: boolean;
   loginCode: string;
+  grants?: OperatorGrant[];
   createdAt: string;
 }
 
@@ -1704,6 +1887,10 @@ export interface StockBoardBarRow {
   productName: string;
   category: string;
   onHand: number;
+  /** Units rung up on itemised charges; un-itemised taps carry no product line. */
+  unitsSold: number;
+  /** What those units took, in cents. */
+  revenue: number;
   lowStockThreshold: number | null;
   status: StockStatus;
 }
@@ -1712,6 +1899,8 @@ export interface StockBoardProductRow {
   productName: string;
   category: string;
   totalOnHand: number;
+  unitsSold: number;
+  revenue: number;
   status: StockStatus;
 }
 export interface StockBoard {

@@ -26,6 +26,7 @@ import { GalleryManager } from '@/components/GalleryManager';
 import { EventAnalyticsTab } from '@/components/EventAnalyticsTab';
 import { EventCreatorTab } from '@/components/EventCreatorTab';
 import { EventCashlessTab } from '@/components/EventCashlessTab';
+import { EventCashlessSetting } from '@/components/cashless/EventCashlessSetting';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ChannelsManager } from '@/components/community/ChannelsManager';
 import { AnnouncementComposer } from '@/components/community/AnnouncementComposer';
@@ -48,7 +49,6 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { QRCodeSVG } from 'qrcode.react';
 import { TicketType, EventFormData } from '@/types';
-import { EventCashlessSettingsCard } from '@/components/EventCashlessSettingsCard';
 
 /** Draft state for the editable Event Information card. */
 type InfoDraft = { name: string; description: string; venue: string } & EventDateTimeFormValues;
@@ -834,9 +834,10 @@ export function EventDetailsPage() {
             </CardContent>
           </Card>
 
-          {/* Cashless — an admin grants it, an organizer can only ask. The
-              card renders both sides; which one you see is your role. */}
-          {event && <EventCashlessSettingsCard event={event} isAdmin={isAdmin} />}
+          {/* Cashless Card — admin-held switch, organizer request path. Sits
+              with Ticketing because it's the other "how does money work at
+              this event" decision. */}
+          {event && <EventCashlessSetting event={event} isAdmin={isAdmin} />}
 
           {/* Ticket Types Card — Carrot's own tier editor. Not applicable
               when the organizer sells tickets externally: there's nothing

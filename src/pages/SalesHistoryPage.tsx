@@ -145,6 +145,7 @@ export function SalesHistoryPage() {
                   <SelectItem value="mtn_momo">MoMo</SelectItem>
                   <SelectItem value="peach_card">Card</SelectItem>
                   <SelectItem value="deltapay">DeltaPay</SelectItem>
+                  <SelectItem value="yoco">Card (Yoco)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

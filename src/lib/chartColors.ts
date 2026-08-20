@@ -70,6 +70,7 @@ export const PAYMENT_METHOD_COLORS: Record<string, string> = {
   momo: CHART_COLORS.momo,
   peach_card: CHART_COLORS.info,
   deltapay: CHART_COLORS.teal,
+  yoco: CHART_COLORS.cyan,
 };
 
 // Color mapping for ticket types (will cycle through palette)

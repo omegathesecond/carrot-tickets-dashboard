@@ -22,6 +22,7 @@ export function SettingsPage() {
   const [momoFeeInput, setMomoFeeInput] = useState('');
   const [cardFeeInput, setCardFeeInput] = useState('');
   const [deltapayFeeInput, setDeltapayFeeInput] = useState('');
+  const [yocoFeeInput, setYocoFeeInput] = useState('');
   const [feesInitialised, setFeesInitialised] = useState(false);
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -38,6 +39,7 @@ export function SettingsPage() {
       setMomoFeeInput(String(data.momoServiceFee ?? 0));
       setCardFeeInput(String(data.cardServiceFee ?? 0));
       setDeltapayFeeInput(String(data.deltapayServiceFee ?? 0));
+      setYocoFeeInput(String(data.yocoServiceFee ?? 0));
       setFeesInitialised(true);
     }
   }, [data, feesInitialised]);
@@ -95,7 +97,7 @@ export function SettingsPage() {
       </div>
     );
 
-  const toggle = (key: 'keshlessWalletEnabled' | 'mtnMomoEnabled' | 'cashEnabled' | 'peachCardEnabled' | 'deltapayEnabled') => {
+  const toggle = (key: 'keshlessWalletEnabled' | 'mtnMomoEnabled' | 'cashEnabled' | 'peachCardEnabled' | 'deltapayEnabled' | 'yocoEnabled') => {
     const feeVal = parseFloat(feeInput);
     const commVal = parseFloat(commInput);
     mutation.mutate({
@@ -130,10 +132,13 @@ export function SettingsPage() {
   const momoFeeVal = parseFloat(momoFeeInput);
   const cardFeeVal = parseFloat(cardFeeInput);
   const deltapayFeeVal = parseFloat(deltapayFeeInput);
+  const yocoFeeVal = parseFloat(yocoFeeInput);
   const inRange = (v: number) => !isNaN(v) && v >= 0 && v <= 100000;
   const serviceFeesValid =
     keshFeeInput !== '' && momoFeeInput !== '' && cardFeeInput !== '' && deltapayFeeInput !== '' &&
-    inRange(keshFeeVal) && inRange(momoFeeVal) && inRange(cardFeeVal) && inRange(deltapayFeeVal);
+    yocoFeeInput !== '' &&
+    inRange(keshFeeVal) && inRange(momoFeeVal) && inRange(cardFeeVal) && inRange(deltapayFeeVal) &&
+    inRange(yocoFeeVal);
 
   const saveServiceFees = () => {
     serviceFeesMutation.mutate({
@@ -142,6 +147,7 @@ export function SettingsPage() {
       momoServiceFee: momoFeeVal,
       cardServiceFee: cardFeeVal,
       deltapayServiceFee: deltapayFeeVal,
+      yocoServiceFee: yocoFeeVal,
     });
   };
 
@@ -201,6 +207,19 @@ export function SettingsPage() {
             <Switch
               checked={data.deltapayEnabled}
               onCheckedChange={() => toggle('deltapayEnabled')}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <Label className="text-base">Card payments (Yoco)</Label>
+              <p className="text-sm text-muted-foreground">
+                Pay by Visa/Mastercard through Yoco. Settles in ZAR. Turning this on while
+                Peach is also on shows buyers two card buttons — run one card rail at a time.
+              </p>
+            </div>
+            <Switch
+              checked={data.yocoEnabled}
+              onCheckedChange={() => toggle('yocoEnabled')}
             />
           </div>
           <div className="flex items-center justify-between">
@@ -318,6 +337,18 @@ export function SettingsPage() {
               value={deltapayFeeInput}
               onChange={(e) => setDeltapayFeeInput(e.target.value)}
               placeholder="e.g. 5"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="yoco-fee">Yoco card service fee (E)</Label>
+            <Input
+              id="yoco-fee"
+              type="number"
+              min="0"
+              step="0.01"
+              value={yocoFeeInput}
+              onChange={(e) => setYocoFeeInput(e.target.value)}
+              placeholder="e.g. 10"
             />
           </div>
           <Button

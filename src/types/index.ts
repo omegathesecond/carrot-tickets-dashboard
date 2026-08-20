@@ -79,6 +79,7 @@ export interface PaymentMethodSettings {
   cashEnabled: boolean;
   peachCardEnabled: boolean;
   deltapayEnabled: boolean;
+  yocoEnabled: boolean;
   defaultResellerCommissionPercent: number;
   platformFeePercent: number;
   // Buyer-paid FLAT service fee (E) per online method (added on top at checkout).
@@ -86,6 +87,7 @@ export interface PaymentMethodSettings {
   momoServiceFee: number;
   cardServiceFee: number;
   deltapayServiceFee: number;
+  yocoServiceFee: number;
 }
 
 // Event Types
@@ -113,9 +115,8 @@ export interface Event {
   // NFC closed-loop cashless event: attendees carry funded wristbands, vendors
   // charge them, cashiers top up + cash out. Gates the organizer Cashless tab.
   cashless?: boolean;
-  // The organizer's standing ask for cashless. Set by POST /cashless-request
-  // and cleared the moment an admin grants it, so a pending request and a
-  // live cashless event are never both true.
+  // Organizer's standing ask for cashless — an organizer may not set the flag
+  // themselves (the API 403s), so they request and an admin grants.
   cashlessRequestedAt?: string | null;
   cashlessRequestNote?: string | null;
   createdAt: string;
@@ -700,6 +701,15 @@ export interface CashlessTxn {
   actorType?: string;
   actorId?: string | null;
   bandUid?: string;
+  /** The caller's own reference (clientTxnId) — what a support query is traced by. */
+  ref?: string | null;
+  status?: string;
+  walletId?: string;
+  /**
+   * The tag this moved on, as it was AT THE TIME. Null when the wallet had no
+   * band bound then — a desk top-up before the attendee collected their tag.
+   */
+  tagUid?: string | null;
   fee?: number;
   netAmount?: number;
 }
