@@ -1285,6 +1285,40 @@ export class ApiClient {
       }),
   };
 
+  // Event Menu (MANAGE_MENU, ownership server-side) — bar/vendor preorder
+  // catalogue + incoming preorders for ONE event.
+  menu = {
+    listItems: async (eventId: string): Promise<MenuItemRow[]> =>
+      this.request<MenuItemRow[]>(`/tickets/events/${eventId}/menu-items`),
+
+    createItem: async (eventId: string, data: NewMenuItem): Promise<MenuItemRow> =>
+      this.request<MenuItemRow>(`/tickets/events/${eventId}/menu-items`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    updateItem: async (itemId: string, data: UpdateMenuItem): Promise<MenuItemRow> =>
+      this.request<MenuItemRow>(`/tickets/menu-items/${itemId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+
+    deleteItem: async (itemId: string): Promise<{ deleted: boolean }> =>
+      this.request(`/tickets/menu-items/${itemId}`, { method: 'DELETE' }),
+
+    listOrders: async (eventId: string): Promise<MenuOrderRow[]> =>
+      this.request<MenuOrderRow[]>(`/tickets/events/${eventId}/menu-orders`),
+
+    updateOrderFulfillment: async (
+      orderId: string,
+      fulfillmentStatus: MenuOrderFulfillmentStatus,
+    ): Promise<MenuOrderRow> =>
+      this.request<MenuOrderRow>(`/tickets/menu-orders/${orderId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ fulfillmentStatus }),
+      }),
+  };
+
   // Wristband design + batch-issue endpoints
   wristbands = {
     listDesigns: async (eventId: string): Promise<WristbandDesignDoc[]> =>
@@ -1879,6 +1913,92 @@ export interface UpdateProduct {
   packLabel?: string | null;
   active?: boolean;
 }
+
+// ---- Event Menu (bar/vendor preorder catalogue) — mirror the API payloads ----
+export type MenuSection = 'bar' | 'vendor';
+
+export const MENU_SECTIONS: { value: MenuSection; label: string }[] = [
+  { value: 'bar', label: 'Bar menu' },
+  { value: 'vendor', label: 'Vendors menu' },
+];
+
+export interface MenuItemRow {
+  _id: string;
+  eventId: string;
+  section: MenuSection;
+  vendorName?: string | null;
+  category: string;
+  name: string;
+  description?: string | null;
+  price: number; // integer minor units (cents)
+  imageUrl?: string | null;
+  active: boolean;
+  displayOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NewMenuItem {
+  section: MenuSection;
+  vendorName?: string;
+  category: string;
+  name: string;
+  description?: string;
+  price: number;
+  imageUrl?: string;
+  displayOrder?: number;
+}
+
+export interface UpdateMenuItem {
+  section?: MenuSection;
+  vendorName?: string | null;
+  category?: string;
+  name?: string;
+  description?: string | null;
+  price?: number;
+  imageUrl?: string | null;
+  active?: boolean;
+  displayOrder?: number;
+}
+
+export type MenuOrderFulfillmentStatus = 'new' | 'preparing' | 'ready' | 'collected' | 'cancelled';
+export type MenuOrderPaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
+
+export interface MenuOrderLineItem {
+  menuItemId: string;
+  name: string;
+  unitPrice: number;
+  quantity: number;
+  lineTotal: number;
+}
+
+export interface MenuOrderRow {
+  _id: string;
+  orderId: string;
+  eventId: string;
+  buyerId: string;
+  buyerName?: string;
+  buyerPhone?: string;
+  items: MenuOrderLineItem[];
+  subtotal: number;
+  serviceFeeAmount: number;
+  amountCharged: number;
+  paymentMethod: string;
+  paymentStatus: MenuOrderPaymentStatus;
+  fulfillmentStatus: MenuOrderFulfillmentStatus;
+  notes?: string;
+  paidAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const MENU_ORDER_FULFILLMENT_LABELS: Record<MenuOrderFulfillmentStatus, string> = {
+  new: 'New',
+  preparing: 'Preparing',
+  ready: 'Ready',
+  collected: 'Collected',
+  cancelled: 'Cancelled',
+};
 
 export interface StockBoardBarRow {
   merchantId: string;
