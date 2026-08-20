@@ -19,6 +19,7 @@ import { EventTagsPanel } from '@/components/cashless/EventTagsPanel';
 import { EventCataloguePanel } from '@/components/cashless/EventCataloguePanel';
 import { EventRegisterPanel } from '@/components/cashless/EventRegisterPanel';
 import { EventTransactionLog } from '@/components/cashless/EventTransactionLog';
+import { StatCard } from '@/components/cashless/StatCard';
 import { CashiersPanel } from '@/components/CashiersPanel';
 import { useAuth } from '@/contexts/AuthContext';
 import { canManageAccess, canManageStock } from '@/lib/permissions';
@@ -76,7 +77,11 @@ export function EventCashlessTab({ eventId }: Props) {
   const setSub = (v: string) => {
     const next = new URLSearchParams(searchParams);
     next.set('sub', v);
+    // Both belong to the sub-tab you are leaving: `pane` to Money, `view` to
+    // Catalogue. Carrying one over would deep-link the next visit to a pane of
+    // a tab it was never set for.
     next.delete('pane');
+    next.delete('view');
     setSearchParams(next, { replace: true });
   };
 
@@ -277,39 +282,6 @@ function StallTakings({
             </Table>
           </div>
         )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function StatCard({
-  icon,
-  label,
-  value,
-  hint,
-  tone,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  hint: string;
-  tone: 'ink' | 'blue' | 'orange' | 'green';
-}) {
-  const toneClass = {
-    ink: 'text-foreground',
-    blue: 'text-blue-600',
-    orange: 'text-orange-600',
-    green: 'text-green-600',
-  }[tone];
-  return (
-    <Card>
-      <CardContent className="pt-6">
-        <div className={`flex items-center gap-1.5 text-xs font-medium ${toneClass}`}>
-          {icon}
-          {label}
-        </div>
-        <div className="text-2xl font-bold mt-1">{value}</div>
-        <div className="text-xs text-muted-foreground mt-0.5">{hint}</div>
       </CardContent>
     </Card>
   );

@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Plus, Package, Pencil, Bell } from 'lucide-react';
+import { Plus, Package, Pencil, Bell, TrendingUp, Boxes, Coins, AlertTriangle } from 'lucide-react';
 import {
   apiClient,
   PRODUCT_CATEGORIES,
@@ -26,6 +27,8 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { StatCard } from '@/components/cashless/StatCard';
 
 type ProductForm = {
   name: string;
@@ -71,6 +74,17 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
   const [editing, setEditing] = useState<StockProductRow | null>(null);
   const [form, setForm] = useState<ProductForm>(EMPTY_FORM);
 
+  // Which half of the page you're on rides in the URL, same as the ?tab/?sub
+  // pair above it — a refresh or a shared link lands back on the same view
+  // instead of bouncing to the default.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const view = searchParams.get('view') === 'catalogue' ? 'catalogue' : 'levels';
+  const setView = (v: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('view', v);
+    setSearchParams(next, { replace: true });
+  };
+
   const { data: products = [], isLoading } = useQuery({
     queryKey: ['stock-products', eventId],
     queryFn: () => apiClient.stock.listProducts(eventId),
@@ -98,6 +112,21 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
       m.set(r.merchantId, g);
     });
     return [...m.entries()];
+  }, [board]);
+
+  /**
+   * Event-wide roll-up for the stock tiles. Summed off byProduct rather than
+   * perBar: byProduct already folds in products sold at a stall that never
+   * carried a stock row, which perBar has no line for at all.
+   */
+  const totals = useMemo(() => {
+    const rows = board?.byProduct ?? [];
+    return {
+      unitsSold: rows.reduce((n, r) => n + r.unitsSold, 0),
+      revenue: rows.reduce((n, r) => n + r.revenue, 0),
+      onHand: rows.reduce((n, r) => n + r.totalOnHand, 0),
+      needsAttention: rows.filter((r) => r.status === 'low' || r.status === 'sold_out').length,
+    };
   }, [board]);
 
   const invalidate = () => {
@@ -229,98 +258,137 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Package className="h-4 w-4 text-orange-600" />
-          What this event's stalls sell — priced per unit, stocked per stall
-        </div>
-        <Button onClick={openAdd} className="bg-orange-600 hover:bg-orange-700">
-          <Plus className="h-4 w-4 mr-1" /> Add product
-        </Button>
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Package className="h-4 w-4 text-orange-600" />
+        What this event's stalls sell — priced per unit, stocked per stall
       </div>
 
-      {isLoading ? (
-        <Card><CardContent className="py-12 text-center text-muted-foreground">Loading products…</CardContent></Card>
-      ) : products.length === 0 ? (
-        <Card><CardContent className="py-12 text-center text-muted-foreground">No products yet. Add your first one.</CardContent></Card>
-      ) : (
-        <Card>
-          <CardContent className="pt-6 overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Product</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead className="text-right">Price</TableHead>
-                  <TableHead>Barcode</TableHead>
-                  <TableHead>Pack</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="w-10" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {products.map((p) => (
-                  <TableRow key={p._id} className="hover:bg-slate-50">
-                    <TableCell className="font-medium">{p.name}</TableCell>
-                    <TableCell className="text-muted-foreground">{categoryLabel(p.category)}</TableCell>
-                    <TableCell className="text-right font-semibold">{fmtR(p.price)}</TableCell>
-                    <TableCell className="text-muted-foreground font-mono text-xs">{p.barcode ?? '—'}</TableCell>
-                    <TableCell className="text-muted-foreground">{p.unitsPerPack ? `${p.unitsPerPack} / ${p.packLabel ?? 'pack'}` : '—'}</TableCell>
-                    <TableCell>
-                      {p.active
-                        ? <Badge variant="secondary" className="bg-green-100 text-green-800">Active</Badge>
-                        : <Badge variant="secondary" className="bg-gray-100 text-gray-700">Inactive</Badge>}
-                    </TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
+      {/* Two jobs share this page and they are read at different moments: during
+          the event you want the shelf ("what sold, what's left, what it took"),
+          before it you want the price list. Splitting them puts the running
+          totals at the top of the view that cares about them instead of below a
+          product table you have to scroll past. */}
+      <Tabs value={view} onValueChange={setView} className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="levels">Stock levels</TabsTrigger>
+          <TabsTrigger value="catalogue">Catalogue</TabsTrigger>
+        </TabsList>
 
-      <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-base">Stock levels</CardTitle>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" disabled={!products.length || !stalls.length} onClick={() => openOp('receive')}>Receive</Button>
-            <Button size="sm" variant="outline" disabled={!products.length || stalls.length < 2} onClick={() => openOp('transfer')}>Transfer</Button>
-            <Button size="sm" variant="outline" disabled={!products.length || !stalls.length} onClick={() => openOp('count')}>Count</Button>
+        <TabsContent value="levels" className="space-y-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard icon={<TrendingUp className="h-4 w-4" />} label="Units sold" value={totals.unitsSold.toLocaleString('en-ZA')} hint="rung up on itemised charges" tone="blue" />
+            <StatCard icon={<Coins className="h-4 w-4" />} label="Sales" value={fmtR(totals.revenue)} hint="what those units took" tone="green" />
+            <StatCard icon={<Boxes className="h-4 w-4" />} label="On hand" value={totals.onHand.toLocaleString('en-ZA')} hint="units still on the shelf" tone="ink" />
+            <StatCard icon={<AlertTriangle className="h-4 w-4" />} label="Needs attention" value={String(totals.needsAttention)} hint="products low or sold out" tone="orange" />
           </div>
-        </CardHeader>
-        <CardContent>
-          {levelsByStall.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-2">No stock loaded yet. Use <span className="font-medium">Receive</span> to load a stall.</p>
-          ) : (
-            <div className="space-y-4">
-              {levelsByStall.map(([merchantId, g]) => (
-                <div key={merchantId}>
-                  <div className="text-sm font-semibold mb-1">{g.name}</div>
-                  <div className="grid sm:grid-cols-2 gap-x-6 gap-y-1">
-                    {g.rows.map((r) => (
-                      <div key={r.productId} className="flex items-center justify-between text-sm border-b border-slate-100 py-1">
-                        <span className="truncate">{r.productName}</span>
-                        <span className="flex items-center gap-2 shrink-0">
-                          <span className="tabular-nums">{r.onHand}</span>
-                          <StatusPill status={r.status} />
-                          <Button variant="ghost" size="icon" className="h-6 w-6" title="Low-stock alert"
-                            onClick={() => { setOpForm({ ...EMPTY_OP, merchantId, productId: r.productId, quantity: r.lowStockThreshold != null ? String(r.lowStockThreshold) : '' }); setOp('threshold'); }}>
-                            <Bell className="h-3.5 w-3.5" />
-                          </Button>
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
+          <Card>
+            <CardHeader className="flex-row items-center justify-between space-y-0">
+              <CardTitle className="text-base">Stock levels</CardTitle>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" disabled={!products.length || !stalls.length} onClick={() => openOp('receive')}>Receive</Button>
+                <Button size="sm" variant="outline" disabled={!products.length || stalls.length < 2} onClick={() => openOp('transfer')}>Transfer</Button>
+                <Button size="sm" variant="outline" disabled={!products.length || !stalls.length} onClick={() => openOp('count')}>Count</Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {levelsByStall.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">No stock loaded yet. Use <span className="font-medium">Receive</span> to load a stall.</p>
+              ) : (
+                <div className="space-y-6">
+                  {levelsByStall.map(([merchantId, g]) => (
+                    <div key={merchantId}>
+                      <div className="text-sm font-semibold mb-1">{g.name}</div>
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Product</TableHead>
+                              <TableHead className="text-right">Sold</TableHead>
+                              <TableHead className="text-right">In stock</TableHead>
+                              <TableHead className="text-right">Sales</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead className="w-10" />
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {g.rows.map((r) => (
+                              <TableRow key={r.productId} className="hover:bg-slate-50">
+                                <TableCell className="font-medium">{r.productName}</TableCell>
+                                <TableCell className="text-right tabular-nums">{r.unitsSold}</TableCell>
+                                <TableCell className="text-right tabular-nums font-semibold">{r.onHand}</TableCell>
+                                <TableCell className="text-right tabular-nums font-semibold">{fmtR(r.revenue)}</TableCell>
+                                <TableCell><StatusPill status={r.status} /></TableCell>
+                                <TableCell>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" title="Low-stock alert"
+                                    onClick={() => { setOpForm({ ...EMPTY_OP, merchantId, productId: r.productId, quantity: r.lowStockThreshold != null ? String(r.lowStockThreshold) : '' }); setOp('threshold'); }}>
+                                    <Bell className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="catalogue" className="space-y-4">
+          <div className="flex justify-end">
+            <Button onClick={openAdd} className="bg-orange-600 hover:bg-orange-700">
+              <Plus className="h-4 w-4 mr-1" /> Add product
+            </Button>
+          </div>
+
+          {isLoading ? (
+            <Card><CardContent className="py-12 text-center text-muted-foreground">Loading products…</CardContent></Card>
+          ) : products.length === 0 ? (
+            <Card><CardContent className="py-12 text-center text-muted-foreground">No products yet. Add your first one.</CardContent></Card>
+          ) : (
+            <Card>
+              <CardContent className="pt-6 overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Product</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead className="text-right">Price</TableHead>
+                      <TableHead>Barcode</TableHead>
+                      <TableHead>Pack</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="w-10" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {products.map((p) => (
+                      <TableRow key={p._id} className="hover:bg-slate-50">
+                        <TableCell className="font-medium">{p.name}</TableCell>
+                        <TableCell className="text-muted-foreground">{categoryLabel(p.category)}</TableCell>
+                        <TableCell className="text-right font-semibold">{fmtR(p.price)}</TableCell>
+                        <TableCell className="text-muted-foreground font-mono text-xs">{p.barcode ?? '—'}</TableCell>
+                        <TableCell className="text-muted-foreground">{p.unitsPerPack ? `${p.unitsPerPack} / ${p.packLabel ?? 'pack'}` : '—'}</TableCell>
+                        <TableCell>
+                          {p.active
+                            ? <Badge variant="secondary" className="bg-green-100 text-green-800">Active</Badge>
+                            : <Badge variant="secondary" className="bg-gray-100 text-gray-700">Inactive</Badge>}
+                        </TableCell>
+                        <TableCell>
+                          <Button variant="ghost" size="icon" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
       <StockOpDialogs
         op={op} setOp={setOp} form={opForm} setForm={setOpForm}
         products={products} stalls={stalls}
