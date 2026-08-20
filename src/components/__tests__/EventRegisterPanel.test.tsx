@@ -18,10 +18,18 @@ vi.mock('@/lib/api', () => ({
       resetPin: vi.fn(),
       setActive: vi.fn(),
     },
-    tags: { registrations: (...a: unknown[]) => listRegistrations(...a) },
+    tags: {
+      registrations: (...a: unknown[]) => listRegistrations(...a),
+      // The nested tag-register panel has its own suite; stub it flat here so
+      // this one keeps testing the desk accounts and the handed-out log.
+      registry: () => Promise.resolve({ tags: [], total: 0, counts: { active: 0, retired: 0, total: 0 } }),
+      register: vi.fn(),
+      registerMany: vi.fn(),
+      retire: vi.fn(),
+    },
   },
 }));
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
 
 const operator = (over: Record<string, unknown> = {}) => ({
   _id: 'op1', fullName: 'Register Rose', scope: 'organizer', eventIds: ['e1'],
