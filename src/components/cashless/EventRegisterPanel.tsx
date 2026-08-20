@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { OperatorCredentialsDialog } from '@/components/OperatorCredentialsDialog';
+import { EventTagRegisterPanel } from '@/components/cashless/EventTagRegisterPanel';
 import { ViewAffordance } from '@/components/ViewAffordance';
 
 const initialsOf = (name: string) =>
@@ -29,14 +30,21 @@ type AddForm = { fullName: string; phoneNumber: string };
 const DEFAULT_FORM: AddForm = { fullName: '', phoneNumber: '' };
 
 /**
- * The register desk for ONE event: the people who bind blank tags to tickets,
- * and the log of every tag they have handed out.
+ * The register desk for ONE event, in the order the job actually happens:
+ * the people who work it, the tags they have registered TO the event, and the
+ * log of the ones they have since handed out.
+ *
+ * The middle section is the one that decides who gets in: only a tag in this
+ * event's register can be bound to a ticket, so a tag from another show — or
+ * one an attendee brought themselves — is worthless here.
  *
  * A register account is NOT a fourth kind of operator — it is a gate operator
  * assigned to this event carrying the `issue_tags` grant. Roles are the floor
  * and grants are the per-person extras (see OperatorGrant on the API), so the
  * desk gets its own screen without a second credential/lockout/auth stack to
  * keep in step. Creating one here just picks the event and the grant for you.
+ * The API answers `type: 'register'` when they log into the POS, which is what
+ * opens the Register screen instead of the turnstile scanner.
  */
 export function EventRegisterPanel({ eventId }: { eventId: string }) {
   const navigate = useNavigate();
@@ -231,12 +239,15 @@ export function EventRegisterPanel({ eventId }: { eventId: string }) {
         )}
       </section>
 
+      <EventTagRegisterPanel eventId={eventId} />
+
       <section className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h3 className="font-semibold text-slate-900">Registered tags</h3>
+            <h3 className="font-semibold text-slate-900">Tags handed out</h3>
             <p className="text-sm text-muted-foreground">
-              Every tag handed out at this event, newest first — including ones since reported lost or reissued.
+              Every tag given to an attendee at this event, newest first — including ones since reported lost
+              or reissued. Each one came out of the register above.
             </p>
           </div>
           <div className="relative w-full sm:w-64">
@@ -256,7 +267,7 @@ export function EventRegisterPanel({ eventId }: { eventId: string }) {
               </p>
             ) : registrations.length === 0 ? (
               <p className="text-sm text-muted-foreground py-4">
-                {q.trim() ? `No tag matching “${q.trim()}” has been registered.` : 'No tags registered yet.'}
+                {q.trim() ? `No tag matching “${q.trim()}” has been handed out.` : 'No tags handed out yet.'}
               </p>
             ) : (
               <div className="overflow-x-auto">

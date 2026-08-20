@@ -15,7 +15,7 @@ const renderField = (value: OperatorGrant[] = []) => {
 describe('OperatorGrantsField', () => {
   it('shows the tag-desk grant unchecked when the person does not hold it', () => {
     renderField([]);
-    expect(screen.getByRole('switch', { name: /can issue tags/i })).toHaveProperty(
+    expect(screen.getByRole('switch', { name: /works the register desk/i })).toHaveProperty(
       'dataset.state',
       'unchecked',
     );
@@ -23,20 +23,20 @@ describe('OperatorGrantsField', () => {
 
   it('adds the grant when switched on', () => {
     const { onChange } = renderField([]);
-    fireEvent.click(screen.getByRole('switch', { name: /can issue tags/i }));
+    fireEvent.click(screen.getByRole('switch', { name: /works the register desk/i }));
     expect(onChange).toHaveBeenCalledWith(['issue_tags']);
   });
 
   it('removes it when switched off, leaving other grants alone', () => {
     const { onChange } = renderField(['issue_tags']);
-    fireEvent.click(screen.getByRole('switch', { name: /can issue tags/i }));
+    fireEvent.click(screen.getByRole('switch', { name: /works the register desk/i }));
     expect(onChange).toHaveBeenCalledWith([]);
   });
 
   it('does not fire while disabled', () => {
     const onChange = vi.fn();
     render(<OperatorGrantsField value={[]} onChange={onChange} disabled />);
-    fireEvent.click(screen.getByRole('switch', { name: /can issue tags/i }));
+    fireEvent.click(screen.getByRole('switch', { name: /works the register desk/i }));
     expect(onChange).not.toHaveBeenCalled();
   });
 });

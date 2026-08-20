@@ -1038,6 +1038,50 @@ export class ApiClient {
     detail: async (eventId: string, walletId: string): Promise<TagDetail> =>
       this.request<TagDetail>(`/tickets/events/${eventId}/tags/${walletId}`),
 
+    /**
+     * The event's tag REGISTER — the physical tags this organizer has enrolled
+     * into this show. Distinct from `list` above: that reads the wallets behind
+     * tags already on someone's wrist; this is the pool of plastic allowed to
+     * become one at all. A tag missing from here cannot be bound, so nothing
+     * bought elsewhere works at the door.
+     */
+    registry: async (
+      eventId: string,
+      params: { status?: EventTagStatus; q?: string; limit?: number; skip?: number } = {},
+    ): Promise<TagRegistry> => {
+      const qs = new URLSearchParams();
+      if (params.status) qs.set('status', params.status);
+      if (params.q) qs.set('q', params.q);
+      if (params.limit) qs.set('limit', String(params.limit));
+      if (params.skip) qs.set('skip', String(params.skip));
+      const query = qs.toString();
+      return this.request(`/tickets/events/${eventId}/tags/registry${query ? `?${query}` : ''}`);
+    },
+
+    /** Enrol ONE tag — the single-tap path. */
+    register: async (eventId: string, bandUid: string): Promise<{
+      bandUid: string;
+      outcome: 'registered' | 'already_registered' | 'reactivated';
+      counts: EventTagCounts;
+    }> =>
+      this.request(`/tickets/events/${eventId}/tags/registry`, {
+        method: 'POST', body: JSON.stringify({ bandUid }),
+      }),
+
+    /** Enrol a whole tag order at once. Every line comes back accounted for. */
+    registerMany: async (eventId: string, bandUids: string[]): Promise<BulkRegisterResult> =>
+      this.request(`/tickets/events/${eventId}/tags/registry`, {
+        method: 'POST', body: JSON.stringify({ bandUids }),
+      }),
+
+    /** Pull a tag out of circulation — damaged, lost, sold on. */
+    retire: async (eventId: string, bandUid: string, reason?: string): Promise<{
+      bandUid: string; status: EventTagStatus; counts: EventTagCounts;
+    }> =>
+      this.request(`/tickets/events/${eventId}/tags/registry/retire`, {
+        method: 'POST', body: JSON.stringify({ bandUid, ...(reason ? { reason } : {}) }),
+      }),
+
     /** The register desk's log — every tag registered at this event, newest first. */
     registrations: async (
       eventId: string,
@@ -1681,10 +1725,43 @@ export type OperatorGrant = 'issue_tags';
 
 export const OPERATOR_GRANT_LABELS: Record<OperatorGrant, { label: string; hint: string }> = {
   issue_tags: {
-    label: 'Can issue tags',
-    hint: 'Bind a blank NFC tag to an attendee\'s ticket at the tag desk',
+    label: 'Works the Register desk',
+    hint: 'Register your tags to an event, and bind one to an attendee\'s ticket',
   },
 };
+
+// ── The event's tag register (which physical tags may be used at this event) ──
+export type EventTagStatus = 'active' | 'retired';
+
+export interface EventTagCounts {
+  active: number;
+  retired: number;
+  total: number;
+}
+
+export interface EventTagRow {
+  bandUid: string;
+  status: EventTagStatus;
+  registeredAt: string;
+  /** Resolved name of whoever enrolled it, or 'Unknown'. */
+  registeredBy: string;
+  retiredAt: string | null;
+  retiredReason: string | null;
+}
+
+export interface TagRegistry {
+  tags: EventTagRow[];
+  total: number;
+  counts: EventTagCounts;
+}
+
+export interface BulkRegisterResult {
+  registered: string[];
+  alreadyRegistered: string[];
+  reactivated: string[];
+  /** Lines the server refused, each with why — never silently dropped. */
+  rejected: Array<{ bandUid: string; reason: string }>;
+}
 // ── Tags (the wallets behind an event's NFC tags) ──────────────────────────
 export type TagStatus = 'active' | 'unbound' | 'frozen' | 'closed';
 
