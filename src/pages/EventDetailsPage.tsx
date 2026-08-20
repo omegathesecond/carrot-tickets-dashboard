@@ -26,13 +26,14 @@ import { GalleryManager } from '@/components/GalleryManager';
 import { EventAnalyticsTab } from '@/components/EventAnalyticsTab';
 import { EventCreatorTab } from '@/components/EventCreatorTab';
 import { EventCashlessTab } from '@/components/EventCashlessTab';
+import { EventMenuTab } from '@/components/EventMenuTab';
 import { EventCashlessSetting } from '@/components/cashless/EventCashlessSetting';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ChannelsManager } from '@/components/community/ChannelsManager';
 import { AnnouncementComposer } from '@/components/community/AnnouncementComposer';
 import { MembersModeration } from '@/components/community/MembersModeration';
 import { useAuth } from '@/contexts/AuthContext';
-import { canManageEvents, canEditEventInfo } from '@/lib/permissions';
+import { canManageEvents, canEditEventInfo, canManageMenu } from '@/lib/permissions';
 import {
   composeEventDateTime,
   eventToDateTimeInputs,
@@ -43,7 +44,7 @@ import { getSaleTicketType, getSaleTicketCodes } from '@/lib/sales';
 import {
   ArrowLeft, Calendar, MapPin, Users, CheckCircle, Clock,
   Edit, Trash2, Eye, EyeOff, QrCode, Plus, TrendingUp, TrendingDown, Image, BarChart3, UserCircle,
-  Share2, Link as LinkIcon, MessagesSquare, CreditCard
+  Share2, Link as LinkIcon, MessagesSquare, CreditCard, UtensilsCrossed
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -90,6 +91,7 @@ export function EventDetailsPage() {
   // Community management (channels/announcements/moderation) needs the same
   // create/edit-event capability as the rest of this page's editing affordances.
   const canManageCommunity = canManageEvents(user);
+  const showMenuTab = canManageMenu(user);
 
   // Inline rename of the event title in the header.
   const [isEditingName, setIsEditingName] = useState(false);
@@ -571,9 +573,9 @@ export function EventDetailsPage() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList
           className={`grid w-full max-w-2xl ${
-            // overview + analytics + creator, plus community and/or cashless when shown
-            { 3: 'grid-cols-3', 4: 'grid-cols-4', 5: 'grid-cols-5' }[
-              3 + (canManageCommunity ? 1 : 0) + (event?.cashless ? 1 : 0)
+            // overview + analytics + creator, plus community, cashless and/or menu when shown
+            { 3: 'grid-cols-3', 4: 'grid-cols-4', 5: 'grid-cols-5', 6: 'grid-cols-6' }[
+              3 + (canManageCommunity ? 1 : 0) + (event?.cashless ? 1 : 0) + (showMenuTab ? 1 : 0)
             ]
           }`}
         >
@@ -593,6 +595,12 @@ export function EventDetailsPage() {
             <TabsTrigger value="cashless" className="flex items-center gap-2">
               <CreditCard className="h-4 w-4" />
               Cashless
+            </TabsTrigger>
+          )}
+          {showMenuTab && (
+            <TabsTrigger value="menu" className="flex items-center gap-2">
+              <UtensilsCrossed className="h-4 w-4" />
+              Menu
             </TabsTrigger>
           )}
           {canManageCommunity && (
@@ -1197,6 +1205,13 @@ export function EventDetailsPage() {
         {event?.cashless && (
           <TabsContent value="cashless" className="mt-6">
             <EventCashlessTab eventId={id!} />
+          </TabsContent>
+        )}
+
+        {/* Menu Tab — organiser's bar/vendor preorder catalogue + incoming orders */}
+        {showMenuTab && (
+          <TabsContent value="menu" className="mt-6">
+            <EventMenuTab eventId={id!} />
           </TabsContent>
         )}
 
