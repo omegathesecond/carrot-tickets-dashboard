@@ -36,10 +36,11 @@ type ItemForm = {
   name: string;
   description: string;
   priceRand: string;
+  imageUrl: string;
   active: boolean;
 };
 const EMPTY_ITEM_FORM: ItemForm = {
-  section: 'bar', vendorName: '', category: '', name: '', description: '', priceRand: '', active: true,
+  section: 'bar', vendorName: '', category: '', name: '', description: '', priceRand: '', imageUrl: '', active: true,
 };
 
 const sectionLabel = (v: MenuSection) => MENU_SECTIONS.find((s) => s.value === v)?.label ?? v;
@@ -123,6 +124,7 @@ export function EventMenuTab({ eventId }: { eventId: string }) {
       name: item.name,
       description: item.description ?? '',
       priceRand: centsToRand(item.price),
+      imageUrl: item.imageUrl ?? '',
       active: item.active,
     });
     setDialogOpen(true);
@@ -135,6 +137,7 @@ export function EventMenuTab({ eventId }: { eventId: string }) {
     if (cents == null) { toast.error('Enter a valid price'); return; }
     const vendorName = form.vendorName.trim();
     const description = form.description.trim();
+    const imageUrl = form.imageUrl.trim();
 
     if (editing) {
       saveItem.mutate({
@@ -145,6 +148,7 @@ export function EventMenuTab({ eventId }: { eventId: string }) {
           name: form.name.trim(),
           description: description ? description : null,
           price: cents,
+          imageUrl: imageUrl ? imageUrl : null,
           active: form.active,
         },
       });
@@ -156,6 +160,7 @@ export function EventMenuTab({ eventId }: { eventId: string }) {
           category: form.category.trim(),
           name: form.name.trim(),
           ...(description ? { description } : {}),
+          ...(imageUrl ? { imageUrl } : {}),
           price: cents,
         },
       });
@@ -202,6 +207,7 @@ export function EventMenuTab({ eventId }: { eventId: string }) {
                             <Table>
                               <TableHeader>
                                 <TableRow>
+                                  <TableHead className="w-14" />
                                   <TableHead>Item</TableHead>
                                   {section === 'vendor' && <TableHead>Vendor</TableHead>}
                                   <TableHead className="text-right">Price</TableHead>
@@ -212,6 +218,15 @@ export function EventMenuTab({ eventId }: { eventId: string }) {
                               <TableBody>
                                 {rows.map((item) => (
                                   <TableRow key={item._id} className="hover:bg-slate-50">
+                                    <TableCell>
+                                      {item.imageUrl ? (
+                                        <img src={item.imageUrl} alt="" className="h-10 w-10 rounded-md object-cover" />
+                                      ) : (
+                                        <div className="flex h-10 w-10 items-center justify-center rounded-md bg-muted">
+                                          <UtensilsCrossed className="h-4 w-4 text-muted-foreground" />
+                                        </div>
+                                      )}
+                                    </TableCell>
                                     <TableCell className="font-medium">
                                       {item.name}
                                       {item.description && (
@@ -342,6 +357,13 @@ export function EventMenuTab({ eventId }: { eventId: string }) {
             <div className="space-y-1">
               <Label>Description <span className="text-muted-foreground text-xs">(optional)</span></Label>
               <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} />
+            </div>
+            <div className="space-y-1">
+              <Label>Image URL <span className="text-muted-foreground text-xs">(optional)</span></Label>
+              <Input value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} placeholder="https://…" />
+              {form.imageUrl && (
+                <img src={form.imageUrl} alt="" className="mt-1 h-16 w-16 rounded-md object-cover" />
+              )}
             </div>
             {editing && (
               <div className="flex items-center justify-between pt-1">
