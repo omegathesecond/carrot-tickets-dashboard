@@ -14,7 +14,7 @@ const PNG_1PX = Uint8Array.from(atob(
 describe('buildWristbandPdf', () => {
   it('creates pages at the exact template size with one image per band', async () => {
     const bytes = await buildWristbandPdf({
-      template: T, offset: { dxMm: 0, dyMm: 0 },
+      template: T, offset: { dxMm: 0, dyMm: 0, dPitchMm: 0 },
       pages: [Array(10).fill(PNG_1PX), Array(3).fill(PNG_1PX)],
     });
     const doc = await PDFDocument.load(bytes);
@@ -26,14 +26,14 @@ describe('buildWristbandPdf', () => {
 
   it('rejects a page with more bands than the template holds', async () => {
     await expect(buildWristbandPdf({
-      template: T, offset: { dxMm: 0, dyMm: 0 }, pages: [Array(11).fill(PNG_1PX)],
+      template: T, offset: { dxMm: 0, dyMm: 0, dPitchMm: 0 }, pages: [Array(11).fill(PNG_1PX)],
     })).rejects.toThrow(/bandsPerSheet/);
   });
 });
 
 describe('buildCalibrationPdf', () => {
   it('produces a single page at template size', async () => {
-    const bytes = await buildCalibrationPdf(T, { dxMm: 1, dyMm: 1 });
+    const bytes = await buildCalibrationPdf(T, { dxMm: 1, dyMm: 1, dPitchMm: 0 });
     const doc = await PDFDocument.load(bytes);
     expect(doc.getPageCount()).toBe(1);
     expect(doc.getPage(0).getSize().width).toBeCloseTo(mmToPt(T.pageWidthMm), 3);

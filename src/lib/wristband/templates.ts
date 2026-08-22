@@ -20,12 +20,45 @@ export interface SheetTemplate {
   bandsPerSheet: number;
   /** Width of the adhesive/tab keep-out zone at the band's RIGHT end. */
   tabZoneMm: number;
+  /**
+   * Die-cut to die-cut distance — the ONLY thing that controls where band i
+   * lands. Measure it as (band 1 top -> band N top) / (N - 1); measuring
+   * across the whole sheet divides your ruler error by N-1.
+   *
+   * Deliberately independent of bandHeightMm: a die can cut a 19mm band every
+   * 20mm. Deriving pitch from band height is what made every band after the
+   * first drift by i x (modelPitch - realPitch) with no way to correct it.
+   *
+   * Optional: templates snapshotted into designs before pitch was modelled
+   * lack it, and bandPitchMm() falls back to what they always meant.
+   */
+  pitchMm?: number;
 }
+
+/** Band pitch in mm, with the pre-pitch fallback for old saved templates. */
+export function bandPitchMm(t: SheetTemplate): number {
+  return t.pitchMm ?? t.bandHeightMm + t.gapYMm;
+}
+
+/**
+ * Most printers cannot reach the last few mm of any edge. Full-bleed
+ * templates (margin 0, bands filling the page) put artwork inside that band,
+ * so the preview shades it rather than letting the printer silently clip.
+ */
+export const TYPICAL_PRINTER_MARGIN_MM = 4;
 
 export interface CalibrationOffset {
   dxMm: number;
   dyMm: number;
+  /**
+   * Per-band spacing correction, added to the template pitch. dx/dy translate
+   * every band rigidly, so they can only ever fix band 1 — a spacing error
+   * compounds down the sheet and needs its own knob.
+   */
+  dPitchMm: number;
 }
+
+export const ZERO_CALIBRATION: CalibrationOffset = { dxMm: 0, dyMm: 0, dPitchMm: 0 };
 
 // Common 10-up sheets: bands are 10" (254mm) long, 3/4" (19.05mm) or 1"
 // (25.4mm) tall. Only the 3/4" bands fit 10-up on A4 (210×297) or US Letter
@@ -38,21 +71,25 @@ export const DEFAULT_TEMPLATES: SheetTemplate[] = [
     key: 'a4l-10up-19mm', name: 'A4 landscape · 10-up · ¾" bands',
     pageWidthMm: 297, pageHeightMm: 210, bandWidthMm: 254, bandHeightMm: 19.05,
     marginTopMm: 9.75, marginLeftMm: 21.5, gapYMm: 1, bandsPerSheet: 10, tabZoneMm: 20,
+    pitchMm: 20.05,
   },
   {
     key: 'tyvek-10up-25mm-11x11', name: '11″×11″ sheet · 10-up · 1" bands',
     pageWidthMm: 279.4, pageHeightMm: 279.4, bandWidthMm: 254, bandHeightMm: 25.4,
     marginTopMm: 12.7, marginLeftMm: 12.7, gapYMm: 0, bandsPerSheet: 10, tabZoneMm: 20,
+    pitchMm: 25.4,
   },
   {
     key: 'letterl-10up-19mm', name: 'Letter landscape · 10-up · ¾" bands',
     pageWidthMm: 279.4, pageHeightMm: 215.9, bandWidthMm: 254, bandHeightMm: 19.05,
     marginTopMm: 12.7, marginLeftMm: 12.7, gapYMm: 1, bandsPerSheet: 10, tabZoneMm: 20,
+    pitchMm: 20.05,
   },
   {
     key: 'tyvek-10up-25mm-11x105', name: '11″×10.5″ sheet · 10-up · 1" bands',
     pageWidthMm: 279.4, pageHeightMm: 266.7, bandWidthMm: 254, bandHeightMm: 25.4,
     marginTopMm: 6.35, marginLeftMm: 12.7, gapYMm: 0, bandsPerSheet: 10, tabZoneMm: 20,
+    pitchMm: 25.4,
   },
   {
     // Measured from the office Tyvek stock (2026-07-08): 254×254mm sheet,
@@ -62,6 +99,21 @@ export const DEFAULT_TEMPLATES: SheetTemplate[] = [
     key: 'tyvek-10up-25mm-10x10', name: '10″×10″ sheet · 10-up · 1" bands · 30mm tab',
     pageWidthMm: 254, pageHeightMm: 254, bandWidthMm: 254, bandHeightMm: 25.4,
     marginTopMm: 0, marginLeftMm: 0, gapYMm: 0, bandsPerSheet: 10, tabZoneMm: 30,
+    pitchMm: 25.4,
+  },
+  {
+    // Measured from the Tyvek stock in hand (2026-08-22): 250×190mm sheet of
+    // ten 19mm (¾") bands, full bleed — 10 × 19 fills the 190mm height exactly
+    // — with a 30mm white adhesive/tab zone at the band end.
+    //
+    // This stock is what exposed the pitch bug: it was being printed with the
+    // 10″×10″ 1"-band template above, whose 25.4mm pitch is 6.4mm too long per
+    // band. Band 1 landed perfectly and the error compounded — 19mm (a full
+    // band) out by band 4, 45mm out by band 8.
+    key: 'tyvek-10up-19mm-250x190', name: '250×190mm sheet · 10-up · 19mm bands · 30mm tab',
+    pageWidthMm: 250, pageHeightMm: 190, bandWidthMm: 250, bandHeightMm: 19,
+    marginTopMm: 0, marginLeftMm: 0, gapYMm: 0, bandsPerSheet: 10, tabZoneMm: 30,
+    pitchMm: 19,
   },
 ];
 
@@ -79,8 +131,14 @@ function readJson<T>(key: string, fallback: T): T {
 }
 
 export function loadCalibration(templateKey: string): CalibrationOffset {
-  const all = readJson<Record<string, CalibrationOffset>>(CAL_KEY, {});
-  return all[templateKey] ?? { dxMm: 0, dyMm: 0 };
+  const all = readJson<Record<string, Partial<CalibrationOffset>>>(CAL_KEY, {});
+  const saved = all[templateKey];
+  if (!saved) return { ...ZERO_CALIBRATION };
+  return {
+    dxMm: saved.dxMm ?? 0,
+    dyMm: saved.dyMm ?? 0,
+    dPitchMm: saved.dPitchMm ?? 0,
+  };
 }
 
 export function saveCalibration(templateKey: string, offset: CalibrationOffset): void {

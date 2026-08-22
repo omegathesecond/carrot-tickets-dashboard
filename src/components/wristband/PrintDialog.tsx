@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { apiClient, type WristbandBatch } from '@/lib/api';
 import type { Event } from '@/types';
-import { loadCalibration, type SheetTemplate } from '@/lib/wristband/templates';
+import type { CalibrationOffset, SheetTemplate } from '@/lib/wristband/templates';
 import { hasVisibleQrElement } from '@/lib/wristband/design';
 import type { EditorState } from '@/lib/wristband/editorState';
 import { planPages, runPrintJob } from '@/lib/wristband/printJob';
@@ -32,13 +32,16 @@ const NO_QR_WARNING = 'This design has no visible QR element — add one in the 
  * Every failure surfaces via toast; a batch that was issued but failed to
  * render stays recoverable from "Recent batches" (never a silent orphan).
  */
-export function PrintDialog({ open, onOpenChange, eventId, event, template, state }: {
+export function PrintDialog({ open, onOpenChange, eventId, event, template, state, offset }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   eventId: string;
   event: Event | undefined;
   template: SheetTemplate;
   state: EditorState;
+  /** The same offset the Sheet preview draws with — passed in rather than
+   *  re-read here, so what was checked on screen is what gets printed. */
+  offset: CalibrationOffset;
 }) {
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<Mode>('noqr');
@@ -78,7 +81,7 @@ export function PrintDialog({ open, onOpenChange, eventId, event, template, stat
     setProgress({ done: 0, total });
     try {
       return await runPrintJob({
-        template, offset: loadCalibration(template.key), background: state.background,
+        template, offset, background: state.background,
         elements: state.elements, pages,
         onProgress: (done, tot) => setProgress({ done, total: tot }),
       });

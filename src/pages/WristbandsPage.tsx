@@ -6,7 +6,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { editorReducer, initialEditorState, type EditorAction } from '@/lib/wristband/editorState';
-import { allTemplates, DEFAULT_TEMPLATES, type SheetTemplate } from '@/lib/wristband/templates';
+import {
+  allTemplates, DEFAULT_TEMPLATES, loadCalibration,
+  type CalibrationOffset, type SheetTemplate,
+} from '@/lib/wristband/templates';
 import type { WristbandDesignDoc } from '@/lib/wristband/design';
 import { EditorCanvas } from '@/components/wristband/EditorCanvas';
 import { ElementInspector } from '@/components/wristband/ElementInspector';
@@ -20,7 +23,7 @@ import { TemplateEditorDialog } from '@/components/wristband/TemplateEditorDialo
 // Picked by KEY, not array index — DEFAULT_TEMPLATES has been reordered
 // before and will likely be again.
 const DEFAULT_TEMPLATE =
-  DEFAULT_TEMPLATES.find((t) => t.key === 'tyvek-10up-25mm-11x11') ?? DEFAULT_TEMPLATES[0];
+  DEFAULT_TEMPLATES.find((t) => t.key === 'tyvek-10up-19mm-250x190') ?? DEFAULT_TEMPLATES[0];
 
 /**
  * Wristbands — design + print photo-quality Tyvek wristbands (10-up sheets)
@@ -35,6 +38,14 @@ export function WristbandsPage() {
   const [printOpen, setPrintOpen] = useState(false);
   const [calibrationOpen, setCalibrationOpen] = useState(false);
   const [templateEditorOpen, setTemplateEditorOpen] = useState(false);
+  // Calibration lives in localStorage but is mirrored here so the sheet
+  // preview redraws the moment a nudge changes — the preview is the only
+  // place a bad nudge is visible before it reaches paper.
+  const [offset, setOffset] = useState<CalibrationOffset>(() => loadCalibration(DEFAULT_TEMPLATE.key));
+
+  useEffect(() => {
+    setOffset(loadCalibration(template.key));
+  }, [template.key]);
 
   // Dirty tracking: a monotonic serial bumped on every mutating dispatch (and
   // on template swaps), compared against the serial at the last load/save.
@@ -223,18 +234,21 @@ export function WristbandsPage() {
               </div>
             </TabsContent>
             <TabsContent value="sheet">
-              <SheetPreview template={template} state={state} />
+              <SheetPreview template={template} state={state} offset={offset} />
             </TabsContent>
           </Tabs>
 
           <PrintDialog
             open={printOpen} onOpenChange={setPrintOpen} eventId={eventId} event={selectedEvent}
-            template={template} state={state}
+            template={template} state={state} offset={offset}
           />
         </>
       )}
 
-      <CalibrationDialog open={calibrationOpen} onOpenChange={setCalibrationOpen} template={template} />
+      <CalibrationDialog
+        open={calibrationOpen} onOpenChange={setCalibrationOpen}
+        template={template} offset={offset} onChange={setOffset}
+      />
       <TemplateEditorDialog
         open={templateEditorOpen} onOpenChange={setTemplateEditorOpen} onSaved={handleTemplateCreated}
       />

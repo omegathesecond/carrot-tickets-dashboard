@@ -1,6 +1,6 @@
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFPage } from 'pdf-lib';
 import type { CalibrationOffset, SheetTemplate } from './templates';
-import { bandRectsPt, mmToPt } from './layout';
+import { bandRectsPt, bandTopsMm, mmToPt } from './layout';
 
 /**
  * Assemble the print PDF: pages at the template's EXACT physical size, each
@@ -31,10 +31,18 @@ export async function buildWristbandPdf(opts: {
   return doc.save();
 }
 
+/** Length of the printed reference bar used to detect driver scaling. */
+const RULER_LENGTH_MM = 100;
+
 /**
- * Calibration test page: band outlines + tab keep-out lines on plain paper.
- * Hold it against a Tyvek sheet on a window/light; nudge dx/dy until the
- * outlines sit on the die-cuts.
+ * Calibration test page: band outlines, tab keep-out lines, and two printed
+ * rulers. Hold it against a Tyvek sheet on a window/light; nudge dx/dy until
+ * the outlines sit on the die-cuts.
+ *
+ * The rulers exist because "print at Actual size" is advice nobody can verify.
+ * A driver silently scaling to fit produces the same signature as a wrong
+ * template — band 1 near enough, every later band worse — so the page carries
+ * its own known distances to measure back.
  */
 export async function buildCalibrationPdf(
   template: SheetTemplate, offset: CalibrationOffset
@@ -43,6 +51,7 @@ export async function buildCalibrationPdf(
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const page = doc.addPage([mmToPt(template.pageWidthMm), mmToPt(template.pageHeightMm)]);
   const rects = bandRectsPt(template, offset);
+  const tops = bandTopsMm(template, offset);
 
   rects.forEach((r, i) => {
     page.drawRectangle({
@@ -60,13 +69,79 @@ export async function buildCalibrationPdf(
     });
   });
 
-  // Use ASCII-safe text to avoid WinAnsi encoding errors with Unicode chars in template names
-  const calibrationText = `Template: ${template.key} — calibration  dx=${offset.dxMm}mm dy=${offset.dyMm}mm — print at ACTUAL SIZE`;
+  drawScaleRuler(page, font, template);
+  drawSpanMarker(page, font, template, tops);
+
+  // ASCII-safe: WinAnsi cannot encode the curly punctuation in template names.
   page.drawText(
-    calibrationText,
-    { x: mmToPt(10), y: mmToPt(3), size: 8, font, color: rgb(0, 0, 0) }
+    `Template: ${template.key} - dx=${offset.dxMm}mm dy=${offset.dyMm}mm pitch${offset.dPitchMm >= 0 ? '+' : ''}${offset.dPitchMm}mm`,
+    { x: mmToPt(4), y: mmToPt(1.5), size: 7, font, color: rgb(0, 0, 0) }
   );
   return doc.save();
+}
+
+/**
+ * A known-length bar with mm ticks, printed across the middle of the page.
+ * If it does not measure RULER_LENGTH_MM with a real ruler, the printer is
+ * scaling and no amount of calibration will fix the drift — the driver has to
+ * be set to Actual size / 100% / no page scaling.
+ */
+function drawScaleRuler(
+  page: PDFPage, font: PDFFont, template: SheetTemplate
+): void {
+  const lengthMm = Math.min(RULER_LENGTH_MM, template.pageWidthMm - 20);
+  const x0 = mmToPt(template.pageWidthMm / 2 - lengthMm / 2);
+  const y0 = mmToPt(template.pageHeightMm / 2);
+  const ink = rgb(0.85, 0.15, 0.25);
+
+  page.drawLine({
+    start: { x: x0, y: y0 }, end: { x: x0 + mmToPt(lengthMm), y: y0 },
+    color: ink, thickness: 0.8,
+  });
+  for (let mm = 0; mm <= lengthMm; mm += 5) {
+    const major = mm % 10 === 0;
+    page.drawLine({
+      start: { x: x0 + mmToPt(mm), y: y0 },
+      end: { x: x0 + mmToPt(mm), y: y0 + (major ? 8 : 4) },
+      color: ink, thickness: major ? 0.8 : 0.4,
+    });
+    if (major && mm % 20 === 0) {
+      page.drawText(String(mm), {
+        x: x0 + mmToPt(mm) + 1, y: y0 + 10, size: 5, font, color: ink,
+      });
+    }
+  }
+  page.drawText(
+    `This bar is exactly ${lengthMm}mm. If it measures anything else, printing is scaled - set the printer to Actual size / 100%, no "fit to page".`,
+    { x: x0, y: y0 - 9, size: 6, font, color: ink }
+  );
+}
+
+/**
+ * The whole-sheet span, marked band 1 top to band N top. This is the single
+ * number to check against the real Tyvek: it is what band spacing multiplies
+ * up to, and measuring it across every band divides ruler error by N-1.
+ */
+function drawSpanMarker(
+  page: PDFPage, font: PDFFont, template: SheetTemplate, topsMm: number[]
+): void {
+  if (topsMm.length < 2) return;
+  const spanMm = topsMm[topsMm.length - 1] - topsMm[0];
+  // Clear of the "band N" labels, which start ~1.5mm in and run ~7mm wide.
+  const x = mmToPt(template.marginLeftMm + 12);
+  const yTop = mmToPt(template.pageHeightMm - topsMm[0]);
+  const yBottom = mmToPt(template.pageHeightMm - topsMm[topsMm.length - 1]);
+  const ink = rgb(0.1, 0.35, 0.75);
+
+  page.drawLine({ start: { x, y: yTop }, end: { x, y: yBottom }, color: ink, thickness: 0.8 });
+  for (const y of [yTop, yBottom]) {
+    page.drawLine({
+      start: { x: x - 5, y }, end: { x: x + 5, y }, color: ink, thickness: 0.8,
+    });
+  }
+  page.drawText(`band 1 top to band ${topsMm.length} top = ${spanMm.toFixed(1)}mm`, {
+    x: x + 7, y: (yTop + yBottom) / 2, size: 6, font, color: ink,
+  });
 }
 
 /** Open a generated PDF in a new tab for the OS print dialog. Fails loudly. */
