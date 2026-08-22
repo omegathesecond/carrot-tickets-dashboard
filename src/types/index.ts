@@ -500,6 +500,8 @@ export interface OrganizersListResponse {
 export interface FeeMethodBreakdown {
   method: string;
   bookingFees: number;
+  /** Booking fee the ORGANIZER covered instead of the buyer (absorbing events). */
+  absorbedFees: number;
   platformFees: number;
   totalFees: number;
   ticketsSold: number;
@@ -512,6 +514,8 @@ export interface FeeByEventRow {
   ticketsSold: number;
   faceValue: number;
   bookingFees: number;
+  /** Booking fee the ORGANIZER covered instead of the buyer (absorbing events). */
+  absorbedFees: number;
   platformFees: number;
   totalFees: number;
   byMethod: FeeMethodBreakdown[];
@@ -525,6 +529,8 @@ export interface FeeTotals {
   ticketsSold: number;
   faceValue: number;
   bookingFees: number;
+  /** Booking fee the ORGANIZER covered instead of the buyer (absorbing events). */
+  absorbedFees: number;
   platformFees: number;
   totalFees: number;
 }

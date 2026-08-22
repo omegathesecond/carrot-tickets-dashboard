@@ -73,16 +73,17 @@ export function FeesPage() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Fees</h1>
         <p className="text-sm text-slate-500">
-          Booking charges Carrot has collected per event — buyer booking fee plus platform commission.
+          Booking charges Carrot has collected per event — buyer booking fee, booking fee an
+          organizer chose to cover for their buyers, and platform commission.
         </p>
       </div>
 
       {/* KPI cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatsCard
           title="Total Carrot fees"
           value={isLoading && !data ? '—' : money(totals?.totalFees ?? 0, statsCurrency)}
-          description="Booking fee + platform commission"
+          description="Booking + organizer-paid + commission"
           icon={Receipt}
           gradient="from-orange-500 to-orange-600"
         />
@@ -92,6 +93,13 @@ export function FeesPage() {
           description="Buyer-paid per-ticket fee (online)"
           icon={Coins}
           gradient="from-emerald-500 to-emerald-600"
+        />
+        <StatsCard
+          title="Organizer-paid fees"
+          value={isLoading && !data ? '—' : money(totals?.absorbedFees ?? 0, statsCurrency)}
+          description="Same fee, billed to the organizer"
+          icon={Coins}
+          gradient="from-amber-500 to-amber-600"
         />
         <StatsCard
           title="Platform commission"
@@ -136,6 +144,7 @@ export function FeesPage() {
                   <TableHead className="text-right">Tickets</TableHead>
                   <TableHead className="text-right">Face value</TableHead>
                   <TableHead className="text-right">Booking fee</TableHead>
+                  <TableHead className="text-right">Organizer-paid</TableHead>
                   <TableHead className="text-right">Platform commission</TableHead>
                   <TableHead className="text-right">Total fees</TableHead>
                 </TableRow>
@@ -143,11 +152,11 @@ export function FeesPage() {
               <TableBody>
                 {isLoading && !data ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-slate-500 py-8">Loading…</TableCell>
+                    <TableCell colSpan={8} className="text-center text-slate-500 py-8">Loading…</TableCell>
                   </TableRow>
                 ) : events.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-slate-500 py-8">
+                    <TableCell colSpan={8} className="text-center text-slate-500 py-8">
                       No fees collected for this filter.
                     </TableCell>
                   </TableRow>
@@ -162,13 +171,14 @@ export function FeesPage() {
                         <TableCell className="text-right">{e.ticketsSold.toLocaleString()}</TableCell>
                         <TableCell className="text-right text-slate-500">{money(e.faceValue, e.currency ?? 'SZL')}</TableCell>
                         <TableCell className="text-right">{money(e.bookingFees, e.currency ?? 'SZL')}</TableCell>
+                        <TableCell className="text-right">{money(e.absorbedFees, e.currency ?? 'SZL')}</TableCell>
                         <TableCell className="text-right">{money(e.platformFees, e.currency ?? 'SZL')}</TableCell>
                         <TableCell className="text-right font-semibold">{money(e.totalFees, e.currency ?? 'SZL')}</TableCell>
                       </TableRow>
                       {expanded.has(e.eventId) && (
                         <TableRow className="bg-slate-50/60">
                           <TableCell />
-                          <TableCell colSpan={6} className="py-2">
+                          <TableCell colSpan={7} className="py-2">
                             <div className="text-xs uppercase tracking-wide text-slate-400 mb-1">By payment method</div>
                             <table className="w-full text-sm">
                               <tbody>
@@ -181,6 +191,7 @@ export function FeesPage() {
                                       <td className="py-1">{paymentLabel(m.method)}</td>
                                       <td className="py-1 text-right">{m.ticketsSold.toLocaleString()} tix</td>
                                       <td className="py-1 text-right">Booking {money(m.bookingFees, eventCurrency)}</td>
+                                      <td className="py-1 text-right">Organizer {money(m.absorbedFees, eventCurrency)}</td>
                                       <td className="py-1 text-right">Commission {money(m.platformFees, eventCurrency)}</td>
                                       <td className="py-1 text-right font-medium">
                                         {money(m.totalFees, eventCurrency)}
