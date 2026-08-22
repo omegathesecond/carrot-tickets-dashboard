@@ -5,7 +5,10 @@ import { TYPICAL_PRINTER_MARGIN_MM, type CalibrationOffset, type SheetTemplate }
 import { bandRectsMm } from '@/lib/wristband/layout';
 import { sheetChecks, sheetMeasurements } from '@/lib/wristband/sheetChecks';
 import type { EditorState } from '@/lib/wristband/editorState';
-import type { ImageElement, ShapeElement, TextElement, WristbandElement } from '@/lib/wristband/design';
+import {
+  qrDarkColor,
+  type ImageElement, type QrElement, type ShapeElement, type TextElement, type WristbandElement,
+} from '@/lib/wristband/design';
 import { elementNodeAttrs } from '@/lib/wristband/renderBand';
 import { useImage } from './useImage';
 
@@ -345,12 +348,13 @@ function StaticElement({ el, pxPerMm }: { el: WristbandElement; pxPerMm: number 
   // QR is a placeholder here too — same convention as the editor canvas: the
   // real code is generated per-ticket at print time, not at design time.
   const size = attrs.width as number;
+  const ink = qrDarkColor(el as QrElement);
   return (
     <Group {...common}>
-      <Rect width={size} height={size} fill="#f8fafc" stroke="#64748b" strokeWidth={1} dash={[5, 4]} />
+      <Rect width={size} height={size} fill="#ffffff" stroke={ink} strokeWidth={1} dash={[5, 4]} />
       <KText
         text="QR" width={size} height={size} align="center" verticalAlign="middle"
-        fontSize={Math.max(6, size * 0.22)} fill="#64748b"
+        fontSize={Math.max(6, size * 0.22)} fill={ink}
       />
     </Group>
   );
@@ -359,7 +363,7 @@ function StaticElement({ el, pxPerMm }: { el: WristbandElement; pxPerMm: number 
 function StaticImage({ el, common, attrs }: {
   el: ImageElement; common: CommonAttrs; attrs: Record<string, unknown>;
 }) {
-  const image = useImage(el.url);
+  const image = useImage(el.url, el.tint);
   return <KImage {...common} image={image} width={attrs.width as number} height={attrs.height as number} />;
 }
 

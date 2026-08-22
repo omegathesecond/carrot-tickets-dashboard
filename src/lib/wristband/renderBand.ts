@@ -1,7 +1,12 @@
 import Konva from 'konva';
 import QRCode from 'qrcode';
 import type { SheetTemplate } from './templates';
-import type { WristbandElement, TextElement, ImageElement, ShapeElement, QrElement } from './design';
+import {
+  qrDarkColor, QR_LIGHT_COLOR,
+  type WristbandElement, type TextElement, type ImageElement,
+  type ShapeElement, type QrElement,
+} from './design';
+import { imageKey, inkedSource } from './tint';
 import { PRINT_DPI, mmToPrintPx } from './layout';
 
 /**
@@ -47,9 +52,20 @@ export function elementNodeAttrs(el: WristbandElement, pxPerMm: number): Record<
   }
 }
 
-/** Load all artwork images; reject listing every URL that failed. */
-export async function loadImages(elements: WristbandElement[]): Promise<Map<string, HTMLImageElement>> {
-  const urls = [...new Set(elements.filter((e): e is ImageElement => e.type === 'image').map((e) => e.url))];
+/**
+ * Load all artwork; reject listing every URL that failed.
+ *
+ * Keyed by imageKey(), not URL: the same logo tinted two ways is two bitmaps.
+ * Recolouring happens once here rather than per band, because a sheet redraws
+ * the same artwork ten times.
+ */
+export async function loadImages(
+  elements: WristbandElement[]
+): Promise<Map<string, HTMLImageElement | HTMLCanvasElement>> {
+  const imageEls = elements.filter((e): e is ImageElement => e.type === 'image');
+  const byKey = new Map<string, ImageElement>();
+  for (const el of imageEls) byKey.set(imageKey(el), el);
+  const urls = [...new Set(imageEls.map((e) => e.url))];
   const failed: string[] = [];
   const entries = await Promise.all(urls.map(async (url) => {
     try {
@@ -69,14 +85,22 @@ export async function loadImages(elements: WristbandElement[]): Promise<Map<stri
   if (failed.length) {
     throw new Error(`Failed to load artwork image(s): ${failed.join(', ')}`);
   }
-  return new Map(entries.filter(Boolean) as (readonly [string, HTMLImageElement])[]);
+  const loaded = new Map(entries.filter(Boolean) as (readonly [string, HTMLImageElement])[]);
+
+  const out = new Map<string, HTMLImageElement | HTMLCanvasElement>();
+  for (const [key, el] of byKey) {
+    const img = loaded.get(el.url);
+    if (!img) throw new Error(`Artwork not loaded: ${el.url}`);
+    out.set(key, inkedSource(img, el.tint));
+  }
+  return out;
 }
 
-async function qrCanvas(text: string, sizePx: number): Promise<HTMLCanvasElement> {
+async function qrCanvas(text: string, sizePx: number, dark: string): Promise<HTMLCanvasElement> {
   const canvas = document.createElement('canvas');
   await QRCode.toCanvas(canvas, text, {
     width: sizePx, margin: 0, errorCorrectionLevel: 'M',
-    color: { dark: '#000000', light: '#ffffff' },
+    color: { dark, light: QR_LIGHT_COLOR },
   });
   return canvas;
 }
@@ -85,7 +109,7 @@ export async function renderBandPng(opts: {
   template: SheetTemplate;
   background: string;
   elements: WristbandElement[];
-  images: Map<string, HTMLImageElement>;
+  images: Map<string, HTMLImageElement | HTMLCanvasElement>;
   qr?: { ticketId: string };
 }): Promise<Uint8Array> {
   const { template, background, elements, images, qr } = opts;
@@ -110,7 +134,7 @@ export async function renderBandPng(opts: {
       if (el.type === 'text') {
         layer.add(new Konva.Text(attrs as Konva.TextConfig));
       } else if (el.type === 'image') {
-        const img = images.get((el as ImageElement).url);
+        const img = images.get(imageKey(el as ImageElement));
         if (!img) throw new Error(`Artwork not loaded: ${(el as ImageElement).url}`);
         layer.add(new Konva.Image({ ...(attrs as Konva.ImageConfig), image: img }));
       } else if (el.type === 'shape') {
@@ -132,8 +156,9 @@ export async function renderBandPng(opts: {
         }
       } else if (el.type === 'qr' && qr) {
         const q = el as QrElement;
+        const ink = qrDarkColor(q);
         const sizePx = Math.round(q.sizeMm * pxPerMm);
-        const canvas = await qrCanvas(qr.ticketId, sizePx);
+        const canvas = await qrCanvas(qr.ticketId, sizePx, ink);
         layer.add(new Konva.Image({
           image: canvas, x: q.x * pxPerMm, y: q.y * pxPerMm,
           width: sizePx, height: sizePx, rotation: q.rotation, opacity: q.opacity,
@@ -142,7 +167,9 @@ export async function renderBandPng(opts: {
         layer.add(new Konva.Text({
           text: qr.ticketId, x: (q.x - q.sizeMm) * pxPerMm, y: (q.y + q.sizeMm + 0.8) * pxPerMm,
           width: 3 * q.sizeMm * pxPerMm, align: 'center',
-          fontFamily: 'Courier New', fontSize: 2.2 * pxPerMm, fill: '#111111',
+          // Follows the QR's ink: on a press with no black cartridge, a
+          // hardcoded near-black here would be the one thing that fails to print.
+          fontFamily: 'Courier New', fontSize: 2.2 * pxPerMm, fill: ink,
         }));
       }
       // qr without opts.qr: placeholder intentionally not rendered (no-QR mode).

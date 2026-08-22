@@ -1,13 +1,15 @@
 import type { ReactNode } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Check } from 'lucide-react';
 import {
-  imageEffectiveDpi, LOW_DPI_THRESHOLD, FONT_FAMILIES,
+  imageEffectiveDpi, LOW_DPI_THRESHOLD, FONT_FAMILIES, qrDarkColor, QR_LIGHT_COLOR,
   type WristbandElement, type TextElement, type ImageElement, type ShapeElement, type QrElement,
 } from '@/lib/wristband/design';
+import { qrScanVerdict, type QrScanVerdict } from '@/lib/wristband/ink';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 
 /** Per-type property fields for ElementInspector — split out to keep that
  *  file under the ~250-line budget. */
@@ -91,6 +93,29 @@ export function ImageFields({ el, update }: { el: ImageElement; update: (p: Part
         </div>
       )}
       {!lowDpi && <p className="text-xs text-muted-foreground">{Math.round(dpi)} DPI at current size</p>}
+
+      <div className="space-y-2 rounded-md border p-2">
+        <label className="flex cursor-pointer items-center gap-2">
+          <Checkbox
+            checked={!!el.tint}
+            onCheckedChange={(v) => update({ tint: v === true ? '#1d4ed8' : null })}
+          />
+          <span className="text-xs font-medium">Print in one color</span>
+        </label>
+        {el.tint && (
+          <>
+            <Input
+              type="color" value={el.tint}
+              onChange={(e) => update({ tint: e.target.value })}
+            />
+            <p className="text-xs text-muted-foreground">
+              Redraws the artwork in this color, using how dark each part is to decide how much ink
+              to lay down. White areas drop out rather than filling in, so a logo on white and the
+              same logo on transparency both come out as just the mark.
+            </p>
+          </>
+        )}
+      </div>
       <div className="grid grid-cols-2 gap-2">
         <Field label="Width (mm)">
           <Input
@@ -168,17 +193,53 @@ export function ShapeFields({ el, update }: { el: ShapeElement; update: (p: Part
 }
 
 export function QrFields({ el, update }: { el: QrElement; update: (p: Partial<WristbandElement>) => void }) {
+  const ink = qrDarkColor(el);
+  const verdict = qrScanVerdict(ink, QR_LIGHT_COLOR);
+
   return (
     <div className="space-y-3">
-      <Field label="Size (mm)">
-        <Input
-          type="number" step={0.5} value={el.sizeMm}
-          onChange={(e) => update({ sizeMm: Number(e.target.value) })}
-        />
-      </Field>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Size (mm)">
+          <Input
+            type="number" step={0.5} value={el.sizeMm}
+            onChange={(e) => update({ sizeMm: Number(e.target.value) })}
+          />
+        </Field>
+        <Field label="Code color">
+          <Input type="color" value={ink} onChange={(e) => update({ darkColor: e.target.value })} />
+        </Field>
+      </div>
+
+      <ScanVerdict verdict={verdict} />
+
       <p className="text-xs text-muted-foreground">
-        The QR placeholder is replaced with each ticket's real code at print time.
+        The QR placeholder is replaced with each ticket's real code at print time. The code stays on
+        a white background so scanners have a quiet zone to lock on to.
       </p>
+    </div>
+  );
+}
+
+/**
+ * Contrast readout for the chosen QR colour. Shown always, not only on
+ * failure: the ratio is the thing worth watching while dragging a colour
+ * picker, and a silent green state teaches what "enough" looks like.
+ */
+function ScanVerdict({ verdict }: { verdict: QrScanVerdict }) {
+  const tone = {
+    ok: 'border-emerald-200 bg-emerald-50 text-emerald-900',
+    marginal: 'border-amber-300 bg-amber-50 text-amber-900',
+    unscannable: 'border-rose-300 bg-rose-50 text-rose-900',
+  }[verdict.level];
+  const Icon = verdict.level === 'ok' ? Check : AlertTriangle;
+
+  return (
+    <div className={`flex items-start gap-1.5 rounded-md border p-2 text-xs ${tone}`}>
+      <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+      <span>
+        <span className="font-mono tabular-nums">{verdict.ratio.toFixed(1)}:1</span> contrast
+        {verdict.message ? ` — ${verdict.message}` : ' — scans well.'}
+      </span>
     </div>
   );
 }

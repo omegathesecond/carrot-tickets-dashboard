@@ -1,4 +1,5 @@
 import type { SheetTemplate } from './templates';
+import { qrScanVerdict } from './ink';
 
 /**
  * Wristband design scene model. All positions/sizes are MILLIMETRES relative
@@ -34,6 +35,14 @@ export interface ImageElement extends BaseElement {
   height: number;
   naturalWidth: number;
   naturalHeight: number;
+  /**
+   * Reprint the artwork in this single colour instead of its own — for a
+   * printer that has run out of one cartridge, or a one-colour band.
+   *
+   * Absent or null keeps the original artwork. Absent on designs saved before
+   * recolouring existed, which is exactly what those designs meant.
+   */
+  tint?: string | null;
 }
 
 export interface ShapeElement extends BaseElement {
@@ -50,6 +59,22 @@ export interface ShapeElement extends BaseElement {
 export interface QrElement extends BaseElement {
   type: 'qr';
   sizeMm: number;
+  /**
+   * Colour of the code's dark modules. Absent means black, which is what
+   * every design saved before this was.
+   *
+   * Never set this without checking qrScanVerdict(): a scanner reads the code
+   * by luminance, so a colour can look bold and still be invisible to it.
+   */
+  darkColor?: string;
+}
+
+/** The QR's light modules. A white quiet zone is what scanners expect. */
+export const QR_LIGHT_COLOR = '#ffffff';
+
+/** A QR's dark-module colour, defaulting to black for pre-colour designs. */
+export function qrDarkColor(el: QrElement): string {
+  return el.darkColor ?? '#000000';
 }
 
 export type WristbandElement = TextElement | ImageElement | ShapeElement | QrElement;
@@ -113,6 +138,24 @@ export function createQrElement(partial: Partial<QrElement> = {}): QrElement {
 /** True when the design can carry a per-band QR — used to block QR print modes otherwise. */
 export function hasVisibleQrElement(elements: WristbandElement[]): boolean {
   return elements.some((e) => e.type === 'qr' && e.visible);
+}
+
+/**
+ * The first visible QR whose colours will not scan, if any. Printing mints
+ * REAL tickets, so this runs before batch-issue — an unscannable wristband is
+ * a ticket that cannot be used, not a cosmetic problem.
+ */
+export function unscannableQrElement(
+  elements: WristbandElement[]
+): { el: QrElement; message: string } | null {
+  for (const e of elements) {
+    if (e.type !== 'qr' || !e.visible) continue;
+    const verdict = qrScanVerdict(qrDarkColor(e as QrElement), QR_LIGHT_COLOR);
+    if (verdict.level === 'unscannable') {
+      return { el: e as QrElement, message: verdict.message! };
+    }
+  }
+  return null;
 }
 
 /** New image element scaled to fit the band height, aspect preserved. */

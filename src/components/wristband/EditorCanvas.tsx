@@ -8,6 +8,7 @@ import type { EditorState, EditorAction } from '@/lib/wristband/editorState';
 import type {
   WristbandElement, ImageElement, ShapeElement, TextElement, QrElement,
 } from '@/lib/wristband/design';
+import { qrDarkColor } from '@/lib/wristband/design';
 import { elementNodeAttrs } from '@/lib/wristband/renderBand';
 import { findNodeById } from '@/lib/wristband/findNode';
 import { useImage } from './useImage';
@@ -152,7 +153,7 @@ export function EditorCanvas({ template, state, dispatch, zoom }: {
             if (el.type === 'shape') {
               return <ShapeNode key={el.id} el={el as ShapeElement} common={common} attrs={attrs} />;
             }
-            return <QrNode key={el.id} common={common} attrs={attrs} />;
+            return <QrNode key={el.id} el={el as QrElement} common={common} attrs={attrs} />;
           })}
 
           {/* Guides — non-interactive. */}
@@ -185,7 +186,7 @@ export function EditorCanvas({ template, state, dispatch, zoom }: {
 function ImageNode({ el, common, attrs }: {
   el: ImageElement; common: CommonAttrs; attrs: Record<string, unknown>;
 }) {
-  const image = useImage(el.url);
+  const image = useImage(el.url, el.tint);
   return <KImage {...common} image={image} width={attrs.width as number} height={attrs.height as number} />;
 }
 
@@ -241,15 +242,18 @@ function ShapeNode({ el, common, attrs }: {
 
 /** QR is a placeholder in the editor — a dashed box + "QR" label; the real
  *  code is generated per-ticket at print time (renderBand.ts). */
-function QrNode({ common, attrs }: { common: CommonAttrs; attrs: Record<string, unknown> }) {
+function QrNode({ el, common, attrs }: {
+  el: QrElement; common: CommonAttrs; attrs: Record<string, unknown>;
+}) {
   const size = attrs.width as number;
+  const ink = qrDarkColor(el);
   return (
     <Group {...common}>
-      <Rect width={size} height={size} fill="#f8fafc" stroke="#64748b" strokeWidth={1} dash={[5, 4]} />
+      <Rect width={size} height={size} fill="#ffffff" stroke={ink} strokeWidth={1} dash={[5, 4]} />
       <KText
         text="QR" width={size} height={size}
         align="center" verticalAlign="middle"
-        fontSize={Math.max(10, size * 0.22)} fill="#64748b"
+        fontSize={Math.max(10, size * 0.22)} fill={ink}
       />
     </Group>
   );

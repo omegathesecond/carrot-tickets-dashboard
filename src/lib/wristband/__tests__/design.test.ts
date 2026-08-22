@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   imageEffectiveDpi, LOW_DPI_THRESHOLD, createImageElement, createTextElement,
   createQrElement, FONT_FAMILIES, hasVisibleQrElement, copyDesignToEvent,
-  type WristbandDesignDoc,
+  unscannableQrElement, qrDarkColor,
+  type WristbandDesignDoc, type QrElement,
 } from '../design';
 import { DEFAULT_TEMPLATES } from '../templates';
 
@@ -91,5 +92,39 @@ describe('copyDesignToEvent', () => {
     const snapshot = JSON.parse(JSON.stringify(source));
     copyDesignToEvent(source, 'event-B');
     expect(source).toEqual(snapshot);
+  });
+});
+
+describe('unscannableQrElement', () => {
+  const qr = (over: Partial<QrElement> = {}) => createQrElement(over);
+
+  it('passes a design with no QR at all — nothing to be unscannable', () => {
+    expect(unscannableQrElement([createTextElement()])).toBeNull();
+  });
+
+  it('treats a QR with no colour as black, the way it always printed', () => {
+    expect(qrDarkColor(qr())).toBe('#000000');
+    expect(unscannableQrElement([qr()])).toBeNull();
+  });
+
+  it('passes a dark blue code — printing without black ink is the point', () => {
+    expect(unscannableQrElement([qr({ darkColor: '#00008b' })])).toBeNull();
+  });
+
+  it('catches a code too light to scan, and says why', () => {
+    const found = unscannableQrElement([qr({ darkColor: '#ffff00' })]);
+    expect(found).not.toBeNull();
+    expect(found!.message).toMatch(/will not scan/);
+  });
+
+  it('ignores hidden QR elements — they never reach paper', () => {
+    expect(unscannableQrElement([qr({ darkColor: '#ffff00', visible: false })])).toBeNull();
+  });
+
+  it('reports the first bad code when a design has several', () => {
+    const found = unscannableQrElement([
+      qr({ darkColor: '#00008b' }), qr({ darkColor: '#eeeeee' }),
+    ]);
+    expect(found!.el.darkColor).toBe('#eeeeee');
   });
 });

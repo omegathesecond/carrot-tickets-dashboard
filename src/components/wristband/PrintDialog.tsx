@@ -5,7 +5,7 @@ import { Loader2 } from 'lucide-react';
 import { apiClient, type WristbandBatch } from '@/lib/api';
 import type { Event } from '@/types';
 import type { CalibrationOffset, SheetTemplate } from '@/lib/wristband/templates';
-import { hasVisibleQrElement } from '@/lib/wristband/design';
+import { hasVisibleQrElement, unscannableQrElement } from '@/lib/wristband/design';
 import type { EditorState } from '@/lib/wristband/editorState';
 import { planPages, runPrintJob } from '@/lib/wristband/printJob';
 import { openPdf } from '@/lib/wristband/pdf';
@@ -70,7 +70,14 @@ export function PrintDialog({ open, onOpenChange, eventId, event, template, stat
   });
 
   const busy = progress !== null;
-  const qrReady = hasVisibleQrElement(state.elements);
+  // A QR that will not scan is a ticket nobody can use, and batch-issue mints
+  // REAL tickets — so colour is checked with the same weight as presence,
+  // before anything is issued rather than at the gate.
+  const unscannable = unscannableQrElement(state.elements);
+  const qrReady = hasVisibleQrElement(state.elements) && !unscannable;
+  const qrProblem = unscannable
+    ? `QR colour will not scan — ${unscannable.message}`
+    : NO_QR_WARNING;
 
   /** Plan → render every band → assemble. Throws; callers own the toasting
    *  so each mode can report failure in its own words (e.g. new-batch needs
@@ -116,7 +123,7 @@ export function PrintDialog({ open, onOpenChange, eventId, event, template, stat
   });
 
   async function handleIssueAndPrint() {
-    if (!qrReady) { toast.error(NO_QR_WARNING); return; }
+    if (!qrReady) { toast.error(qrProblem); return; }
     if (!ticketTypeId) { toast.error('Choose a ticket type'); return; }
     if (quantity < 1) { toast.error('Quantity must be at least 1'); return; }
     let ticketIds: string[];
@@ -137,7 +144,7 @@ export function PrintDialog({ open, onOpenChange, eventId, event, template, stat
   }
 
   function handleReprintBatch(batch: WristbandBatch) {
-    if (!qrReady) { toast.error(NO_QR_WARNING); return; }
+    if (!qrReady) { toast.error(qrProblem); return; }
     void printAndOpen(batch.tickets.map((t) => t.ticketId));
   }
 
@@ -150,7 +157,7 @@ export function PrintDialog({ open, onOpenChange, eventId, event, template, stat
   }
 
   async function handlePrintSelected() {
-    if (!qrReady) { toast.error(NO_QR_WARNING); return; }
+    if (!qrReady) { toast.error(qrProblem); return; }
     if (selectedIds.size === 0) { toast.error('Select at least one ticket'); return; }
     const ok = await printAndOpen([...selectedIds]);
     if (ok) setSelectedIds(new Set());
@@ -209,7 +216,7 @@ export function PrintDialog({ open, onOpenChange, eventId, event, template, stat
             </div>
             {!qrReady && (
               <p className="rounded border border-amber-300 bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
-                {NO_QR_WARNING}
+                {qrProblem}
               </p>
             )}
             <Button disabled={busy || issueMutation.isPending || !qrReady} onClick={handleIssueAndPrint}>
@@ -243,7 +250,7 @@ export function PrintDialog({ open, onOpenChange, eventId, event, template, stat
             </div>
             {!qrReady && (
               <p className="rounded border border-amber-300 bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
-                {NO_QR_WARNING}
+                {qrProblem}
               </p>
             )}
             <Button disabled={busy || selectedIds.size === 0 || !qrReady} onClick={handlePrintSelected}>
