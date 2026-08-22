@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Stage, Layer, Rect, Text as KText, Image as KImage, Ellipse, Line, Group } from 'react-konva';
 import { AlertTriangle, XCircle } from 'lucide-react';
 import { TYPICAL_PRINTER_MARGIN_MM, type CalibrationOffset, type SheetTemplate } from '@/lib/wristband/templates';
-import { bandTopsMm } from '@/lib/wristband/layout';
+import { bandRectsMm } from '@/lib/wristband/layout';
 import { sheetChecks, sheetMeasurements } from '@/lib/wristband/sheetChecks';
 import type { EditorState } from '@/lib/wristband/editorState';
 import type { ImageElement, ShapeElement, TextElement, WristbandElement } from '@/lib/wristband/design';
@@ -57,7 +57,7 @@ export function SheetPreview({ template, state, offset }: {
 
   const pxPerMm = zoom === 0 ? fitPxPerMm : CSS_PX_PER_MM * (zoom === 1 ? 0.75 : 1);
 
-  const tops = useMemo(() => bandTopsMm(template, offset), [template, offset]);
+  const rects = useMemo(() => bandRectsMm(template, offset), [template, offset]);
   const measurements = useMemo(() => sheetMeasurements(template, offset), [template, offset]);
   const checks = useMemo(() => sheetChecks(template, offset), [template, offset]);
   const visibleElements = state.elements.filter((el) => el.visible);
@@ -66,7 +66,8 @@ export function SheetPreview({ template, state, offset }: {
   const pageHeightPx = template.pageHeightMm * pxPerMm;
   const bandWidthPx = template.bandWidthMm * pxPerMm;
   const bandHeightPx = template.bandHeightMm * pxPerMm;
-  const lastBandBottomPx = (tops[tops.length - 1] + template.bandHeightMm) * pxPerMm;
+  const lowestBandBottomPx =
+    (Math.max(...rects.map((r) => r.topMm)) + template.bandHeightMm) * pxPerMm;
 
   return (
     <div className="space-y-4">
@@ -89,6 +90,11 @@ export function SheetPreview({ template, state, offset }: {
           {template.pageWidthMm} × {template.pageHeightMm}mm sheet · {template.bandsPerSheet} bands ·{' '}
           {measurements.pitchMm.toFixed(2)}mm pitch
         </p>
+        {offset.flip180 && (
+          <span className="rounded bg-slate-900 px-2 py-0.5 text-[11px] font-medium text-white">
+            Rotated 180° · band 1 prints at the bottom
+          </span>
+        )}
       </div>
 
       <div ref={scrollRef} className="overflow-auto rounded-lg bg-slate-100 p-4">
@@ -99,20 +105,20 @@ export function SheetPreview({ template, state, offset }: {
             // Bands that run off the sheet must stay inside the scroll area,
             // where they read as "past the paper" instead of overlapping the
             // panels below.
-            height: RULER_PX + Math.max(pageHeightPx, lastBandBottomPx),
+            height: RULER_PX + Math.max(pageHeightPx, lowestBandBottomPx),
           }}
         >
           <Ruler axis="x" lengthMm={template.pageWidthMm} pxPerMm={pxPerMm} />
           <Ruler axis="y" lengthMm={template.pageHeightMm} pxPerMm={pxPerMm} />
 
-          {tops.map((topMm, i) => (
+          {rects.map((r, i) => (
             <span
               key={`n${i}`}
               className="absolute text-right font-mono text-[9px] tabular-nums leading-none text-slate-500"
               style={{
                 left: RULER_PX,
                 width: INDEX_PX - 4,
-                top: RULER_PX + (topMm + template.bandHeightMm / 2) * pxPerMm - 4,
+                top: RULER_PX + (r.topMm + template.bandHeightMm / 2) * pxPerMm - 4,
               }}
             >
               {i + 1}
@@ -135,8 +141,9 @@ export function SheetPreview({ template, state, offset }: {
             }}
           />
 
-          {tops.map((topMm, i) => {
-            const offSheet = topMm + template.bandHeightMm > template.pageHeightMm + 0.05;
+          {rects.map((r, i) => {
+            const offSheet =
+              r.topMm < -0.05 || r.topMm + r.heightMm > template.pageHeightMm + 0.05;
             return (
               <div
                 key={i}
@@ -144,10 +151,14 @@ export function SheetPreview({ template, state, offset }: {
                   offSheet ? 'opacity-60 outline-rose-500' : 'outline-slate-400'
                 }`}
                 style={{
-                  left: LEFT_GUTTER + (template.marginLeftMm + offset.dxMm) * pxPerMm,
-                  top: RULER_PX + topMm * pxPerMm,
+                  left: LEFT_GUTTER + r.xMm * pxPerMm,
+                  top: RULER_PX + r.topMm * pxPerMm,
                   width: bandWidthPx,
                   height: bandHeightPx,
+                  // Show the page as it will PRINT. Upside-down artwork here is
+                  // the point: it is what makes the band read the right way up
+                  // once the sheet is loaded the only way this printer takes it.
+                  transform: offset.flip180 ? 'rotate(180deg)' : undefined,
                 }}
               >
                 <Stage width={bandWidthPx} height={bandHeightPx} listening={false}>
@@ -159,7 +170,9 @@ export function SheetPreview({ template, state, offset }: {
                   </Layer>
                 </Stage>
 
-                {/* Glued end — artwork here disappears under the tab. */}
+                {/* Glued end — artwork here disappears under the tab. Drawn at
+                    the band's right end and carried to the left by the same
+                    rotation as the artwork, which is where it really ends up. */}
                 <div
                   className="pointer-events-none absolute inset-y-0 right-0 border-l border-slate-400"
                   style={{
@@ -175,7 +188,7 @@ export function SheetPreview({ template, state, offset }: {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <MeasurementsPanel template={template} m={measurements} tops={tops} />
+        <MeasurementsPanel template={template} m={measurements} rects={rects} />
         <ChecksPanel checks={checks} />
       </div>
     </div>
@@ -230,16 +243,17 @@ function Ruler({ axis, lengthMm, pxPerMm }: { axis: 'x' | 'y'; lengthMm: number;
  * The ruler check. Every row is a distance on the physical sheet, so a
  * mismatch here is a template that does not describe the stock in the tray.
  */
-function MeasurementsPanel({ template, m, tops }: {
+function MeasurementsPanel({ template, m, rects }: {
   template: SheetTemplate;
   m: ReturnType<typeof sheetMeasurements>;
-  tops: number[];
+  rects: ReturnType<typeof bandRectsMm>;
 }) {
   const rows: Array<[string, string]> = [
     ['Sheet', `${m.sheetWidthMm} × ${m.sheetHeightMm} mm`],
     ['Band height', `${m.bandHeightMm} mm`],
     ['Band spacing (pitch)', `${m.pitchMm.toFixed(2)} mm`],
-    [`Band 1 top → band ${template.bandsPerSheet} top`, `${m.spanMm.toFixed(1)} mm`],
+    ['First band top → last band top', `${m.spanMm.toFixed(1)} mm`],
+    ['Sheet top → nearest band', `${m.topSlackMm.toFixed(1)} mm`],
     ['Last band → sheet bottom', `${m.bottomSlackMm.toFixed(1)} mm`],
     ['Printable band length', `${m.printableWidthMm} mm (${template.tabZoneMm}mm tab)`],
   ];
@@ -248,9 +262,8 @@ function MeasurementsPanel({ template, m, tops }: {
     <div className="rounded-lg border p-3">
       <h4 className="text-sm font-semibold">Check against your sheet</h4>
       <p className="mt-0.5 text-xs text-muted-foreground">
-        Measure these on the real Tyvek before printing. Measure the band 1 → band{' '}
-        {template.bandsPerSheet} span rather than a single gap — it divides your ruler error by{' '}
-        {template.bandsPerSheet - 1}.
+        Measure these on the real Tyvek before printing. Measure the full first-to-last span rather
+        than a single gap — it divides your ruler error by {template.bandsPerSheet - 1}.
       </p>
       <dl className="mt-2.5 space-y-1">
         {rows.map(([label, value]) => (
@@ -263,7 +276,7 @@ function MeasurementsPanel({ template, m, tops }: {
       <details className="mt-2">
         <summary className="cursor-pointer text-xs text-slate-600">Every band top</summary>
         <p className="mt-1 font-mono text-[11px] leading-relaxed tabular-nums text-slate-600">
-          {tops.map((t, i) => `${i + 1}: ${t.toFixed(1)}`).join('   ')}
+          {rects.map((r, i) => `${i + 1}: ${r.topMm.toFixed(1)}`).join('   ')}
         </p>
       </details>
     </div>

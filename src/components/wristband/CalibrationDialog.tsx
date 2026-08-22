@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 
 /**
  * Per-printer alignment. dx/dy slide every band together; pitch changes the
@@ -100,6 +101,23 @@ export function CalibrationDialog({ open, onOpenChange, template, offset, onChan
           </div>
         </div>
 
+        <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border p-3">
+          <Checkbox
+            className="mt-0.5"
+            checked={offset.flip180}
+            onCheckedChange={(v) => update({ flip180: v === true })}
+          />
+          <span>
+            <span className="text-sm font-medium">Rotate the print 180°</span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">
+              For stock the printer will only take one way round — Tyvek whose glued edge cannot go
+              in first. Loading the sheet turned around turns the print with it, so the page is
+              rotated to cancel that out. Band 1 then comes out at the bottom, and the artwork looks
+              upside down in the preview, which is how you know it is right.
+            </span>
+          </span>
+        </label>
+
         <div className="rounded-lg border bg-slate-50 p-3">
           <Label className="text-xs">
             Measured band 1 top → band {template.bandsPerSheet} top on the real sheet (mm)
@@ -140,8 +158,10 @@ export function CalibrationDialog({ open, onOpenChange, template, offset, onChan
         <DialogFooter className="gap-2 sm:justify-between">
           <Button
             variant="ghost" size="sm"
-            disabled={offset.dxMm === 0 && offset.dyMm === 0 && offset.dPitchMm === 0}
-            onClick={() => update({ dxMm: 0, dyMm: 0, dPitchMm: 0 })}
+            disabled={
+              offset.dxMm === 0 && offset.dyMm === 0 && offset.dPitchMm === 0 && !offset.flip180
+            }
+            onClick={() => update({ dxMm: 0, dyMm: 0, dPitchMm: 0, flip180: false })}
           >
             Reset
           </Button>

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-  mmToPt, mmToPrintPx, bandRectsPt, bandTopsMm, pitchFromSpanMm, MM_TO_PT, PRINT_DPI,
+  mmToPt, mmToPrintPx, bandRectsPt, bandRectsMm, bandTopsMm, pitchFromSpanMm,
+  MM_TO_PT, PRINT_DPI,
 } from '../layout';
+import { sheetMeasurements } from '../sheetChecks';
 import { DEFAULT_TEMPLATES, bandPitchMm, ZERO_CALIBRATION, type SheetTemplate } from '../templates';
 
 const T = DEFAULT_TEMPLATES.find((t) => t.key === 'tyvek-10up-25mm-11x11')!;
@@ -44,7 +46,7 @@ describe('bandRectsPt', () => {
 
   it('applies calibration: +dx shifts right, +dy shifts DOWN the printed page', () => {
     const base = bandRectsPt(T, ZERO_CALIBRATION);
-    const nudged = bandRectsPt(T, { dxMm: 2, dyMm: 3, dPitchMm: 0 });
+    const nudged = bandRectsPt(T, { ...ZERO_CALIBRATION, dxMm: 2, dyMm: 3, dPitchMm: 0 });
     expect(nudged[0].xPt - base[0].xPt).toBeCloseTo(mmToPt(2), 6);
     expect(base[0].yPt - nudged[0].yPt).toBeCloseTo(mmToPt(3), 6); // down = smaller PDF y
   });
@@ -95,14 +97,14 @@ describe('the 250x190 Tyvek stock', () => {
 
 describe('pitch calibration', () => {
   it('dPitchMm corrects accumulated drift without moving band 1', () => {
-    const tops = bandTopsMm(STOCK, { dxMm: 0, dyMm: 0, dPitchMm: 0.2 });
+    const tops = bandTopsMm(STOCK, { ...ZERO_CALIBRATION, dxMm: 0, dyMm: 0, dPitchMm: 0.2 });
     expect(tops[0]).toBe(0);                       // band 1 unmoved
     expect(tops[9] - tops[0]).toBeCloseTo(9 * 19.2, 6);
   });
 
   it('dyMm shifts every band rigidly, so it can never fix a spacing error', () => {
     const base = bandTopsMm(STOCK, ZERO_CALIBRATION);
-    const shifted = bandTopsMm(STOCK, { dxMm: 0, dyMm: 2, dPitchMm: 0 });
+    const shifted = bandTopsMm(STOCK, { ...ZERO_CALIBRATION, dxMm: 0, dyMm: 2, dPitchMm: 0 });
     for (let i = 0; i < base.length; i++) expect(shifted[i] - base[i]).toBeCloseTo(2, 9);
   });
 });
@@ -121,5 +123,78 @@ describe('pitchFromSpanMm', () => {
 
   it('refuses a span that cannot define a pitch', () => {
     expect(() => pitchFromSpanMm(19, 1)).toThrow(/at least 2 bands/);
+  });
+});
+
+describe('180-degree flip for stock that can only feed one way', () => {
+  const flipped = { ...ZERO_CALIBRATION, flip180: true };
+
+  it('mirrors band positions about the sheet centre', () => {
+    const normal = bandRectsMm(STOCK, ZERO_CALIBRATION);
+    const turned = bandRectsMm(STOCK, flipped);
+    for (let i = 0; i < normal.length; i++) {
+      // A rect and its flipped twin sit equidistant from opposite edges.
+      expect(turned[i].topMm).toBeCloseTo(
+        STOCK.pageHeightMm - normal[i].topMm - normal[i].heightMm, 9
+      );
+      expect(turned[i].xMm).toBeCloseTo(
+        STOCK.pageWidthMm - normal[i].xMm - normal[i].widthMm, 9
+      );
+    }
+  });
+
+  it('sends band 1 to the bottom of the sheet and band 10 to the top', () => {
+    const turned = bandRectsMm(STOCK, flipped);
+    expect(turned[0].topMm).toBe(171); // band 1 comes out last
+    expect(turned[9].topMm).toBe(0);
+    // Still ten bands covering exactly the same ten slots, just reordered.
+    expect([...turned.map((r) => r.topMm)].sort((a, b) => a - b))
+      .toEqual(bandRectsMm(STOCK, ZERO_CALIBRATION).map((r) => r.topMm));
+  });
+
+  it('moves the adhesive tab to the other end of the band', () => {
+    expect(bandRectsMm(STOCK, ZERO_CALIBRATION)[0].tabAtLeft).toBe(false);
+    expect(bandRectsMm(STOCK, flipped)[0].tabAtLeft).toBe(true);
+  });
+
+  it('keeps dx/dy meaning what comes out of the printer, not what went in', () => {
+    // Calibration is applied AFTER the flip: +dy is down on the finished
+    // sheet whether or not the page was turned around. Applying it first
+    // would invert both axes the moment someone ticked the box.
+    const base = bandRectsMm(STOCK, flipped);
+    const nudged = bandRectsMm(STOCK, { ...flipped, dxMm: 2, dyMm: 3 });
+    for (let i = 0; i < base.length; i++) {
+      expect(nudged[i].xMm - base[i].xMm).toBeCloseTo(2, 9);
+      expect(nudged[i].topMm - base[i].topMm).toBeCloseTo(3, 9);
+    }
+  });
+
+  it('is its own inverse — flipping a flip is the original layout', () => {
+    const t = { ...STOCK, marginTopMm: 5, marginLeftMm: 7, pageHeightMm: 220, pageWidthMm: 270 };
+    const once = bandRectsMm(t, flipped);
+    const back = once.map((r) => ({
+      xMm: t.pageWidthMm - r.xMm - r.widthMm,
+      topMm: t.pageHeightMm - r.topMm - r.heightMm,
+    }));
+    const normal = bandRectsMm(t, ZERO_CALIBRATION);
+    for (let i = 0; i < normal.length; i++) {
+      expect(back[i].topMm).toBeCloseTo(normal[i].topMm, 9);
+      expect(back[i].xMm).toBeCloseTo(normal[i].xMm, 9);
+    }
+  });
+
+  it('reports a positive span and correct slack despite the reversed order', () => {
+    // rects[last] - rects[0] would be -171 here; measuring by extremes must not.
+    const m = sheetMeasurements(STOCK, flipped);
+    expect(m.spanMm).toBe(171);
+    expect(m.topSlackMm).toBe(0);
+    expect(m.bottomSlackMm).toBe(0);
+  });
+
+  it('still catches an asymmetric template overflowing, on the flipped edge', () => {
+    // Bands hang 10mm off the bottom normally; flipped, they hang off the TOP.
+    const t = { ...STOCK, marginTopMm: 10 };
+    expect(sheetMeasurements(t, ZERO_CALIBRATION).bottomSlackMm).toBeCloseTo(-10, 9);
+    expect(sheetMeasurements(t, flipped).topSlackMm).toBeCloseTo(-10, 9);
   });
 });

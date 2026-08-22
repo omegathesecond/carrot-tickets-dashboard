@@ -1,5 +1,5 @@
 import { bandPitchMm, TYPICAL_PRINTER_MARGIN_MM, type CalibrationOffset, type SheetTemplate } from './templates';
-import { bandTopsMm } from './layout';
+import { bandRectsMm } from './layout';
 
 export type CheckLevel = 'error' | 'warning';
 
@@ -25,21 +25,32 @@ export interface SheetMeasurements {
   /** Band 1 top -> band N top. The highest-precision check available: a ruler
    *  error here is divided by N-1 when it is converted back to a pitch. */
   spanMm: number;
-  /** Distance from the last band's bottom edge to the sheet's bottom edge. */
+  /** Gap from the topmost band's top edge to the sheet's top edge. */
+  topSlackMm: number;
+  /** Gap from the lowest band's bottom edge to the sheet's bottom edge. */
   bottomSlackMm: number;
+  leftSlackMm: number;
+  rightSlackMm: number;
   printableWidthMm: number;
 }
 
 export function sheetMeasurements(t: SheetTemplate, offset: CalibrationOffset): SheetMeasurements {
-  const tops = bandTopsMm(t, offset);
-  const lastBottom = tops[tops.length - 1] + t.bandHeightMm;
+  const rects = bandRectsMm(t, offset);
+  // Measure by extremes, never by rects[0] and rects[n-1]: a 180-degree flip
+  // puts band 1 at the BOTTOM, which would otherwise report a negative span.
+  const tops = rects.map((r) => r.topMm);
+  const highest = Math.min(...tops);
+  const lowest = Math.max(...tops);
   return {
     sheetWidthMm: t.pageWidthMm,
     sheetHeightMm: t.pageHeightMm,
     bandHeightMm: t.bandHeightMm,
     pitchMm: bandPitchMm(t) + offset.dPitchMm,
-    spanMm: tops[tops.length - 1] - tops[0],
-    bottomSlackMm: t.pageHeightMm - lastBottom,
+    spanMm: lowest - highest,
+    topSlackMm: highest,
+    bottomSlackMm: t.pageHeightMm - (lowest + t.bandHeightMm),
+    leftSlackMm: Math.min(...rects.map((r) => r.xMm)),
+    rightSlackMm: t.pageWidthMm - Math.max(...rects.map((r) => r.xMm + r.widthMm)),
     printableWidthMm: t.bandWidthMm - t.tabZoneMm,
   };
 }
@@ -63,8 +74,9 @@ export function sheetChecks(t: SheetTemplate, offset: CalibrationOffset): SheetC
     return checks; // every other number is meaningless once pitch is nonsense
   }
 
-  if (m.bottomSlackMm < -0.05) {
-    const over = Math.abs(m.bottomSlackMm);
+  const vOver = Math.min(m.topSlackMm, m.bottomSlackMm);
+  if (vOver < -0.05) {
+    const over = Math.abs(vOver);
     // Would they fit even packed edge to edge? If not, the band height (or the
     // sheet size) is wrong and suggesting a smaller pitch just trades this
     // error for an overlap one.
@@ -72,7 +84,7 @@ export function sheetChecks(t: SheetTemplate, offset: CalibrationOffset): SheetC
     const fittingPitch = (t.pageHeightMm - t.marginTopMm - t.bandHeightMm) / (t.bandsPerSheet - 1);
     checks.push({
       level: 'error',
-      message: `The last band runs ${over.toFixed(1)}mm past the bottom of the sheet.`,
+      message: `Bands run ${over.toFixed(1)}mm past the ${m.topSlackMm < m.bottomSlackMm ? 'top' : 'bottom'} of the sheet.`,
       fix: tightest > t.pageHeightMm
         ? `${t.bandsPerSheet} bands of ${t.bandHeightMm}mm need ${tightest.toFixed(0)}mm even with no gaps — this template is describing taller bands than the sheet holds. Measure a band and the sheet.`
         : `Set spacing to ${fittingPitch.toFixed(2)}mm, or measure band 1 top → band ${t.bandsPerSheet} top and enter it in Calibrate.`,
@@ -87,11 +99,12 @@ export function sheetChecks(t: SheetTemplate, offset: CalibrationOffset): SheetC
     });
   }
 
-  if (t.marginLeftMm + t.bandWidthMm > t.pageWidthMm + 0.05) {
-    const over = t.marginLeftMm + t.bandWidthMm - t.pageWidthMm;
+  if (m.rightSlackMm < -0.05 || m.leftSlackMm < -0.05) {
+    const side = m.rightSlackMm < m.leftSlackMm ? 'right' : 'left';
+    const over = Math.abs(Math.min(m.rightSlackMm, m.leftSlackMm));
     checks.push({
       level: 'error',
-      message: `Bands run ${over.toFixed(1)}mm past the right edge of the sheet.`,
+      message: `Bands run ${over.toFixed(1)}mm past the ${side} edge of the sheet.`,
       fix: `Set band width to ${(t.pageWidthMm - t.marginLeftMm).toFixed(1)}mm or less.`,
     });
   }
@@ -106,9 +119,9 @@ export function sheetChecks(t: SheetTemplate, offset: CalibrationOffset): SheetC
 
   // Full bleed: artwork sits inside the strip most printers cannot reach.
   const edgeGaps = [
-    { name: 'top', mm: t.marginTopMm + offset.dyMm },
-    { name: 'left', mm: t.marginLeftMm + offset.dxMm },
-    { name: 'right', mm: t.pageWidthMm - t.marginLeftMm - offset.dxMm - t.bandWidthMm },
+    { name: 'top', mm: m.topSlackMm },
+    { name: 'left', mm: m.leftSlackMm },
+    { name: 'right', mm: m.rightSlackMm },
     { name: 'bottom', mm: m.bottomSlackMm },
   ].filter((e) => e.mm < TYPICAL_PRINTER_MARGIN_MM && e.mm >= -0.05);
 

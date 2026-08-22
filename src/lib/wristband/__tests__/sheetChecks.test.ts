@@ -17,7 +17,7 @@ describe('sheetMeasurements', () => {
   });
 
   it('folds the calibration pitch nudge into the reported span', () => {
-    const m = sheetMeasurements(STOCK, { dxMm: 0, dyMm: 0, dPitchMm: 0.1 });
+    const m = sheetMeasurements(STOCK, { ...ZERO_CALIBRATION, dxMm: 0, dyMm: 0, dPitchMm: 0.1 });
     expect(m.pitchMm).toBeCloseTo(19.1, 9);
     expect(m.spanMm).toBeCloseTo(171.9, 6);
   });
@@ -61,7 +61,7 @@ describe('sheetChecks', () => {
   });
 
   it('bails out on non-positive spacing rather than reporting nonsense', () => {
-    const checks = sheetChecks(STOCK, { dxMm: 0, dyMm: 0, dPitchMm: -19 });
+    const checks = sheetChecks(STOCK, { ...ZERO_CALIBRATION, dxMm: 0, dyMm: 0, dPitchMm: -19 });
     expect(checks).toHaveLength(1);
     expect(checks[0].message).toContain('on top of each other');
   });
@@ -73,7 +73,7 @@ describe('sheetChecks', () => {
   });
 
   it('warns when a pitch nudge is doing the template’s job', () => {
-    const warn = sheetChecks(STOCK, { dxMm: 0, dyMm: 0, dPitchMm: 0.5 })
+    const warn = sheetChecks(STOCK, { ...ZERO_CALIBRATION, dxMm: 0, dyMm: 0, dPitchMm: 0.5 })
       .find((c) => /stretching spacing/.test(c.message));
     expect(warn?.message).toContain('4.5mm across the sheet');
   });
@@ -84,5 +84,23 @@ describe('sheetChecks', () => {
     const found = errors(onRealPaper);
     expect(found.some((c) => /past the bottom/.test(c.message))).toBe(true);
     expect(found.some((c) => /past the right edge/.test(c.message))).toBe(true);
+  });
+});
+
+describe('flipped sheets report positive distances', () => {
+  const flipped = { ...ZERO_CALIBRATION, flip180: true };
+
+  it('never reports a negative span just because band 1 moved to the bottom', () => {
+    // The calibration page prints this number for the user to measure against
+    // a ruler. "-171.0mm" is not a distance anyone can check.
+    const m = sheetMeasurements(STOCK, flipped);
+    expect(m.spanMm).toBeGreaterThan(0);
+    expect(m.spanMm).toBe(sheetMeasurements(STOCK, ZERO_CALIBRATION).spanMm);
+  });
+
+  it('gives a flipped full-bleed sheet the same clean bill of health', () => {
+    expect(errors(STOCK, flipped)).toEqual([]);
+    expect(sheetChecks(STOCK, flipped).map((c) => c.message))
+      .toEqual(sheetChecks(STOCK, ZERO_CALIBRATION).map((c) => c.message));
   });
 });

@@ -40,18 +40,18 @@ describe('DEFAULT_TEMPLATES', () => {
 
 describe('calibration persistence', () => {
   it('defaults to zero offsets and round-trips saves per template', () => {
-    expect(loadCalibration('a4-10up-25mm')).toEqual({ dxMm: 0, dyMm: 0, dPitchMm: 0 });
-    saveCalibration('a4-10up-25mm', { dxMm: 1.5, dyMm: -0.5, dPitchMm: 0.2 });
-    expect(loadCalibration('a4-10up-25mm')).toEqual({ dxMm: 1.5, dyMm: -0.5, dPitchMm: 0.2 });
-    expect(loadCalibration('letter-10up-25mm')).toEqual({ dxMm: 0, dyMm: 0, dPitchMm: 0 });
+    expect(loadCalibration('a4-10up-25mm')).toEqual({ dxMm: 0, dyMm: 0, dPitchMm: 0, flip180: false });
+    saveCalibration('a4-10up-25mm', { dxMm: 1.5, dyMm: -0.5, dPitchMm: 0.2, flip180: true });
+    expect(loadCalibration('a4-10up-25mm')).toEqual({ dxMm: 1.5, dyMm: -0.5, dPitchMm: 0.2, flip180: true });
+    expect(loadCalibration('letter-10up-25mm')).toEqual({ dxMm: 0, dyMm: 0, dPitchMm: 0, flip180: false });
   });
 
-  it('reads offsets saved before dPitchMm existed as a zero pitch nudge', () => {
+  it('reads offsets saved before dPitchMm and flip180 existed as unset', () => {
     store.set(
       'carrot.wristband.calibration',
       JSON.stringify({ 'legacy-key': { dxMm: 1, dyMm: 2 } })
     );
-    expect(loadCalibration('legacy-key')).toEqual({ dxMm: 1, dyMm: 2, dPitchMm: 0 });
+    expect(loadCalibration('legacy-key')).toEqual({ dxMm: 1, dyMm: 2, dPitchMm: 0, flip180: false });
   });
 });
 

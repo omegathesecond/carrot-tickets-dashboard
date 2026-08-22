@@ -56,9 +56,22 @@ export interface CalibrationOffset {
    * compounds down the sheet and needs its own knob.
    */
   dPitchMm: number;
+  /**
+   * Rotate the whole page 180 degrees, for stock the printer will only take
+   * one way round — Tyvek whose adhesive edge cannot lead, for instance.
+   * Loading the sheet turned around turns the print with it, so the page is
+   * rotated to cancel that out.
+   *
+   * Per printer, not per sheet: the same stock in a machine with a different
+   * paper path may not need it, which is why it lives with the calibration
+   * rather than on the template.
+   */
+  flip180: boolean;
 }
 
-export const ZERO_CALIBRATION: CalibrationOffset = { dxMm: 0, dyMm: 0, dPitchMm: 0 };
+export const ZERO_CALIBRATION: CalibrationOffset = {
+  dxMm: 0, dyMm: 0, dPitchMm: 0, flip180: false,
+};
 
 // Common 10-up sheets: bands are 10" (254mm) long, 3/4" (19.05mm) or 1"
 // (25.4mm) tall. Only the 3/4" bands fit 10-up on A4 (210×297) or US Letter
@@ -138,6 +151,7 @@ export function loadCalibration(templateKey: string): CalibrationOffset {
     dxMm: saved.dxMm ?? 0,
     dyMm: saved.dyMm ?? 0,
     dPitchMm: saved.dPitchMm ?? 0,
+    flip180: saved.flip180 ?? false,
   };
 }
 
