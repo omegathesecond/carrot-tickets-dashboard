@@ -382,20 +382,26 @@ export interface RevenueStats {
 
 /**
  * One slice of an event's money — by payment method or by sales channel.
- * `face`, `charged` and `organizerProceeds` are all reported because they
- * answer different questions: what the ticket sells for, what left the buyer's
- * wallet, and what the organizer keeps.
+ *
+ * The fee fields are OPTIONAL because the API withholds them from organizers:
+ * the booking fee is Carrot's margin on the buyer, and `charged`
+ * (face + bookingFee) would hand it back by subtraction. Their presence is
+ * therefore the signal for whether to render fee columns at all — there is no
+ * separate client-side permission check to keep in sync.
  */
 export interface EventFinancialsRow {
   sales: number;
   tickets: number;
   face: number;
-  bookingFee: number;
-  absorbedFee: number;
-  charged: number;
   platformFee: number;
   resellerCommission: number;
   organizerProceeds: number;
+  /** Super-admin only — absent for organizers. */
+  bookingFee?: number;
+  /** Super-admin only — absent for organizers. */
+  absorbedFee?: number;
+  /** Super-admin only — absent for organizers. */
+  charged?: number;
 }
 
 export interface EventFinancials {
@@ -404,13 +410,14 @@ export interface EventFinancials {
   byChannel: (EventFinancialsRow & { channel: string })[];
   totals: {
     face: number;
-    bookingFees: number;
-    absorbedFees: number;
     platformFees: number;
     resellerCommission: number;
-    charged: number;
     organizerProceeds: number;
-    carrotEarned: number;
+    // Super-admin only — see EventFinancialsRow.
+    bookingFees?: number;
+    absorbedFees?: number;
+    charged?: number;
+    carrotEarned?: number;
   };
   // Tickets that were paid for, and what they actually averaged.
   paid: { sales: number; tickets: number; averageTicketPrice: number };

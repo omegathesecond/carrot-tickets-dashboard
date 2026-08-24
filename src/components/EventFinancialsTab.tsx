@@ -34,7 +34,7 @@ interface EventFinancialsTabProps {
  * "sales" means revenue. Rather than leave the reader to guess which columns
  * are counts and which are money, each one says so outright.
  */
-const GLOSSARY: { term: string; blurb: string }[] = [
+const GLOSSARY: { term: string; blurb: string; feesOnly?: boolean }[] = [
   {
     term: 'Payments',
     blurb:
@@ -51,11 +51,13 @@ const GLOSSARY: { term: string; blurb: string }[] = [
   },
   {
     term: 'Booking fee',
+    feesOnly: true,
     blurb:
       'A flat fee Carrot adds on top at online checkout. It is paid by the buyer, not taken out of your money — which is why it only ever appears on online rows, never on cash or gate sales.',
   },
   {
     term: 'Buyer paid',
+    feesOnly: true,
     blurb:
       'Face value plus the booking fee — what actually left the buyer\'s pocket. On cash and reseller rows there is no booking fee, so this matches face value exactly.',
   },
@@ -83,17 +85,32 @@ const GLOSSARY: { term: string; blurb: string }[] = [
 const money = (v: number, currency: Currency) => formatMoney(v ?? 0, currency, { space: true, decimals: 2 });
 
 /** The money columns are identical for the method and channel tables — one
- *  renderer so the two can never disagree about what a column means. */
-function MoneyCells({ row, currency }: { row: EventFinancialsRow; currency: Currency }) {
+ *  renderer so the two can never disagree about what a column means.
+ *
+ *  `showFees` mirrors what the API actually sent rather than re-deriving the
+ *  permission client-side, so the two can't drift apart. */
+function MoneyCells({
+  row,
+  currency,
+  showFees,
+}: {
+  row: EventFinancialsRow;
+  currency: Currency;
+  showFees: boolean;
+}) {
   return (
     <>
       <TableCell className="text-right">{row.sales.toLocaleString()}</TableCell>
       <TableCell className="text-right">{row.tickets.toLocaleString()}</TableCell>
       <TableCell className="text-right">{money(row.face, currency)}</TableCell>
-      <TableCell className="text-right text-slate-500">
-        {row.bookingFee > 0 ? money(row.bookingFee, currency) : '—'}
-      </TableCell>
-      <TableCell className="text-right">{money(row.charged, currency)}</TableCell>
+      {showFees && (
+        <>
+          <TableCell className="text-right text-slate-500">
+            {(row.bookingFee ?? 0) > 0 ? money(row.bookingFee ?? 0, currency) : '—'}
+          </TableCell>
+          <TableCell className="text-right">{money(row.charged ?? 0, currency)}</TableCell>
+        </>
+      )}
       <TableCell className="text-right text-slate-500">
         {row.resellerCommission > 0 ? money(row.resellerCommission, currency) : '—'}
       </TableCell>
@@ -102,7 +119,7 @@ function MoneyCells({ row, currency }: { row: EventFinancialsRow; currency: Curr
   );
 }
 
-function MoneyHeader({ firstColumn }: { firstColumn: string }) {
+function MoneyHeader({ firstColumn, showFees }: { firstColumn: string; showFees: boolean }) {
   return (
     <TableHeader>
       <TableRow>
@@ -112,8 +129,12 @@ function MoneyHeader({ firstColumn }: { firstColumn: string }) {
         <TableHead className="text-right">Payments</TableHead>
         <TableHead className="text-right">Tickets</TableHead>
         <TableHead className="text-right">Face value</TableHead>
-        <TableHead className="text-right">Booking fee</TableHead>
-        <TableHead className="text-right">Buyer paid</TableHead>
+        {showFees && (
+          <>
+            <TableHead className="text-right">Booking fee</TableHead>
+            <TableHead className="text-right">Buyer paid</TableHead>
+          </>
+        )}
         <TableHead className="text-right">Reseller cut</TableHead>
         <TableHead className="text-right">Your proceeds</TableHead>
       </TableRow>
@@ -148,6 +169,9 @@ export function EventFinancialsTab({ eventId }: EventFinancialsTabProps) {
   }
 
   const c = fin.currency;
+  // Fee data is present only for super-admins — the API withholds it from
+  // organizers, so its presence IS the permission signal.
+  const showFees = fin.totals.bookingFees !== undefined;
   // `fin.failed` is deliberately not read — the endpoint still reports failed
   // payment attempts, but this tab is about money that actually moved.
   const { totals, custody, paid, comps } = fin;
@@ -156,7 +180,7 @@ export function EventFinancialsTab({ eventId }: EventFinancialsTabProps) {
   return (
     <div className="space-y-6">
       {/* The ladder: what tickets sold for, what buyers actually paid, what's left. */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className={`grid grid-cols-1 gap-4 ${showFees ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
         <StatsCard
           title="Ticket face value"
           value={money(totals.face, c)}
@@ -164,17 +188,19 @@ export function EventFinancialsTab({ eventId }: EventFinancialsTabProps) {
           icon={TicketIcon}
           gradient="from-slate-500 to-slate-600"
         />
-        <StatsCard
-          title="Buyers paid"
-          value={money(totals.charged, c)}
-          description={
-            totals.bookingFees > 0
-              ? `Incl. ${money(totals.bookingFees, c)} booking fees`
-              : 'No booking fees charged'
-          }
-          icon={Banknote}
-          gradient="from-blue-500 to-blue-600"
-        />
+        {showFees && (
+          <StatsCard
+            title="Buyers paid"
+            value={money(totals.charged ?? 0, c)}
+            description={
+              (totals.bookingFees ?? 0) > 0
+                ? `Incl. ${money(totals.bookingFees ?? 0, c)} booking fees`
+                : 'No booking fees charged'
+            }
+            icon={Banknote}
+            gradient="from-blue-500 to-blue-600"
+          />
+        )}
         <StatsCard
           title="Your proceeds"
           value={money(totals.organizerProceeds, c)}
@@ -240,11 +266,11 @@ export function EventFinancialsTab({ eventId }: EventFinancialsTabProps) {
         <CardContent>
           <div className="overflow-x-auto">
             <Table>
-              <MoneyHeader firstColumn="Method" />
+              <MoneyHeader firstColumn="Method" showFees={showFees} />
               <TableBody>
                 {fin.byMethod.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-slate-500 py-8">
+                    <TableCell colSpan={showFees ? 8 : 6} className="text-center text-slate-500 py-8">
                       No completed sales yet.
                     </TableCell>
                   </TableRow>
@@ -252,7 +278,7 @@ export function EventFinancialsTab({ eventId }: EventFinancialsTabProps) {
                   fin.byMethod.map((m) => (
                     <TableRow key={m.method}>
                       <TableCell className="font-medium">{paymentLabel(m.method)}</TableCell>
-                      <MoneyCells row={m} currency={c} />
+                      <MoneyCells row={m} currency={c} showFees={showFees} />
                     </TableRow>
                   ))
                 )}
@@ -269,11 +295,11 @@ export function EventFinancialsTab({ eventId }: EventFinancialsTabProps) {
         <CardContent>
           <div className="overflow-x-auto">
             <Table>
-              <MoneyHeader firstColumn="Channel" />
+              <MoneyHeader firstColumn="Channel" showFees={showFees} />
               <TableBody>
                 {fin.byChannel.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-slate-500 py-8">
+                    <TableCell colSpan={showFees ? 8 : 6} className="text-center text-slate-500 py-8">
                       No completed sales yet.
                     </TableCell>
                   </TableRow>
@@ -281,7 +307,7 @@ export function EventFinancialsTab({ eventId }: EventFinancialsTabProps) {
                   fin.byChannel.map((ch) => (
                     <TableRow key={ch.channel}>
                       <TableCell className="font-medium">{channelLabel(ch.channel)}</TableCell>
-                      <MoneyCells row={ch} currency={c} />
+                      <MoneyCells row={ch} currency={c} showFees={showFees} />
                     </TableRow>
                   ))
                 )}
@@ -341,16 +367,16 @@ export function EventFinancialsTab({ eventId }: EventFinancialsTabProps) {
         {glossaryOpen && (
           <CardContent className="pt-0">
             <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
-              {GLOSSARY.map((g) => (
+              {GLOSSARY.filter((g) => showFees || !g.feesOnly).map((g) => (
                 <div key={g.term}>
                   <dt className="text-sm font-semibold text-slate-900">{g.term}</dt>
                   <dd className="text-sm text-slate-600 mt-0.5">{g.blurb}</dd>
                 </div>
               ))}
             </dl>
-            {totals.carrotEarned > 0 && (
+            {showFees && (totals.carrotEarned ?? 0) > 0 && (
               <p className="text-xs text-slate-500 mt-6 border-t border-slate-200 pt-4">
-                Carrot earned {money(totals.carrotEarned, c)} on this event in booking fees and
+                Carrot earned {money(totals.carrotEarned ?? 0, c)} on this event in booking fees and
                 commission.
               </p>
             )}
@@ -358,9 +384,9 @@ export function EventFinancialsTab({ eventId }: EventFinancialsTabProps) {
         )}
       </Card>
 
-      {!glossaryOpen && totals.carrotEarned > 0 && (
+      {!glossaryOpen && showFees && (totals.carrotEarned ?? 0) > 0 && (
         <p className="text-xs text-slate-500">
-          Carrot earned {money(totals.carrotEarned, c)} on this event in booking fees and commission.
+          Carrot earned {money(totals.carrotEarned ?? 0, c)} on this event in booking fees and commission.
         </p>
       )}
     </div>
