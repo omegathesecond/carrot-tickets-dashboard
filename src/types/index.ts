@@ -1,5 +1,20 @@
 export * from './reseller';
 
+/**
+ * Every payment method the API can return — mirrors PaymentMethod in the api's
+ * ticket.interface.ts. Kept as one exported union rather than repeated inline:
+ * the old three-value inline union claimed card, DeltaPay and Yoco could not
+ * occur, which is how a `method === 'keshless_wallet' ? 'Wallet' : 'Cash'`
+ * label typechecked while mislabelling live card revenue as cash.
+ */
+export type PaymentMethodValue =
+  | 'cash'
+  | 'keshless_wallet'
+  | 'mtn_momo'
+  | 'peach_card'
+  | 'deltapay'
+  | 'yoco';
+
 // Authentication Types
 export interface LoginCredentials {
   identifier: string; // email or phone
@@ -226,7 +241,7 @@ export interface TicketSale {
   amountCharged?: number;
   customerName: string;
   customerPhone: string;
-  paymentMethod: 'cash' | 'keshless_wallet' | 'mtn_momo';
+  paymentMethod: PaymentMethodValue;
   paymentStatus: 'pending' | 'paid' | 'completed' | 'refunded' | 'failed';
   tickets: Ticket[];
   // Individual tickets as populated by the sales list endpoint (each carries
@@ -266,7 +281,7 @@ export interface SellTicketsRequest {
   quantity: number;
   customerName: string;
   customerPhone: string;
-  paymentMethod: 'cash' | 'keshless_wallet' | 'mtn_momo';
+  paymentMethod: PaymentMethodValue;
   walletCardNumber?: string;
   walletPin?: string;
 }
@@ -352,7 +367,7 @@ export interface RevenueStats {
     ticketsSold: number;
   }[];
   revenueByPaymentMethod: {
-    method: 'cash' | 'keshless_wallet' | 'mtn_momo';
+    method: PaymentMethodValue;
     amount: number;
     count: number;
   }[];
@@ -363,6 +378,55 @@ export interface RevenueStats {
   }[];
   revenueByChannel?: Array<{ channel: string; amount: number; count: number }>;
   topResellerSources?: Array<{ resellerName: string; hubName: string; amount: number; count: number }>;
+}
+
+/**
+ * One slice of an event's money — by payment method or by sales channel.
+ * `face`, `charged` and `organizerProceeds` are all reported because they
+ * answer different questions: what the ticket sells for, what left the buyer's
+ * wallet, and what the organizer keeps.
+ */
+export interface EventFinancialsRow {
+  sales: number;
+  tickets: number;
+  face: number;
+  bookingFee: number;
+  absorbedFee: number;
+  charged: number;
+  platformFee: number;
+  resellerCommission: number;
+  organizerProceeds: number;
+}
+
+export interface EventFinancials {
+  currency: 'SZL' | 'ZAR';
+  byMethod: (EventFinancialsRow & { method: PaymentMethodValue })[];
+  byChannel: (EventFinancialsRow & { channel: string })[];
+  totals: {
+    face: number;
+    bookingFees: number;
+    absorbedFees: number;
+    platformFees: number;
+    resellerCommission: number;
+    charged: number;
+    organizerProceeds: number;
+    carrotEarned: number;
+  };
+  // Tickets that were paid for, and what they actually averaged.
+  paid: { sales: number; tickets: number; averageTicketPrice: number };
+  // Free entries — wristband batches and price-0 tiers. Kept out of `paid` so
+  // they can't drag the average ticket price down.
+  comps: { sales: number; tickets: number };
+  // Where the proceeds physically are. `availableNow` is the only figure that
+  // is actually payable today.
+  custody: {
+    withCarrot: number;
+    withResellersUnremitted: number;
+    withResellersRemitted: number;
+    withVendor: number;
+    availableNow: number;
+  };
+  failed: { sales: number; tickets: number; face: number };
 }
 
 export interface EventAnalytics {
@@ -402,7 +466,7 @@ export interface SalesQueryParams {
   page?: number;
   limit?: number;
   eventId?: string;
-  paymentMethod?: 'cash' | 'keshless_wallet' | 'mtn_momo';
+  paymentMethod?: PaymentMethodValue;
   paymentStatus?: 'pending' | 'completed' | 'refunded' | 'failed';
   channel?: 'online' | 'box_office' | 'reseller_pos';
   startDate?: string;

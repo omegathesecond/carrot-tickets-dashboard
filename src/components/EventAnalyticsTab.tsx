@@ -30,6 +30,7 @@ import {
   getTicketTypeColor,
 } from '@/lib/chartColors';
 import type { Currency } from '@/lib/currency';
+import { paymentLabel } from '@/lib/payment';
 
 interface EventAnalyticsTabProps {
   eventId: string;
@@ -95,9 +96,13 @@ export function EventAnalyticsTab({ eventId, currency = 'SZL' }: EventAnalyticsT
     available: tt.available,
   }));
 
-  // Transform payment methods for pie chart
+  // Transform payment methods for pie chart. Labels come from the shared
+  // paymentLabel map — the old inline ternary called everything that wasn't a
+  // wallet "Cash", so card and MoMo rendered as extra slices both captioned
+  // Cash and their revenue was unreadable.
   const paymentMethodData = revenueStats?.revenueByPaymentMethod?.map((method) => ({
-    name: method.method === 'keshless_wallet' ? 'Wallet' : 'Cash',
+    name: paymentLabel(method.method),
+    method: method.method,
     value: method.amount,
     count: method.count,
   })) || [];
@@ -347,7 +352,10 @@ export function EventAnalyticsTab({ eventId, currency = 'SZL' }: EventAnalyticsT
                       {paymentMethodData.map((entry, index) => (
                         <Cell
                           key={`cell-${index}`}
-                          fill={PAYMENT_METHOD_COLORS[entry.name.toLowerCase()] || VIBRANT_PALETTE[index]}
+                          // Keyed on the raw method, which is what
+                          // PAYMENT_METHOD_COLORS indexes — the display label
+                          // ("Card", "Card (Yoco)") has no entry there.
+                          fill={PAYMENT_METHOD_COLORS[entry.method] || VIBRANT_PALETTE[index]}
                         />
                       ))}
                     </Pie>

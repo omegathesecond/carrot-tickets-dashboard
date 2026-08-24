@@ -24,6 +24,7 @@ import type {
   SalesStats,
   RevenueStats,
   EventAnalytics,
+  EventFinancials,
   StatsQueryParams,
   PaginatedResponse,
   PaymentMethodSettings,
@@ -703,6 +704,11 @@ export class ApiClient {
         `/tickets/stats/events/${eventId}?${query.toString()}`
       );
     },
+
+    // Full money picture for one event — per method, per channel, and who is
+    // holding the proceeds. Requires tickets:view_revenue.
+    getEventFinancials: async (eventId: string): Promise<EventFinancials> =>
+      this.request<EventFinancials>(`/tickets/stats/events/${eventId}/financials`),
   };
 
   // Platform Users endpoints (super-admin or tickets:view_users)

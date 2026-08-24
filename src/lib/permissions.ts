@@ -14,6 +14,7 @@ export const TicketsPermission = {
   SCAN_TICKETS: 'tickets:scan_tickets',
   VIEW_SCANS: 'tickets:view_scans',
   VIEW_STATS: 'tickets:view_stats',
+  VIEW_REVENUE: 'tickets:view_revenue',
   MANAGE_ACCESS: 'tickets:manage_access',
   VIEW_USERS: 'tickets:view_users',
   PRINT_WRISTBANDS: 'tickets:print_wristbands',
@@ -126,4 +127,17 @@ export function canManageTransport(user: AuthUser | null | undefined): boolean {
     hasPermission(user, TicketsPermission.MANAGE_TRANSPORT) ||
     hasPermission(user, TicketsPermission.VIEW_TRANSPORT)
   );
+}
+
+/**
+ * Whether the event Financials tab is shown. Mirrors the server guard on
+ * GET /tickets/stats/events/:id/financials, which sits behind VIEW_REVENUE
+ * rather than VIEW_STATS because it returns proceeds and custody — a
+ * scan-or-stats-only team member has no business seeing the money.
+ *
+ * Uses hasPermission's "no permissions array = full access" default on
+ * purpose: an owner organizer must see their own event's takings.
+ */
+export function canViewEventFinancials(user: AuthUser | null | undefined): boolean {
+  return hasPermission(user, TicketsPermission.VIEW_REVENUE);
 }

@@ -24,13 +24,14 @@ import { TicketTypeDialog, type TicketTypeSubmitData } from '@/components/Ticket
 import { ImageUploadInput } from '@/components/ImageUploadInput';
 import { GalleryManager } from '@/components/GalleryManager';
 import { EventAnalyticsTab } from '@/components/EventAnalyticsTab';
+import { EventFinancialsTab } from '@/components/EventFinancialsTab';
 import { EventCreatorTab } from '@/components/EventCreatorTab';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ChannelsManager } from '@/components/community/ChannelsManager';
 import { AnnouncementComposer } from '@/components/community/AnnouncementComposer';
 import { MembersModeration } from '@/components/community/MembersModeration';
 import { useAuth } from '@/contexts/AuthContext';
-import { canManageEvents, canEditEventInfo } from '@/lib/permissions';
+import { canManageEvents, canEditEventInfo, canViewEventFinancials } from '@/lib/permissions';
 import {
   composeEventDateTime,
   eventToDateTimeInputs,
@@ -41,7 +42,7 @@ import { getSaleTicketType, getSaleTicketCodes } from '@/lib/sales';
 import {
   ArrowLeft, Calendar, MapPin, Users, CheckCircle, Clock,
   Edit, Trash2, Eye, EyeOff, QrCode, Plus, TrendingUp, TrendingDown, Image, BarChart3, UserCircle,
-  Share2, Link as LinkIcon, MessagesSquare
+  Share2, Link as LinkIcon, MessagesSquare, Coins
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -79,6 +80,8 @@ export function EventDetailsPage() {
   // Community management (channels/announcements/moderation) needs the same
   // create/edit-event capability as the rest of this page's editing affordances.
   const canManageCommunity = canManageEvents(user);
+  // Money tab — VIEW_REVENUE, mirroring the server guard on the financials route.
+  const canSeeFinancials = canViewEventFinancials(user);
 
   // Inline rename of the event title in the header.
   const [isEditingName, setIsEditingName] = useState(false);
@@ -558,11 +561,23 @@ export function EventDetailsPage() {
 
       {/* Tabs */}
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className={`grid w-full max-w-lg ${canManageCommunity ? 'grid-cols-4' : 'grid-cols-3'}`}>
+        <TabsList
+          className={`grid w-full max-w-2xl ${
+            ['grid-cols-3', 'grid-cols-4', 'grid-cols-5'][
+              Number(canManageCommunity) + Number(canSeeFinancials)
+            ]
+          }`}
+        >
           <TabsTrigger value="overview" className="flex items-center gap-2">
             <Calendar className="h-4 w-4" />
             Overview
           </TabsTrigger>
+          {canSeeFinancials && (
+            <TabsTrigger value="financials" className="flex items-center gap-2">
+              <Coins className="h-4 w-4" />
+              Financials
+            </TabsTrigger>
+          )}
           <TabsTrigger value="analytics" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
             Analytics
@@ -1155,6 +1170,12 @@ export function EventDetailsPage() {
         </TabsContent>
 
         {/* Analytics Tab */}
+        {canSeeFinancials && (
+          <TabsContent value="financials" className="mt-6">
+            <EventFinancialsTab eventId={id!} />
+          </TabsContent>
+        )}
+
         <TabsContent value="analytics" className="mt-6">
           <EventAnalyticsTab eventId={id!} currency={event.currency ?? 'SZL'} />
         </TabsContent>
