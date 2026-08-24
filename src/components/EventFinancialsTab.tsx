@@ -77,11 +77,6 @@ const GLOSSARY: { term: string; blurb: string }[] = [
     blurb:
       'Tickets issued at no charge — wristband batches and any zero-priced ticket type. They are counted separately so they cannot drag down the average paid ticket price.',
   },
-  {
-    term: 'Failed payments',
-    blurb:
-      'Payments that were started but never completed, so no ticket was issued. This is not money you are owed — it is revenue the event did not manage to capture.',
-  },
 ];
 
 /** Every figure on this tab is in the event's own currency, never the platform base. */
@@ -153,7 +148,9 @@ export function EventFinancialsTab({ eventId }: EventFinancialsTabProps) {
   }
 
   const c = fin.currency;
-  const { totals, custody, paid, comps, failed } = fin;
+  // `fin.failed` is deliberately not read — the endpoint still reports failed
+  // payment attempts, but this tab is about money that actually moved.
+  const { totals, custody, paid, comps } = fin;
   const heldElsewhere = custody.withResellersUnremitted + custody.withVendor;
 
   return (
@@ -294,67 +291,33 @@ export function EventFinancialsTab({ eventId }: EventFinancialsTabProps) {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Paid vs free. Averaging free entries into paid revenue is what made
-            the old "average ticket price" read an order of magnitude low. */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Tickets issued</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-baseline justify-between">
-              <span className="text-sm text-slate-600">Paid tickets</span>
-              <span className="font-semibold text-slate-900">{paid.tickets.toLocaleString()}</span>
-            </div>
-            <div className="flex items-baseline justify-between">
-              <span className="text-sm text-slate-600">Free entries (wristbands, free tiers)</span>
-              <span className="font-semibold text-slate-900">{comps.tickets.toLocaleString()}</span>
-            </div>
-            <div className="flex items-baseline justify-between border-t border-slate-200 pt-3">
-              <span className="text-sm text-slate-600">Average paid ticket</span>
-              <span className="font-semibold text-slate-900">{money(paid.averageTicketPrice, c)}</span>
-            </div>
-            {comps.tickets > 0 && (
-              <p className="text-xs text-slate-500">
-                Free entries are excluded from the average — including them would understate what a
-                ticket actually sells for.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Attempted revenue that never landed. On a busy event this is often
-            the single largest recoverable number on the page. */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Failed payments</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {failed.sales === 0 ? (
-              <p className="text-sm text-slate-600">Every payment attempt on this event completed.</p>
-            ) : (
-              <div className="space-y-3">
-                <div className="flex items-baseline justify-between">
-                  <span className="text-sm text-slate-600">Attempts that failed</span>
-                  <span className="font-semibold text-slate-900">{failed.sales.toLocaleString()}</span>
-                </div>
-                <div className="flex items-baseline justify-between">
-                  <span className="text-sm text-slate-600">Tickets not issued</span>
-                  <span className="font-semibold text-slate-900">{failed.tickets.toLocaleString()}</span>
-                </div>
-                <div className="flex items-baseline justify-between border-t border-slate-200 pt-3">
-                  <span className="text-sm text-slate-600">Face value not collected</span>
-                  <span className="font-semibold text-red-600">{money(failed.face, c)}</span>
-                </div>
-                <p className="text-xs text-slate-500">
-                  Buyers who started a payment that didn&apos;t go through. Not money you are owed —
-                  money the event didn&apos;t manage to take.
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      {/* Paid vs free. Averaging free entries into paid revenue is what made
+          the old "average ticket price" read an order of magnitude low. */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Tickets issued</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-baseline justify-between">
+            <span className="text-sm text-slate-600">Paid tickets</span>
+            <span className="font-semibold text-slate-900">{paid.tickets.toLocaleString()}</span>
+          </div>
+          <div className="flex items-baseline justify-between">
+            <span className="text-sm text-slate-600">Free entries (wristbands, free tiers)</span>
+            <span className="font-semibold text-slate-900">{comps.tickets.toLocaleString()}</span>
+          </div>
+          <div className="flex items-baseline justify-between border-t border-slate-200 pt-3">
+            <span className="text-sm text-slate-600">Average paid ticket</span>
+            <span className="font-semibold text-slate-900">{money(paid.averageTicketPrice, c)}</span>
+          </div>
+          {comps.tickets > 0 && (
+            <p className="text-xs text-slate-500">
+              Free entries are excluded from the average — including them would understate what a
+              ticket actually sells for.
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Collapsed by default — an organizer who already knows the terms
           shouldn't have to scroll past a wall of definitions every visit. */}
