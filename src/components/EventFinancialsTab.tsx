@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Banknote,
@@ -8,6 +9,9 @@ import {
   Store,
   Landmark,
   HandCoins,
+  HelpCircle,
+  ChevronRight,
+  ChevronDown,
 } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { paymentLabel } from '@/lib/payment';
@@ -21,6 +25,64 @@ import type { EventFinancialsRow } from '@/types';
 interface EventFinancialsTabProps {
   eventId: string;
 }
+
+/**
+ * Plain-English definitions for every figure on this tab.
+ *
+ * These exist because the column names come from the data model, where a
+ * "sale" is one transaction row — but to anyone reading a financial report
+ * "sales" means revenue. Rather than leave the reader to guess which columns
+ * are counts and which are money, each one says so outright.
+ */
+const GLOSSARY: { term: string; blurb: string }[] = [
+  {
+    term: 'Payments',
+    blurb:
+      'How many separate times money changed hands — a count, not an amount. One payment can cover several tickets, so this is always lower than the ticket count.',
+  },
+  {
+    term: 'Tickets',
+    blurb:
+      'How many tickets those payments produced. A single wristband batch counts as one payment but can issue hundreds of tickets, which is why the two numbers can differ enormously.',
+  },
+  {
+    term: 'Face value',
+    blurb: 'The ticket price itself, added up. This is the number your ticket prices are set to.',
+  },
+  {
+    term: 'Booking fee',
+    blurb:
+      'A flat fee Carrot adds on top at online checkout. It is paid by the buyer, not taken out of your money — which is why it only ever appears on online rows, never on cash or gate sales.',
+  },
+  {
+    term: 'Buyer paid',
+    blurb:
+      'Face value plus the booking fee — what actually left the buyer\'s pocket. On cash and reseller rows there is no booking fee, so this matches face value exactly.',
+  },
+  {
+    term: 'Reseller cut',
+    blurb: 'Commission earned by a reseller on tickets they sold. Deducted from your proceeds.',
+  },
+  {
+    term: 'Your proceeds',
+    blurb: 'What you keep: face value less any reseller commission and platform commission.',
+  },
+  {
+    term: 'Available to pay out',
+    blurb:
+      'Proceeds Carrot is actually holding and can transfer to you now. Cash a reseller has taken but not yet handed in is money you are owed, but it cannot be paid out until they remit it — so it is deliberately excluded here.',
+  },
+  {
+    term: 'Free entries',
+    blurb:
+      'Tickets issued at no charge — wristband batches and any zero-priced ticket type. They are counted separately so they cannot drag down the average paid ticket price.',
+  },
+  {
+    term: 'Failed payments',
+    blurb:
+      'Payments that were started but never completed, so no ticket was issued. This is not money you are owed — it is revenue the event did not manage to capture.',
+  },
+];
 
 /** Every figure on this tab is in the event's own currency, never the platform base. */
 const money = (v: number, currency: Currency) => formatMoney(v ?? 0, currency, { space: true, decimals: 2 });
@@ -50,7 +112,9 @@ function MoneyHeader({ firstColumn }: { firstColumn: string }) {
     <TableHeader>
       <TableRow>
         <TableHead>{firstColumn}</TableHead>
-        <TableHead className="text-right">Sales</TableHead>
+        {/* "Payments", not "Sales" — this is a COUNT of transactions, and in a
+            table of currency columns "Sales" reads as revenue. */}
+        <TableHead className="text-right">Payments</TableHead>
         <TableHead className="text-right">Tickets</TableHead>
         <TableHead className="text-right">Face value</TableHead>
         <TableHead className="text-right">Booking fee</TableHead>
@@ -63,6 +127,7 @@ function MoneyHeader({ firstColumn }: { firstColumn: string }) {
 }
 
 export function EventFinancialsTab({ eventId }: EventFinancialsTabProps) {
+  const [glossaryOpen, setGlossaryOpen] = useState(false);
   const { data: fin, isLoading, error } = useQuery({
     queryKey: ['eventFinancials', eventId],
     queryFn: () => apiClient.analytics.getEventFinancials(eventId),
@@ -291,7 +356,46 @@ export function EventFinancialsTab({ eventId }: EventFinancialsTabProps) {
         </Card>
       </div>
 
-      {totals.carrotEarned > 0 && (
+      {/* Collapsed by default — an organizer who already knows the terms
+          shouldn't have to scroll past a wall of definitions every visit. */}
+      <Card>
+        <button
+          type="button"
+          onClick={() => setGlossaryOpen((open) => !open)}
+          aria-expanded={glossaryOpen}
+          className="w-full flex items-center justify-between p-6 text-left hover:bg-slate-50 rounded-lg transition-colors"
+        >
+          <span className="flex items-center gap-2 font-semibold text-slate-900">
+            <HelpCircle className="h-4 w-4 text-slate-500" />
+            What these numbers mean
+          </span>
+          {glossaryOpen ? (
+            <ChevronDown className="h-4 w-4 text-slate-400" />
+          ) : (
+            <ChevronRight className="h-4 w-4 text-slate-400" />
+          )}
+        </button>
+        {glossaryOpen && (
+          <CardContent className="pt-0">
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
+              {GLOSSARY.map((g) => (
+                <div key={g.term}>
+                  <dt className="text-sm font-semibold text-slate-900">{g.term}</dt>
+                  <dd className="text-sm text-slate-600 mt-0.5">{g.blurb}</dd>
+                </div>
+              ))}
+            </dl>
+            {totals.carrotEarned > 0 && (
+              <p className="text-xs text-slate-500 mt-6 border-t border-slate-200 pt-4">
+                Carrot earned {money(totals.carrotEarned, c)} on this event in booking fees and
+                commission.
+              </p>
+            )}
+          </CardContent>
+        )}
+      </Card>
+
+      {!glossaryOpen && totals.carrotEarned > 0 && (
         <p className="text-xs text-slate-500">
           Carrot earned {money(totals.carrotEarned, c)} on this event in booking fees and commission.
         </p>
