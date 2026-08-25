@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Upload, X, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ImageCropperDialog } from '@/components/ImageCropperDialog';
 
 interface GalleryManagerProps {
   label: string;
@@ -34,6 +35,7 @@ export function GalleryManager({
     currentImages.map(url => ({ url, isNew: false }))
   );
   const [error, setError] = useState<string | null>(null);
+  const [cropQueue, setCropQueue] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -56,7 +58,6 @@ export function GalleryManager({
 
     // Validate each file
     const validFiles: File[] = [];
-    const newPreviews: { url: string; isNew: boolean; file?: File }[] = [];
 
     for (const file of files) {
       // Validate file size
@@ -73,27 +74,23 @@ export function GalleryManager({
       }
 
       validFiles.push(file);
-
-      // Create preview
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        newPreviews.push({ url: reader.result as string, isNew: true, file });
-        if (newPreviews.length === validFiles.length) {
-          setPreviews(prev => [...prev, ...newPreviews]);
-        }
-      };
-      reader.readAsDataURL(file);
     }
 
     if (validFiles.length > 0) {
       setError(null);
-      onFilesSelect(validFiles);
+      setCropQueue(q => [...q, ...validFiles]);
     }
 
     // Reset file input
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+  };
+
+  const handleCropped = (cropped: File) => {
+    setCropQueue(q => q.slice(1));
+    setPreviews(prev => [...prev, { url: URL.createObjectURL(cropped), isNew: true, file: cropped }]);
+    onFilesSelect([cropped]);
   };
 
   // Removes by index rather than by url: two distinct picked files can
@@ -182,6 +179,16 @@ export function GalleryManager({
       <p className="text-xs text-slate-500">
         Upload up to {maxImages} images. Max {maxSize}MB each. Supports JPEG, PNG, WEBP.
       </p>
+
+      {cropQueue.length > 0 && (
+        <ImageCropperDialog
+          key={`${cropQueue[0].name}-${cropQueue.length}`}
+          file={cropQueue[0]}
+          preset="eventPhoto"
+          onCancel={() => setCropQueue(q => q.slice(1))}
+          onCropped={handleCropped}
+        />
+      )}
     </div>
   );
 }
