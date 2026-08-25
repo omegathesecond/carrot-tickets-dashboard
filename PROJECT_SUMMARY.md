@@ -1,7 +1,7 @@
-# Keshless Tickets Dashboard - Build Summary
+# Carrot Tickets Dashboard - Build Summary
 
 ## Project Location
-`/home/laslie/Documents/omevision/third-party-contracts/keshless-tickets/dev/dashboard/keshless-tickets-dashboard/`
+`~/Documents/omevision/contracts/carrot-tickets/dashboard/`
 
 ## Build Status: COMPLETE ✅
 
@@ -73,7 +73,7 @@ Complete implementation with:
 
 #### LoginPage
 - Email/phone + password login
-- Keshless Tickets branding (orange/amber gradient)
+- Carrot Tickets branding (orange/amber gradient)
 - Form validation
 - Loading states
 - Auto-navigation on success
@@ -138,7 +138,7 @@ Complete implementation with:
 ### 7. Layout & Navigation
 - Sidebar with 6 navigation items
 - Header with user dropdown
-- Keshless Tickets branding
+- Carrot Tickets branding
 - Orange/amber gradient theme
 - Responsive design
 
@@ -146,7 +146,7 @@ Complete implementation with:
 - `vite.config.ts`: Path aliases, dev server, API proxy
 - `tsconfig.json`: Path resolution
 - `tsconfig.app.json`: TypeScript config
-- `tailwind.config.js`: Keshless orange/amber theme
+- `tailwind.config.js`: Carrot orange/amber theme
 - `postcss.config.js`: TailwindCSS + Autoprefixer
 - `.env.local`: API URL configuration
 
@@ -198,7 +198,7 @@ All interfaces defined in `types/index.ts`:
 - CSV export
 - Date range filtering
 
-## Branding - Keshless Tickets
+## Branding - Carrot Tickets
 
 ### Colors
 - Primary: Orange (#f97316)
@@ -209,7 +209,7 @@ All interfaces defined in `types/index.ts`:
 ### Components
 - Ticket icon logo
 - Orange/amber gradient boxes
-- "Keshless Tickets" branding throughout
+- "Carrot Tickets" branding throughout
 - Consistent color scheme
 
 ## API Integration
@@ -282,13 +282,13 @@ npm run build
 
 1. **Start Backend API**:
    ```bash
-   cd /home/laslie/Documents/omevision/third-party-contracts/keshless-tickets/dev/backend/keshless-tickets-api
+   cd ~/Documents/omevision/contracts/carrot-tickets/api
    npm start
    ```
 
 2. **Start Dashboard**:
    ```bash
-   cd /home/laslie/Documents/omevision/third-party-contracts/keshless-tickets/dev/dashboard/keshless-tickets-dashboard
+   cd ~/Documents/omevision/contracts/carrot-tickets/dashboard
    npm run dev
    ```
 
@@ -312,7 +312,7 @@ This dashboard follows the **exact same architecture** as Parkmate:
 - Same component organization
 
 The only differences:
-- Branding (Keshless Tickets vs Parkmate)
+- Branding (Carrot Tickets vs Parkmate)
 - Colors (Orange/Amber vs Orange)
 - API endpoints (/tickets/* vs Parkmate routes)
 - Business logic (events/tickets vs parking sessions)

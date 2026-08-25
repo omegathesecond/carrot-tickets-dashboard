@@ -79,13 +79,13 @@ export function EventDetailsPage() {
   const [priceMax, setPriceMax] = useState('');
   const [priceError, setPriceError] = useState<string | null>(null);
 
-  // Keshless admins approve events (publish them live) and can unpublish/delete
+  // Carrot admins approve events (publish them live) and can unpublish/delete
   // even after tickets sell. Organizers instead SUBMIT events for approval.
   const isAdmin = !!user?.isSuperAdmin;
   // Renaming a live event is ADMIN-ONLY on purpose: an organizer silently
   // swapping the name of an approved/sold event is a bait-and-switch fraud
   // vector. Enforced server-side too — the UI gate is not the guard. Organizers
-  // must get the name right at creation (they're warned there) and ask Keshless
+  // must get the name right at creation (they're warned there) and ask Carrot
   // to correct genuine mistakes.
   const canRenameEvent = isAdmin;
   // Community management (channels/announcements/moderation) needs the same
@@ -145,7 +145,7 @@ export function EventDetailsPage() {
       // organizer sees "submitted for approval" rather than a misleading
       // "published".
       if (updated?.status === 'pending_approval') {
-        toast.success('Event submitted for approval — it goes live once Keshless approves it.');
+        toast.success('Event submitted for approval — it goes live once Carrot approves it.');
       } else if (updated?.status === 'published') {
         toast.success('Event published');
       } else {
@@ -514,7 +514,7 @@ export function EventDetailsPage() {
                 <Clock className="h-4 w-4" />
                 {isAdmin
                   ? 'This event is awaiting your approval.'
-                  : 'Submitted — waiting for Keshless to approve it before it goes live.'}
+                  : 'Submitted — waiting for Carrot to approve it before it goes live.'}
               </p>
             )}
           </div>
@@ -629,7 +629,7 @@ export function EventDetailsPage() {
               <CardContent className="space-y-4">
                 {/* Details lock once the event goes live — set expectations up front. */}
                 <p className="text-xs text-amber-600">
-                  You can edit these details until the event is published. Afterwards, ask Keshless to make changes.
+                  You can edit these details until the event is published. Afterwards, ask Carrot to make changes.
                 </p>
                 <div className="space-y-2">
                   <Label htmlFor="edit-name">Event Name</Label>

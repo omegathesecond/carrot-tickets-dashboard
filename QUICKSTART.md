@@ -1,17 +1,17 @@
-# Keshless Tickets Dashboard - Quick Start
+# Carrot Tickets Dashboard - Quick Start
 
 ## 🚀 Get Started in 3 Steps
 
 ### 1. Start the Backend API
 ```bash
-cd /home/laslie/Documents/omevision/third-party-contracts/keshless-tickets/dev/backend/keshless-tickets-api
+cd ~/Documents/omevision/contracts/carrot-tickets/api
 npm start
 ```
 Backend runs on: http://localhost:5000
 
 ### 2. Start the Dashboard
 ```bash
-cd /home/laslie/Documents/omevision/third-party-contracts/keshless-tickets/dev/dashboard/keshless-tickets-dashboard
+cd ~/Documents/omevision/contracts/carrot-tickets/dashboard
 npm run dev
 ```
 Dashboard runs on: http://localhost:3001
@@ -122,7 +122,7 @@ npm run dev
 ## 📂 Project Location
 
 ```
-/home/laslie/Documents/omevision/third-party-contracts/keshless-tickets/dev/dashboard/keshless-tickets-dashboard/
+~/Documents/omevision/contracts/carrot-tickets/dashboard/
 ```
 
 ## 🎉 That's It!
