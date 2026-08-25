@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import { ImageCropperDialog } from '@/components/ImageCropperDialog';
 
 const MAX_CAPTION_LENGTH = 500;
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024; // 100MB
@@ -60,6 +61,7 @@ const initialState: ComposerState = {
 export function UpdateComposer() {
   const [state, setState] = useState<ComposerState>(initialState);
   const [error, setError] = useState<string | null>(null);
+  const [pendingImage, setPendingImage] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: eventsData } = useQuery({
@@ -126,7 +128,8 @@ export function UpdateComposer() {
   });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] ?? null;
+    const file = e.target.files?.[0];
+    e.target.value = '';
     if (state.previewUrl) URL.revokeObjectURL(state.previewUrl);
 
     if (!file) {
@@ -134,12 +137,12 @@ export function UpdateComposer() {
       return;
     }
 
-    const isImage = file.type.startsWith('image/');
-    setState((s) => ({
-      ...s,
-      file,
-      previewUrl: isImage ? URL.createObjectURL(file) : null,
-    }));
+    // Videos are posted as-is; only still images get a crop step.
+    if (file.type.startsWith('video/')) {
+      setState((s) => ({ ...s, file, previewUrl: null }));
+      return;
+    }
+    setPendingImage(file);
   };
 
   const trimmedCaption = state.caption.trim();
@@ -165,6 +168,17 @@ export function UpdateComposer() {
             disabled={postUpdate.isPending}
             className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200"
           />
+          {pendingImage && (
+            <ImageCropperDialog
+              file={pendingImage}
+              preset="brandUpdate"
+              onCancel={() => setPendingImage(null)}
+              onCropped={(cropped) => {
+                setPendingImage(null);
+                setState((s) => ({ ...s, file: cropped, previewUrl: URL.createObjectURL(cropped) }));
+              }}
+            />
+          )}
           {state.file && (
             <div className="flex items-center gap-3 rounded-md border border-slate-200 p-2">
               {kind === 'image' && state.previewUrl ? (
