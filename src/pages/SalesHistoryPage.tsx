@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,6 +19,7 @@ import { formatMoney } from '@/lib/currency';
 import type { SalesQueryParams } from '@/types';
 
 const ALL = 'all';
+const PAGE_SIZE = 25;
 
 export function SalesHistoryPage() {
   // The API only ever returns completed sales to organizers — failed/pending
@@ -35,11 +36,36 @@ export function SalesHistoryPage() {
   const [paymentMethod, setPaymentMethod] = useState<string>(ALL);
   const [paymentStatus, setPaymentStatus] = useState<string>(ALL);
   const [channel, setChannel] = useState<string>(ALL);
+  const [page, setPage] = useState(1);
 
-  // Build the filter params shared by the sales list, the analytics row and the
-  // CSV export so all three stay in sync.
+  // Every filter setter resets to page 1 so a narrowed result set doesn't
+  // strand the user on a page past the end.
+  const onDateRangeChange = (value: DateRange) => {
+    setDateRange(value);
+    setPage(1);
+  };
+  const onEventIdChange = (value: string) => {
+    setEventId(value);
+    setPage(1);
+  };
+  const onPaymentMethodChange = (value: string) => {
+    setPaymentMethod(value);
+    setPage(1);
+  };
+  const onPaymentStatusChange = (value: string) => {
+    setPaymentStatus(value);
+    setPage(1);
+  };
+  const onChannelChange = (value: string) => {
+    setChannel(value);
+    setPage(1);
+  };
+
+  // Build the filter params shared by the sales list and the CSV export
+  // (the analytics row deliberately ignores paging so it stays a full-range total).
   const filterParams: SalesQueryParams = {
-    limit: 100,
+    page,
+    limit: PAGE_SIZE,
     ...(dateRange.startDate ? { startDate: dateRange.startDate } : {}),
     ...(dateRange.endDate ? { endDate: dateRange.endDate } : {}),
     ...(eventId !== ALL ? { eventId } : {}),
@@ -53,6 +79,7 @@ export function SalesHistoryPage() {
   const { data: salesData, isLoading } = useQuery({
     queryKey: ['sales', filterParams],
     queryFn: () => apiClient.sales.getSales(filterParams),
+    placeholderData: keepPreviousData,
   });
 
   const { data: stats } = useQuery({
@@ -116,13 +143,13 @@ export function SalesHistoryPage() {
           <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 ${canFilterPaymentStatus ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}>
             <div className="space-y-2">
               <Label>Date</Label>
-              <DateRangePicker value={dateRange} onChange={setDateRange} />
+              <DateRangePicker value={dateRange} onChange={onDateRangeChange} />
             </div>
             <div className="space-y-2">
               <Label>Event</Label>
               <SearchableSelect
                 value={eventId}
-                onValueChange={setEventId}
+                onValueChange={onEventIdChange}
                 options={[
                   { value: ALL, label: 'All events' },
                   ...(eventsData?.data || []).map((e) => ({ value: e._id, label: e.name })),
@@ -134,7 +161,7 @@ export function SalesHistoryPage() {
             </div>
             <div className="space-y-2">
               <Label>Payment Type</Label>
-              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+              <Select value={paymentMethod} onValueChange={onPaymentMethodChange}>
                 <SelectTrigger>
                   <SelectValue placeholder="All" />
                 </SelectTrigger>
@@ -152,7 +179,7 @@ export function SalesHistoryPage() {
             {canFilterPaymentStatus && (
               <div className="space-y-2">
                 <Label>Status</Label>
-                <Select value={paymentStatus} onValueChange={setPaymentStatus}>
+                <Select value={paymentStatus} onValueChange={onPaymentStatusChange}>
                   <SelectTrigger>
                     <SelectValue placeholder="All" />
                   </SelectTrigger>
@@ -168,7 +195,7 @@ export function SalesHistoryPage() {
             )}
             <div className="space-y-2">
               <Label>Channel</Label>
-              <Select value={channel} onValueChange={setChannel}>
+              <Select value={channel} onValueChange={onChannelChange}>
                 <SelectTrigger>
                   <SelectValue placeholder="All" />
                 </SelectTrigger>
@@ -257,6 +284,32 @@ export function SalesHistoryPage() {
                 )}
               </TableBody>
             </Table>
+          )}
+
+          {salesData?.pagination && salesData.pagination.total > 0 && (
+            <div className="flex items-center justify-between pt-4 text-sm text-slate-500">
+              <span>
+                Page {salesData.pagination.page} of {salesData.pagination.pages} · {salesData.pagination.total.toLocaleString()} sales
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page <= 1 || isLoading}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page >= salesData.pagination.pages || isLoading}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
