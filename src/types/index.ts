@@ -82,7 +82,7 @@ export interface AuthUser {
   // (e.g. a sales-only reseller). Full vendor accounts get every permission.
   permissions?: string[];
   userType?: 'vendor' | 'sub-user';
-  // True for Keshless platform admins, who approve events and see every
+  // True for Carrot platform admins, who approve events and see every
   // vendor's sales/scans. Set from the API's getMe/login payload.
   isSuperAdmin?: boolean;
   operatorType?: 'events' | 'transport' | 'both';

@@ -1,4 +1,4 @@
-# Keshless Tickets Dashboard
+# Carrot Tickets Dashboard
 
 Event ticketing management dashboard built with React, TypeScript, and Vite.
 
@@ -63,4 +63,4 @@ Backend: http://localhost:5000/api/tickets
 ### Export
 - GET /tickets/export/sales
 
-Version 1.0.0 | © 2025 Keshless Tickets
+Version 1.0.0 | © 2025 Carrot Tickets

@@ -1,7 +1,7 @@
 import type { AuthUser, Event } from '@/types';
 
 /**
- * Keshless Tickets permission strings — must match the `tickets:*` namespace
+ * Carrot Tickets permission strings — must match the `tickets:*` namespace
  * the API issues in the auth token / `getMe` response
  * (api/src/interfaces/ticketsPermission.interface.ts).
  */
