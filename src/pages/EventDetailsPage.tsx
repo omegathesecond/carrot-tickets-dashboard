@@ -446,15 +446,15 @@ export function EventDetailsPage() {
   return (
     <div className="p-8 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-4 min-w-0">
           <Button variant="ghost" onClick={() => navigate('/events')}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div>
-            <div className="flex items-center gap-3">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-3">
               {isEditingName ? (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Input
                     value={nameDraft}
                     onChange={(e) => setNameDraft(e.target.value)}
@@ -462,7 +462,7 @@ export function EventDetailsPage() {
                     autoFocus
                     disabled={renameMutation.isPending}
                     aria-label="Event name"
-                    className="h-11 w-[24rem] max-w-full text-2xl font-bold"
+                    className="h-11 w-full sm:w-[24rem] max-w-full text-lg sm:text-2xl font-bold"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') handleSaveName();
                       if (e.key === 'Escape') setIsEditingName(false);
@@ -482,7 +482,7 @@ export function EventDetailsPage() {
                 </div>
               ) : (
                 <>
-                  <h1 className="text-3xl font-bold">{event.name}</h1>
+                  <h1 className="text-xl sm:text-3xl font-bold break-words">{event.name}</h1>
                   {canRenameEvent && event.status !== 'cancelled' && event.status !== 'completed' && (
                     <Button
                       variant="ghost"
@@ -712,6 +712,11 @@ export function EventDetailsPage() {
               </CardContent>
             ) : (
               <CardContent className="space-y-4">
+                <div>
+                  <div className="text-sm text-slate-600 mb-1">Event Name</div>
+                  <div className="text-slate-900 font-medium break-words">{event.name}</div>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <div className="text-sm text-slate-600 mb-1">Venue</div>
