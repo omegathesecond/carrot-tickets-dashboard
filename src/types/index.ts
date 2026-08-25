@@ -448,6 +448,10 @@ export interface EventAnalytics {
     totalSales: number;
     totalRevenue: number;
     ticketsSold: number;
+    // Platform-printed wristband/tag batches — zero-amount admission tags,
+    // reported separately so they don't inflate ticketsSold/totalSales.
+    tagsPrinted: number;
+    cashSales: number;
     checkedIn: number;
     checkInRate: number;
   };
