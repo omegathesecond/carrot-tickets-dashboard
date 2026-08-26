@@ -4,7 +4,7 @@ import { apiClient } from '@/lib/api';
 import { AlertCircle, Clock } from 'lucide-react';
 
 /**
- * Approval in Keshless Tickets is per-EVENT, not per-organizer-account. This
+ * Approval in Carrot Tickets is per-EVENT, not per-organizer-account. This
  * banner tells an organizer that one or more of their events are sitting in the
  * approval queue — and, crucially, disappears on its own once every event has
  * been approved (or none are pending). It is NOT keyed off the account's
@@ -37,7 +37,7 @@ export function VerificationBanner() {
         <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
         <p>
           <span className="font-semibold">Account {user.verificationStatus}.</span>{' '}
-          Publishing is disabled. Please contact Keshless support to resolve this.
+          Publishing is disabled. Please contact Carrot Tickets support to resolve this.
         </p>
       </div>
     );
@@ -58,7 +58,7 @@ export function VerificationBanner() {
             ? 'You have an event awaiting approval.'
             : `You have ${pendingCount} events awaiting approval.`}
         </span>{' '}
-        Keshless is reviewing {pendingCount === 1 ? 'it' : 'them'} — once approved,{' '}
+        Carrot is reviewing {pendingCount === 1 ? 'it' : 'them'} — once approved,{' '}
         {pendingCount === 1 ? 'it goes' : 'they go'} live and tickets can be sold.
       </p>
     </div>
