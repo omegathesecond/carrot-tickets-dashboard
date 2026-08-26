@@ -17,14 +17,6 @@ import {
 import { toast } from 'sonner';
 import { type Event, EventFormData } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
-import {
-  type Ticketing,
-  DEFAULT_TICKETING,
-  validateTicketingSelection,
-  buildTicketingPayload,
-  buildPricePayload,
-  validateExternalPriceRange,
-} from '@/lib/ticketing';
 import { currencySymbol, type Currency } from '@/lib/currency';
 import { formatCurrency } from '@/lib/chartColors';
 import { ImageUploadInput } from '@/components/ImageUploadInput';
@@ -66,18 +58,15 @@ function classifyEvent(e: Event, now: number): Exclude<Bucket, 'all'> {
 
 export function EventsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isMultiDay, setIsMultiDay] = useState(false);
+  // Defaults to checked — most Carrot events span more than one day, and an
+  // organizer who leaves it off the default single start/end time fields
+  // often doesn't notice there's a multi-day option at all.
+  const [isMultiDay, setIsMultiDay] = useState(true);
   const [activeTab, setActiveTab] = useState<Bucket>('all');
   const [deleteTarget, setDeleteTarget] = useState<Event | null>(null);
-  const [ticketing, setTicketing] = useState<Ticketing>(DEFAULT_TICKETING);
-  const [externalTicketUrl, setExternalTicketUrl] = useState('');
-  const [ticketUrlError, setTicketUrlError] = useState<string | null>(null);
   const [posterFile, setPosterFile] = useState<File | null>(null);
   const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
   const [currency, setCurrency] = useState<Currency>('SZL');
-  const [priceMin, setPriceMin] = useState('');
-  const [priceMax, setPriceMax] = useState('');
-  const [priceError, setPriceError] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const isAdmin = !!user?.isSuperAdmin;
@@ -89,16 +78,10 @@ export function EventsPage() {
 
   const resetCreateForm = () => {
     setIsDialogOpen(false);
-    setIsMultiDay(false);
-    setTicketing(DEFAULT_TICKETING);
-    setExternalTicketUrl('');
-    setTicketUrlError(null);
+    setIsMultiDay(true);
     setPosterFile(null);
     setGalleryFiles([]);
     setCurrency('SZL');
-    setPriceMin('');
-    setPriceMax('');
-    setPriceError(null);
   };
 
   const createMutation = useMutation({
@@ -180,22 +163,6 @@ export function EventsPage() {
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    // Defense-in-depth: the API also validates this, but reject here first so
-    // the organizer gets an inline field error instead of a round-trip.
-    const urlError = validateTicketingSelection(ticketing, externalTicketUrl);
-    if (urlError) {
-      setTicketUrlError(urlError);
-      return;
-    }
-    setTicketUrlError(null);
-
-    const rangeError = ticketing === 'external' ? validateExternalPriceRange(priceMin, priceMax) : null;
-    if (rangeError) {
-      setPriceError(rangeError);
-      return;
-    }
-    setPriceError(null);
-
     const formData = new FormData(e.currentTarget);
 
     const name = formData.get('name') as string;
@@ -217,6 +184,9 @@ export function EventsPage() {
     // Capacity is intentionally NOT collected here — it's derived from the
     // ticket quantities you add later, so the event total always matches the
     // tickets that actually exist.
+    // Every event is Carrot-sold at creation; an organizer who wants to sell
+    // tickets themselves switches to that afterward from the event's own
+    // Ticketing settings, once it exists.
     const data: EventFormData = {
       name,
       description: description || undefined,
@@ -226,8 +196,7 @@ export function EventsPage() {
       endTime,
       isMultiDay,
       ticketTypes: [],
-      ...buildTicketingPayload(ticketing, externalTicketUrl),
-      ...buildPricePayload(ticketing, currency, priceMin, priceMax),
+      currency,
     };
 
     createMutation.mutate({ data, poster: posterFile, gallery: galleryFiles });
@@ -263,16 +232,6 @@ export function EventsPage() {
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label>Who sells the tickets?</Label>
-                <Tabs value={ticketing} onValueChange={(v) => setTicketing(v as Ticketing)}>
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="carrot">Carrot sells (recommended)</TabsTrigger>
-                    <TabsTrigger value="external">I sell them myself</TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </div>
-
-              <div className="space-y-2">
                 <Label htmlFor="currency">Currency</Label>
                 <select
                   id="currency"
@@ -287,44 +246,6 @@ export function EventsPage() {
                   Prices for this event are shown with this currency's symbol ({currencySymbol(currency)}).
                 </p>
               </div>
-
-              {ticketing === 'external' && (
-                <div className="space-y-2">
-                  <Label htmlFor="externalTicketUrl">Ticket link (https://…)</Label>
-                  <Input
-                    id="externalTicketUrl"
-                    type="url"
-                    value={externalTicketUrl}
-                    onChange={(e) => {
-                      setExternalTicketUrl(e.target.value);
-                      setTicketUrlError(null);
-                    }}
-                    placeholder="https://your-site.com/tickets"
-                    required
-                  />
-                  {ticketUrlError && <p className="text-xs text-red-600">{ticketUrlError}</p>}
-                  <p className="text-xs text-slate-500">
-                    Buyers will be sent to this link. Carrot won't process the sale.
-                  </p>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="priceMin">From</Label>
-                      <Input id="priceMin" type="number" min="0" step="0.01" value={priceMin}
-                        onChange={(e) => setPriceMin(e.target.value)} placeholder="100" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="priceMax">To</Label>
-                      <Input id="priceMax" type="number" min="0" step="0.01" value={priceMax}
-                        onChange={(e) => setPriceMax(e.target.value)} placeholder="250" />
-                    </div>
-                  </div>
-                  {priceError && <p className="text-xs text-red-600">{priceError}</p>}
-                  <p className="text-xs text-slate-500">
-                    Shown on the card as a price range, e.g. {currencySymbol(currency)}100 – {currencySymbol(currency)}250. Optional.
-                  </p>
-                </div>
-              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -389,11 +310,9 @@ export function EventsPage() {
                 </div>
               )}
 
-              {ticketing === 'carrot' && (
-                <p className="text-xs text-slate-500">
-                  You'll set how many tickets are available when you add ticket types to this event.
-                </p>
-              )}
+              <p className="text-xs text-slate-500">
+                You'll set how many tickets are available when you add ticket types to this event.
+              </p>
 
               <div className="space-y-3 rounded-lg border border-slate-200 p-3">
                 <div>
