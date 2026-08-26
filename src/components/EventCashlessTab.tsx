@@ -1,3 +1,4 @@
+import { useState, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
@@ -13,7 +14,6 @@ import {
 } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { CreditCard, ArrowDownCircle, ArrowUpCircle, Wallet, Loader2, ArrowRight } from 'lucide-react';
-import { EventStockReport } from '@/components/EventStockReport';
 import { EventStallsPanel } from '@/components/cashless/EventStallsPanel';
 import { EventTagsPanel } from '@/components/cashless/EventTagsPanel';
 import { EventCataloguePanel } from '@/components/cashless/EventCataloguePanel';
@@ -32,14 +32,13 @@ interface Props {
 }
 
 /**
- * Everything cashless for ONE event. Money is the organizer's report — "you're
- * in charge, here's every rand that moved" — split into the four questions it
- * actually answers: what moved (transactions), what the desk did (cashiers),
- * what the stalls took, and what is still sitting on tags (balances). Stock
- * reports on the stock journal; Register, Stalls, Catalogue and Cashiers manage
- * the people and products behind it all. Stalls, products and stock are all
- * eventId-bound in the model, so they live here rather than on a top-level page
- * that asks which event you meant.
+ * Everything cashless for ONE event. Money is the organizer's transaction
+ * report; Register, Stalls, Catalogue, Cashiers and Balances each manage the
+ * people, products and tags behind it, and each carries its own breakdown
+ * (activity, takings, stock) as a nested tab rather than dumping every
+ * breakdown under Money regardless of which desk it is actually about.
+ * Stalls, products and stock are all eventId-bound in the model, so they live
+ * here rather than on a top-level page that asks which event you meant.
  */
 export function EventCashlessTab({ eventId }: Props) {
   const {
@@ -54,6 +53,8 @@ export function EventCashlessTab({ eventId }: Props) {
 
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [stallsView, setStallsView] = useState('takings');
+  const [cashiersView, setCashiersView] = useState('activity');
 
   const showStalls = canManageAccess(user);
   const showCatalogue = canManageStock(user);
@@ -62,9 +63,9 @@ export function EventCashlessTab({ eventId }: Props) {
   const showCashiers = canManageAccess(user);
   const showRegister = canManageAccess(user);
   const requestedSub = searchParams.get('sub') ?? 'money';
-  // Tags used to be a sibling tab; it is now Money's Balances pane. An old link
-  // lands where its content actually lives rather than on an empty tab.
-  const normalisedSub = requestedSub === 'tags' ? 'money' : requestedSub;
+  // Tags/Balances used to live inside Money; Balances is now its own tab, so
+  // both old shapes of the link land there rather than on an empty pane.
+  const normalisedSub = requestedSub === 'tags' || requestedSub === 'balances' ? 'balances' : requestedSub;
   // Fall back to Money rather than render an empty pane when the URL names a
   // sub-tab this user can't see (shared link, or permissions changed).
   const sub =
@@ -77,110 +78,106 @@ export function EventCashlessTab({ eventId }: Props) {
   const setSub = (v: string) => {
     const next = new URLSearchParams(searchParams);
     next.set('sub', v);
-    // Both belong to the sub-tab you are leaving: `pane` to Money, `view` to
-    // Catalogue. Carrying one over would deep-link the next visit to a pane of
-    // a tab it was never set for.
-    next.delete('pane');
+    // Belongs to the sub-tab you are leaving (Catalogue's own levels/catalogue/
+    // stock toggle) — carrying it over would deep-link the next visit to a
+    // view of a tab it was never set for.
     next.delete('view');
     setSearchParams(next, { replace: true });
   };
 
-  const pane = requestedSub === 'tags' ? 'balances' : (searchParams.get('pane') ?? 'transactions');
-  const setPane = (v: string) => {
-    const next = new URLSearchParams(searchParams);
-    next.set('sub', 'money');
-    next.set('pane', v);
-    setSearchParams(next, { replace: true });
-  };
+  const summaryBody = (ready: (s: CashlessSummary) => ReactNode) => (
+    isLoading ? (
+      <div className="flex items-center justify-center py-16 text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading cashless report…
+      </div>
+    ) : error || !summary ? (
+      <Card>
+        <CardContent className="py-12 text-center text-muted-foreground">
+          {String((error as Error)?.message || '').toLowerCase().includes('not cashless')
+            ? 'This event is not a cashless event.'
+            : 'Could not load the cashless report.'}
+        </CardContent>
+      </Card>
+    ) : ready(summary)
+  );
 
-  const moneyBody = isLoading ? (
-    <div className="flex items-center justify-center py-16 text-muted-foreground">
-      <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading cashless report…
-    </div>
-  ) : error || !summary ? (
-    <Card>
-      <CardContent className="py-12 text-center text-muted-foreground">
-        {String((error as Error)?.message || '').toLowerCase().includes('not cashless')
-          ? 'This event is not a cashless event.'
-          : 'Could not load the cashless report.'}
-      </CardContent>
-    </Card>
-  ) : (
+  const moneyBody = summaryBody((s) => (
     <div className="space-y-6">
-      {/* Totals stay above the panes: they are the answer to "how did the night
-          go", which every pane below is a breakdown of. */}
+      {/* Totals stay above the log: they are the answer to "how did the night
+          go", which the log below is a breakdown of. */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={<CreditCard className="h-4 w-4" />} label="Circulated" value={fmtR(summary.circulated)} hint="loaded onto bands" tone="ink" />
-        <StatCard icon={<ArrowUpCircle className="h-4 w-4" />} label="Spent" value={fmtR(summary.spent)} hint="at stalls" tone="blue" />
-        <StatCard icon={<ArrowDownCircle className="h-4 w-4" />} label="Withdrawn" value={fmtR(summary.withdrawn)} hint="handed back" tone="orange" />
-        <StatCard icon={<Wallet className="h-4 w-4" />} label="Left behind" value={fmtR(summary.leftBehind)} hint="still on bands" tone="green" />
+        <StatCard icon={<CreditCard className="h-4 w-4" />} label="Circulated" value={fmtR(s.circulated)} hint="loaded onto bands" tone="ink" />
+        <StatCard icon={<ArrowUpCircle className="h-4 w-4" />} label="Spent" value={fmtR(s.spent)} hint="at stalls" tone="blue" />
+        <StatCard icon={<ArrowDownCircle className="h-4 w-4" />} label="Withdrawn" value={fmtR(s.withdrawn)} hint="handed back" tone="orange" />
+        <StatCard icon={<Wallet className="h-4 w-4" />} label="Left behind" value={fmtR(s.leftBehind)} hint="still on bands" tone="green" />
       </div>
 
       <div className="text-sm text-muted-foreground">
-        {summary.walletsFunded} wallet{summary.walletsFunded === 1 ? '' : 's'} funded · {fmtR(summary.fees)} platform fees collected
+        {s.walletsFunded} wallet{s.walletsFunded === 1 ? '' : 's'} funded · {fmtR(s.fees)} platform fees collected
       </div>
 
-      <Tabs value={pane} onValueChange={setPane} className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="transactions">Transaction log</TabsTrigger>
-          <TabsTrigger value="cashiers">Cashier activity</TabsTrigger>
-          <TabsTrigger value="stalls">Stall takings</TabsTrigger>
-          <TabsTrigger value="balances">Balances</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="transactions">
-          <EventTransactionLog eventId={eventId} />
-        </TabsContent>
-
-        <TabsContent value="cashiers">
-          <CashierActivity summary={summary} onManage={showCashiers ? () => setSub('cashiers') : undefined} />
-        </TabsContent>
-
-        <TabsContent value="stalls">
-          <StallTakings eventId={eventId} summary={summary} onManage={showStalls ? () => setSub('stalls') : undefined} />
-        </TabsContent>
-
-        <TabsContent value="balances">
-          <EventTagsPanel eventId={eventId} />
-        </TabsContent>
-      </Tabs>
+      <EventTransactionLog eventId={eventId} />
     </div>
+  ));
+
+  const stallsBody = (
+    <Tabs value={stallsView} onValueChange={setStallsView} className="space-y-4">
+      <TabsList>
+        <TabsTrigger value="takings">Stall takings</TabsTrigger>
+        <TabsTrigger value="manage">Add stall</TabsTrigger>
+      </TabsList>
+      <TabsContent value="takings">
+        {summaryBody((s) => (
+          <StallTakings eventId={eventId} summary={s} onManage={() => setStallsView('manage')} />
+        ))}
+      </TabsContent>
+      <TabsContent value="manage">
+        <EventStallsPanel eventId={eventId} />
+      </TabsContent>
+    </Tabs>
+  );
+
+  const cashiersBody = (
+    <Tabs value={cashiersView} onValueChange={setCashiersView} className="space-y-4">
+      <TabsList>
+        <TabsTrigger value="activity">Cashier activity</TabsTrigger>
+        <TabsTrigger value="manage">Add cashier</TabsTrigger>
+      </TabsList>
+      <TabsContent value="activity">
+        {summaryBody((s) => <CashierActivity summary={s} onManage={() => setCashiersView('manage')} />)}
+      </TabsContent>
+      <TabsContent value="manage">
+        <CashiersPanel eventId={eventId} />
+      </TabsContent>
+    </Tabs>
   );
 
   return (
     <Tabs value={sub} onValueChange={setSub} className="space-y-4">
       <TabsList>
         <TabsTrigger value="money">Money</TabsTrigger>
-        <TabsTrigger value="stock">Stock</TabsTrigger>
         {showRegister && <TabsTrigger value="register">Register</TabsTrigger>}
         {showStalls && <TabsTrigger value="stalls">Stalls</TabsTrigger>}
         {showCatalogue && <TabsTrigger value="catalogue">Catalogue</TabsTrigger>}
         {showCashiers && <TabsTrigger value="cashiers">Cashiers</TabsTrigger>}
+        <TabsTrigger value="balances">Balances</TabsTrigger>
       </TabsList>
       <TabsContent value="money">{moneyBody}</TabsContent>
-      <TabsContent value="stock">
-        <EventStockReport eventId={eventId} />
-      </TabsContent>
       {showRegister && (
         <TabsContent value="register">
           <EventRegisterPanel eventId={eventId} />
         </TabsContent>
       )}
-      {showStalls && (
-        <TabsContent value="stalls">
-          <EventStallsPanel eventId={eventId} />
-        </TabsContent>
-      )}
+      {showStalls && <TabsContent value="stalls">{stallsBody}</TabsContent>}
       {showCatalogue && (
         <TabsContent value="catalogue">
           <EventCataloguePanel eventId={eventId} />
         </TabsContent>
       )}
-      {showCashiers && (
-        <TabsContent value="cashiers">
-          <CashiersPanel eventId={eventId} />
-        </TabsContent>
-      )}
+      {showCashiers && <TabsContent value="cashiers">{cashiersBody}</TabsContent>}
+      <TabsContent value="balances">
+        <EventTagsPanel eventId={eventId} />
+      </TabsContent>
     </Tabs>
   );
 }
