@@ -18,6 +18,7 @@ import { EventStallsPanel } from '@/components/cashless/EventStallsPanel';
 import { EventTagsPanel } from '@/components/cashless/EventTagsPanel';
 import { EventCataloguePanel } from '@/components/cashless/EventCataloguePanel';
 import { EventRegisterPanel } from '@/components/cashless/EventRegisterPanel';
+import { EventTagRegisterPanel } from '@/components/cashless/EventTagRegisterPanel';
 import { EventTransactionLog } from '@/components/cashless/EventTransactionLog';
 import { StatCard } from '@/components/cashless/StatCard';
 import { CashiersPanel } from '@/components/CashiersPanel';
@@ -55,6 +56,7 @@ export function EventCashlessTab({ eventId }: Props) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [stallsView, setStallsView] = useState('takings');
   const [cashiersView, setCashiersView] = useState('activity');
+  const [registerView, setRegisterView] = useState('tags');
 
   const showStalls = canManageAccess(user);
   const showCatalogue = canManageStock(user);
@@ -137,6 +139,21 @@ export function EventCashlessTab({ eventId }: Props) {
     </Tabs>
   );
 
+  const registerBody = (
+    <Tabs value={registerView} onValueChange={setRegisterView} className="space-y-4">
+      <TabsList>
+        <TabsTrigger value="tags">Registered tags</TabsTrigger>
+        <TabsTrigger value="accounts">Add account</TabsTrigger>
+      </TabsList>
+      <TabsContent value="tags">
+        <EventTagRegisterPanel eventId={eventId} />
+      </TabsContent>
+      <TabsContent value="accounts">
+        <EventRegisterPanel eventId={eventId} />
+      </TabsContent>
+    </Tabs>
+  );
+
   const cashiersBody = (
     <Tabs value={cashiersView} onValueChange={setCashiersView} className="space-y-4">
       <TabsList>
@@ -165,7 +182,7 @@ export function EventCashlessTab({ eventId }: Props) {
       <TabsContent value="money">{moneyBody}</TabsContent>
       {showRegister && (
         <TabsContent value="register">
-          <EventRegisterPanel eventId={eventId} />
+          {registerBody}
         </TabsContent>
       )}
       {showStalls && <TabsContent value="stalls">{stallsBody}</TabsContent>}

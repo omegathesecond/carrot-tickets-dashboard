@@ -2,41 +2,26 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { KeyRound, Nfc, Plus, Power, ScanLine, Search, UserPlus } from 'lucide-react';
-import { apiClient, type GateOperatorRow, type TagRegistrationRow } from '@/lib/api';
-import { fmtR } from '@/lib/money';
+import { KeyRound, Plus, Power, UserPlus } from 'lucide-react';
+import { apiClient, type GateOperatorRow } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { OperatorCredentialsDialog } from '@/components/OperatorCredentialsDialog';
-import { EventTagRegisterPanel } from '@/components/cashless/EventTagRegisterPanel';
 import { ViewAffordance } from '@/components/ViewAffordance';
 
 const initialsOf = (name: string) =>
   name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
 
-const fmtWhen = (iso: string) => {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime())
-    ? '—'
-    : d.toLocaleString('en-ZA', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-};
-
 type AddForm = { fullName: string; phoneNumber: string };
 const DEFAULT_FORM: AddForm = { fullName: '', phoneNumber: '' };
 
 /**
- * The register desk for ONE event, in the order the job actually happens:
- * the people who work it, the tags they have registered TO the event, and the
- * log of the ones they have since handed out.
- *
- * The middle section is the one that decides who gets in: only a tag in this
- * event's register can be bound to a ticket, so a tag from another show — or
- * one an attendee brought themselves — is worthless here.
+ * The register desk's ACCOUNTS for ONE event — the people who work it, each
+ * with their own User ID and PIN for the POS app.
  *
  * A register account is NOT a fourth kind of operator — it is a gate operator
  * assigned to this event carrying the `issue_tags` grant. Roles are the floor
@@ -45,6 +30,9 @@ const DEFAULT_FORM: AddForm = { fullName: '', phoneNumber: '' };
  * keep in step. Creating one here just picks the event and the grant for you.
  * The API answers `type: 'register'` when they log into the POS, which is what
  * opens the Register screen instead of the turnstile scanner.
+ *
+ * The tags these accounts register TO the event live in EventTagRegisterPanel,
+ * a sibling sub-tab rather than a section nested in here — see EventCashlessTab.
  */
 export function EventRegisterPanel({ eventId }: { eventId: string }) {
   const navigate = useNavigate();
@@ -52,16 +40,10 @@ export function EventRegisterPanel({ eventId }: { eventId: string }) {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [form, setForm] = useState<AddForm>(DEFAULT_FORM);
   const [issued, setIssued] = useState<{ title: string; loginCode?: string; pin: string } | null>(null);
-  const [q, setQ] = useState('');
 
   const { data: operators = [], isLoading: loadingOperators, isError: operatorsFailed, error: operatorsError } = useQuery({
     queryKey: ['gate-operators'],
     queryFn: () => apiClient.gateOperators.list(),
-  });
-
-  const { data: log, isLoading: loadingLog, isError: logFailed, error: logError } = useQuery({
-    queryKey: ['tag-registrations', eventId, q],
-    queryFn: () => apiClient.tags.registrations(eventId, { ...(q.trim() ? { q: q.trim() } : {}) }),
   });
 
   // An empty eventIds means "every event of this organizer" (see GateOperatorRow),
@@ -110,7 +92,6 @@ export function EventRegisterPanel({ eventId }: { eventId: string }) {
   const pendingResetId = resetPin.isPending ? resetPin.variables : undefined;
   const pendingActiveId = setActive.isPending ? setActive.variables?.id : undefined;
   const isFormValid = form.fullName.trim().length > 0;
-  const registrations = log?.registrations ?? [];
 
   return (
     <div className="space-y-8">
@@ -237,87 +218,6 @@ export function EventRegisterPanel({ eventId }: { eventId: string }) {
             ))}
           </div>
         )}
-      </section>
-
-      <EventTagRegisterPanel eventId={eventId} />
-
-      <section className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h3 className="font-semibold text-slate-900">Tags handed out</h3>
-            <p className="text-sm text-muted-foreground">
-              Every tag given to an attendee at this event, newest first — including ones since reported lost
-              or reissued. Each one came out of the register above.
-            </p>
-          </div>
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input className="pl-8" placeholder="Search tag ID" value={q} onChange={(e) => setQ(e.target.value)} />
-          </div>
-        </div>
-
-        <Card>
-          <CardContent className="pt-6">
-            {loadingLog ? (
-              <p className="text-sm text-muted-foreground py-4">Loading registrations…</p>
-            ) : logFailed ? (
-              <p className="text-sm text-red-600 py-4">
-                Could not load the registrations
-                {logError instanceof Error && logError.message ? ` — ${logError.message}` : ''}.
-              </p>
-            ) : registrations.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4">
-                {q.trim() ? `No tag matching “${q.trim()}” has been handed out.` : 'No tags handed out yet.'}
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Tag ID</TableHead>
-                      <TableHead>Holder</TableHead>
-                      <TableHead>Registered by</TableHead>
-                      <TableHead>When</TableHead>
-                      <TableHead className="text-right">Balance</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {registrations.map((r: TagRegistrationRow) => (
-                      <TableRow key={`${r.walletId}-${r.at}`}>
-                        <TableCell className="font-mono text-xs">
-                          <span className="inline-flex items-center gap-1.5">
-                            <Nfc className="h-3.5 w-3.5 text-orange-600" />
-                            {r.bandUid}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <div className="font-medium">{r.holder.name ?? 'Unknown'}</div>
-                          <div className="text-xs text-muted-foreground">{r.holder.phone ?? r.holder.ticketCode ?? ''}</div>
-                        </TableCell>
-                        <TableCell>{r.registeredBy}</TableCell>
-                        <TableCell className="text-muted-foreground whitespace-nowrap">{fmtWhen(r.at)}</TableCell>
-                        <TableCell className="text-right font-semibold">{fmtR(r.balance)}</TableCell>
-                        <TableCell>
-                          {r.releasedAt ? (
-                            <Badge variant="secondary" className="bg-slate-100 text-slate-700">Released</Badge>
-                          ) : (
-                            <Badge variant="secondary" className="bg-green-100 text-green-800">On the wrist</Badge>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                {log?.hasMore && (
-                  <p className="text-xs text-muted-foreground mt-3 inline-flex items-center gap-1.5">
-                    <ScanLine className="h-3.5 w-3.5" /> Showing the most recent 50 registrations.
-                  </p>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </section>
 
       {issued && (

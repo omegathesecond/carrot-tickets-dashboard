@@ -26,6 +26,9 @@ vi.mock('@/components/cashless/EventTagsPanel', () => ({
 vi.mock('@/components/cashless/EventRegisterPanel', () => ({
   EventRegisterPanel: () => <div>register-pane</div>,
 }));
+vi.mock('@/components/cashless/EventTagRegisterPanel', () => ({
+  EventTagRegisterPanel: () => <div>tags-pane</div>,
+}));
 vi.mock('@/components/cashless/EventTransactionLog', () => ({
   EventTransactionLog: () => <div>transaction-log-pane</div>,
 }));
@@ -133,9 +136,24 @@ describe('EventCashlessTab main tabs', () => {
     expect(screen.queryByRole('tab', { name: 'Register' })).toBeNull();
   });
 
-  it('opens the Register sub-tab named in the URL', () => {
+  it('opens the Register sub-tab named in the URL, on Registered tags by default', async () => {
     renderTab(SUPER_ADMIN, '/events/e1?tab=cashless&sub=register');
-    expect(screen.getByText('register-pane')).toBeDefined();
+    expect(await screen.findByText('tags-pane')).toBeDefined();
+    expect(screen.queryByText('register-pane')).toBeNull();
+  });
+});
+
+describe('EventCashlessTab Register tab', () => {
+  it('opens on Registered tags, with Add account alongside it', async () => {
+    renderTab(SUPER_ADMIN, '/events/e1?tab=cashless&sub=register');
+    expect(await screen.findByRole('tab', { name: 'Registered tags' })).toBeDefined();
+    const addAccount = screen.getByRole('tab', { name: 'Add account' });
+    expect(addAccount).toBeDefined();
+    expect(screen.queryByText('register-pane')).toBeNull();
+
+    // Radix Tabs selects on mousedown, not click.
+    fireEvent.mouseDown(addAccount, { button: 0 });
+    expect(await screen.findByText('register-pane')).toBeDefined();
   });
 });
 
