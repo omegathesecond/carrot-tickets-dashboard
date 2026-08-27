@@ -121,6 +121,14 @@ export interface Event {
   ticketTypes: TicketType[];
   totalTicketsSold: number;
   totalRevenue: number;
+  // Live, wristband/tag-batch-excluded figures — totalTicketsSold /
+  // ticketTypes[].sold are persisted counters that include those, which
+  // makes the event page look inflated against what was actually collected.
+  salesSummary?: {
+    ticketsSold: number;
+    tagsPrinted: number;
+    cashSales: number;
+  };
   // Media & Images
   posterUrl?: string;
   thumbnailUrl?: string;
@@ -147,10 +155,14 @@ export interface TicketType {
   name: string; // e.g., "VIP", "General", "Early Bird"
   price: number;
   quantity: number; // Total tickets of this type
-  sold: number; // Number sold
+  sold: number; // Number sold — includes wristband/tag batches; kept as-is
+  // for inventory/available math and the quantity-adjustment guards.
   available: number; // quantity - sold
   description?: string;
   isSoldOut?: boolean; // Manual sold-out flag
+  // Live, wristband-excluded figures for display — see Event.salesSummary.
+  realSold?: number;
+  tagsPrinted?: number;
 }
 
 export interface EventFormData {
@@ -448,6 +460,10 @@ export interface EventAnalytics {
     totalSales: number;
     totalRevenue: number;
     ticketsSold: number;
+    // Platform-printed wristband/tag batches — zero-amount admission tags,
+    // reported separately so they don't inflate ticketsSold/totalSales.
+    tagsPrinted: number;
+    cashSales: number;
     checkedIn: number;
     checkInRate: number;
   };

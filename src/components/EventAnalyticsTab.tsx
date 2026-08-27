@@ -29,8 +29,8 @@ import {
   formatPercentage,
   getTicketTypeColor,
 } from '@/lib/chartColors';
-import type { Currency } from '@/lib/currency';
 import { paymentLabel } from '@/lib/payment';
+import type { Currency } from '@/lib/currency';
 
 interface EventAnalyticsTabProps {
   eventId: string;
@@ -124,7 +124,7 @@ export function EventAnalyticsTab({ eventId, currency = 'SZL' }: EventAnalyticsT
       </div>
 
       {/* Summary Stats — shown at the top for an at-a-glance overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-slate-900">
@@ -136,9 +136,25 @@ export function EventAnalyticsTab({ eventId, currency = 'SZL' }: EventAnalyticsT
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-slate-900">
+              {formatCurrency(analytics.sales.cashSales, currency)}
+            </div>
+            <div className="text-sm text-slate-600">Cash Sales</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold text-slate-900">
               {analytics.sales.ticketsSold.toLocaleString()}
             </div>
             <div className="text-sm text-slate-600">Tickets Sold</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold text-slate-900">
+              {analytics.sales.tagsPrinted.toLocaleString()}
+            </div>
+            <div className="text-sm text-slate-600">Tags Printed</div>
           </CardContent>
         </Card>
         <Card>
