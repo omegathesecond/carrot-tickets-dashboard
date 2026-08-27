@@ -406,7 +406,10 @@ export function EventDetailsPage() {
   const statusVariant: 'default' | 'secondary' | 'destructive' =
     isPublished ? 'default' : isPending ? 'secondary' : 'secondary';
   const totalCapacity = event.capacity || event.ticketTypes.reduce((sum, tt) => sum + tt.quantity, 0);
-  const soldPercentage = totalCapacity > 0 ? (event.totalTicketsSold / totalCapacity) * 100 : 0;
+  // Real tickets sold, wristband/tag batches excluded — falls back to the
+  // persisted (inflated) counter only if the live figure isn't present yet.
+  const ticketsSoldDisplay = event.salesSummary?.ticketsSold ?? event.totalTicketsSold;
+  const soldPercentage = totalCapacity > 0 ? (ticketsSoldDisplay / totalCapacity) * 100 : 0;
   // Core "Event Information" is editable only before the event goes live (admins
   // may still fix a live event). Mirrors the server-side guard.
   const canEditInfo = canEditEventInfo(event, user);
@@ -875,7 +878,7 @@ export function EventDetailsPage() {
                         </TableCell>
                         <TableCell>{formatMoney(ticket.price, event.currency ?? 'SZL', { space: true, decimals: 0 })}</TableCell>
                         <TableCell className="text-right">{ticket.quantity}</TableCell>
-                        <TableCell className="text-right">{ticket.sold}</TableCell>
+                        <TableCell className="text-right">{ticket.realSold ?? ticket.sold}</TableCell>
                         <TableCell className="text-right">
                           <span className={ticket.available === 0 ? 'text-red-600 font-semibold' : ''}>
                             {ticket.available}
@@ -1073,7 +1076,7 @@ export function EventDetailsPage() {
               <div>
                 <div className="text-sm text-slate-600 mb-1">Tickets Sold</div>
                 <div className="text-2xl font-bold text-slate-900">
-                  {event.totalTicketsSold} / {totalCapacity}
+                  {ticketsSoldDisplay} / {totalCapacity}
                 </div>
                 <div className="w-full bg-slate-200 rounded-full h-2 mt-2">
                   <div
@@ -1083,6 +1086,24 @@ export function EventDetailsPage() {
                 </div>
                 <div className="text-xs text-slate-600 mt-1">{soldPercentage.toFixed(1)}% sold</div>
               </div>
+
+              {event.salesSummary && (
+                <div>
+                  <div className="text-sm text-slate-600 mb-1">Cash Sales</div>
+                  <div className="text-2xl font-bold text-slate-900">
+                    {formatMoney(event.salesSummary.cashSales, event.currency ?? 'SZL', { space: true, decimals: 0 })}
+                  </div>
+                </div>
+              )}
+
+              {!!event.salesSummary?.tagsPrinted && (
+                <div>
+                  <div className="text-sm text-slate-600 mb-1">Tags Printed</div>
+                  <div className="text-2xl font-bold text-slate-900">
+                    {event.salesSummary.tagsPrinted}
+                  </div>
+                </div>
+              )}
 
               {scans && (
                 <div>
