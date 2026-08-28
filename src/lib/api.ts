@@ -596,6 +596,10 @@ export class ApiClient {
       if (params?.eventId) query.append('eventId', params.eventId);
       if (params?.paymentMethod) query.append('paymentMethod', params.paymentMethod);
       if (params?.paymentStatus) query.append('paymentStatus', params.paymentStatus);
+      // The API has always supported this (ticketSalesQuerySchema validates it,
+      // TicketService.getSales applies it) but this client dropped it, so the
+      // Sales History page's Channel dropdown silently did nothing.
+      if (params?.channel) query.append('channel', params.channel);
       if (params?.startDate) query.append('startDate', params.startDate);
       if (params?.endDate) query.append('endDate', params.endDate);
       if (params?.search) query.append('search', params.search);
@@ -1287,8 +1291,16 @@ export class ApiClient {
       const query = new URLSearchParams();
       if (params?.eventId) query.append('eventId', params.eventId);
       if (params?.paymentMethod) query.append('paymentMethod', params.paymentMethod);
+      // paymentStatus + channel were dropped here, so an export taken while the
+      // table was filtered returned rows the table had excluded. The API applies
+      // paymentStatus for super-admins only; organizers stay locked to
+      // completed sales whatever is sent.
+      if (params?.paymentStatus) query.append('paymentStatus', params.paymentStatus);
+      if (params?.channel) query.append('channel', params.channel);
       if (params?.startDate) query.append('startDate', params.startDate);
       if (params?.endDate) query.append('endDate', params.endDate);
+      // `page`/`limit` are deliberately NOT forwarded: the CSV is the whole
+      // result set, not the page on screen.
 
       const url = `${this.baseUrl}/tickets/export/sales?${query.toString()}`;
       const headers: Record<string, string> = {};

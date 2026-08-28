@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { DateRangePicker, DateRange } from '@/components/DateRangePicker';
+import { TablePagination } from '@/components/TablePagination';
 import { Download } from 'lucide-react';
 import { format } from 'date-fns';
 import { formatCurrency } from '@/lib/chartColors';
@@ -19,6 +20,12 @@ import { formatMoney } from '@/lib/currency';
 import type { SalesQueryParams } from '@/types';
 
 const ALL = 'all';
+
+// Matches UsersPage / OrganizersPage / FeesPage. The API caps `limit` at 100
+// (ticketSalesQuerySchema), which is why 100 is the largest option offered —
+// and why the old hardcoded `limit: 100` made sale #101 unreachable.
+const DEFAULT_PAGE_SIZE = 25;
+const PAGE_SIZE_OPTIONS = [25, 50, 100];
 
 export function SalesHistoryPage() {
   // The API only ever returns completed sales to organizers — failed/pending
@@ -35,11 +42,27 @@ export function SalesHistoryPage() {
   const [paymentMethod, setPaymentMethod] = useState<string>(ALL);
   const [paymentStatus, setPaymentStatus] = useState<string>(ALL);
   const [channel, setChannel] = useState<string>(ALL);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+
+  /**
+   * Wraps a filter setter so changing it also returns to page 1. Without this,
+   * narrowing from 400 unfiltered sales (while on page 9) to a single event
+   * with 30 sales leaves `page` at 9 — and the API dutifully returns an empty
+   * slice, which the table renders as "No sales found". FeesPage does the same
+   * thing inline; this keeps it honest across all five filters.
+   */
+  function onFilterChange<T>(set: (value: T) => void) {
+    return (value: T) => {
+      set(value);
+      setPage(1);
+    };
+  }
 
   // Build the filter params shared by the sales list, the analytics row and the
-  // CSV export so all three stay in sync.
+  // CSV export so all three stay in sync. Paging is deliberately NOT in here:
+  // the CSV export is a whole-result-set download, not the visible page.
   const filterParams: SalesQueryParams = {
-    limit: 100,
     ...(dateRange.startDate ? { startDate: dateRange.startDate } : {}),
     ...(dateRange.endDate ? { endDate: dateRange.endDate } : {}),
     ...(eventId !== ALL ? { eventId } : {}),
@@ -50,9 +73,14 @@ export function SalesHistoryPage() {
     ...(channel !== ALL ? { channel: channel as SalesQueryParams['channel'] } : {}),
   };
 
-  const { data: salesData, isLoading } = useQuery({
-    queryKey: ['sales', filterParams],
-    queryFn: () => apiClient.sales.getSales(filterParams),
+  const listParams: SalesQueryParams = { ...filterParams, page, limit: pageSize };
+
+  const { data: salesData, isLoading, isFetching } = useQuery({
+    queryKey: ['sales', listParams],
+    // Hold the previous page's rows while the next one loads, so stepping
+    // through pages doesn't flash the table empty between fetches.
+    placeholderData: keepPreviousData,
+    queryFn: () => apiClient.sales.getSales(listParams),
   });
 
   const { data: stats } = useQuery({
@@ -116,13 +144,13 @@ export function SalesHistoryPage() {
           <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 ${canFilterPaymentStatus ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}>
             <div className="space-y-2">
               <Label>Date</Label>
-              <DateRangePicker value={dateRange} onChange={setDateRange} />
+              <DateRangePicker value={dateRange} onChange={onFilterChange(setDateRange)} />
             </div>
             <div className="space-y-2">
               <Label>Event</Label>
               <SearchableSelect
                 value={eventId}
-                onValueChange={setEventId}
+                onValueChange={onFilterChange(setEventId)}
                 options={[
                   { value: ALL, label: 'All events' },
                   ...(eventsData?.data || []).map((e) => ({ value: e._id, label: e.name })),
@@ -134,7 +162,7 @@ export function SalesHistoryPage() {
             </div>
             <div className="space-y-2">
               <Label>Payment Type</Label>
-              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+              <Select value={paymentMethod} onValueChange={onFilterChange(setPaymentMethod)}>
                 <SelectTrigger>
                   <SelectValue placeholder="All" />
                 </SelectTrigger>
@@ -152,7 +180,7 @@ export function SalesHistoryPage() {
             {canFilterPaymentStatus && (
               <div className="space-y-2">
                 <Label>Status</Label>
-                <Select value={paymentStatus} onValueChange={setPaymentStatus}>
+                <Select value={paymentStatus} onValueChange={onFilterChange(setPaymentStatus)}>
                   <SelectTrigger>
                     <SelectValue placeholder="All" />
                   </SelectTrigger>
@@ -168,7 +196,7 @@ export function SalesHistoryPage() {
             )}
             <div className="space-y-2">
               <Label>Channel</Label>
-              <Select value={channel} onValueChange={setChannel}>
+              <Select value={channel} onValueChange={onFilterChange(setChannel)}>
                 <SelectTrigger>
                   <SelectValue placeholder="All" />
                 </SelectTrigger>
@@ -186,7 +214,7 @@ export function SalesHistoryPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Recent Sales</CardTitle>
+          <CardTitle>Sales</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -258,6 +286,22 @@ export function SalesHistoryPage() {
               </TableBody>
             </Table>
           )}
+
+          {/* `pages`, not `totalPages` — getSales returns PaginatedResponse<T>,
+              whose pagination field is named differently from the Users /
+              Organizers / Fees responses. Mapping it here is exactly why
+              TablePagination takes primitives. */}
+          <TablePagination
+            page={salesData?.pagination.page ?? page}
+            totalPages={salesData?.pagination.pages ?? 0}
+            total={salesData?.pagination.total ?? 0}
+            itemLabel="sale"
+            onPageChange={setPage}
+            busy={isFetching}
+            pageSize={pageSize}
+            onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
+            pageSizeOptions={PAGE_SIZE_OPTIONS}
+          />
         </CardContent>
       </Card>
     </div>

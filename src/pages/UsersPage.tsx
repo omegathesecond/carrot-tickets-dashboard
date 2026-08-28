@@ -4,11 +4,11 @@ import { Users, UserPlus, CalendarDays, Ticket } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { StatsCard } from '@/components/ui/stats-card';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { formatCurrency } from '@/lib/chartColors';
+import { TablePagination } from '@/components/TablePagination';
 
 const PAGE_SIZE = 25;
 
@@ -169,31 +169,14 @@ export function UsersPage() {
             </Table>
           </div>
 
-          {pagination && pagination.total > 0 && (
-            <div className="flex items-center justify-between pt-4 text-sm text-slate-500">
-              <span>
-                Page {pagination.page} of {pagination.totalPages} · {pagination.total.toLocaleString()} users
-              </span>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page <= 1 || usersLoading}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                >
-                  Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page >= pagination.totalPages || usersLoading}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
-          )}
+          <TablePagination
+            page={pagination?.page ?? page}
+            totalPages={pagination?.totalPages ?? 0}
+            total={pagination?.total ?? 0}
+            itemLabel="user"
+            onPageChange={setPage}
+            busy={usersLoading}
+          />
         </CardContent>
       </Card>
     </div>
