@@ -9,6 +9,11 @@ export interface Reseller {
   commissionPercent: number | null;
   status: 'active' | 'suspended';
   isActive: boolean;
+  /**
+   * Events this reseller may see and sell. EMPTY (or absent) means EVERY
+   * published event — the pre-assignment behaviour — never "none".
+   */
+  eventIds?: string[];
   createdAt: string;
 }
 

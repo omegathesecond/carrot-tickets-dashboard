@@ -817,6 +817,9 @@ export class ApiClient {
         email?: string;
         phoneNumber?: string;
         isActive?: boolean;
+        // Omit to leave an existing assignment alone; [] clears it back to
+        // every event. The server rejects an id that names no real event.
+        eventIds?: string[];
       }
     ): Promise<Reseller> =>
       this.request<Reseller>(`/admin/resellers/${id}`, {

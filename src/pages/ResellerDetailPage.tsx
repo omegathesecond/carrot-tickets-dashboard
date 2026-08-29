@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient, type ResellerWithdrawal } from '@/lib/api';
 import { toast } from 'sonner';
-import { ArrowLeft, DollarSign, Pencil, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
-import { type ResellerHub, type ResellerSettlement, type ResellerSettlementPreview } from '@/types';
+import { ArrowLeft, CalendarCheck, DollarSign, Globe, Pencil, TrendingDown, TrendingUp, Wallet, X } from 'lucide-react';
+import { type Reseller, type ResellerHub, type ResellerSettlement, type ResellerSettlementPreview } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -38,6 +38,8 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { OperatorCredentialsDialog } from '@/components/OperatorCredentialsDialog';
 import { DateRangePicker, type DateRange } from '@/components/DateRangePicker';
 import { formatMoney } from '@/lib/currency';
+import { formatEventDateTimeRange } from '@/lib/eventWhen';
+import { EventPicker } from '@/components/EventPicker';
 
 // ─── Hubs Tab ────────────────────────────────────────────────────────────────
 
@@ -173,6 +175,157 @@ function HubsTab({ resellerId }: { resellerId: string }) {
           </TableBody>
         </Table>
       )}
+    </div>
+  );
+}
+
+// ─── Events Tab ──────────────────────────────────────────────────────────────
+
+/**
+ * Which events this reseller may see and sell.
+ *
+ * An EMPTY assignment means EVERY published event — the behaviour every
+ * reseller had before assignment existed — so the empty state has to read as
+ * "sells everything", not as an unfilled form.
+ */
+function EventsTab({ reseller }: { reseller: Reseller }) {
+  const queryClient = useQueryClient();
+  const assigned = reseller.eventIds ?? [];
+  const [pendingClear, setPendingClear] = useState<string | null>(null);
+
+  // Names/dates for the assigned ids. Fetched per event rather than through
+  // the list endpoint: an assignment can name an event that has since been
+  // unpublished, which a published-only list would silently drop from view.
+  const details = useQueries({
+    queries: assigned.map((eventId) => ({
+      queryKey: ['event', eventId],
+      queryFn: () => apiClient.events.getEvent(eventId),
+    })),
+  });
+
+  const save = useMutation({
+    mutationFn: (eventIds: string[]) =>
+      apiClient.resellerAdmin.updateReseller(reseller._id, { eventIds }),
+    onSuccess: (_data, eventIds) => {
+      queryClient.invalidateQueries({ queryKey: ['reseller', reseller._id] });
+      toast.success(
+        eventIds.length === 0
+          ? `${reseller.businessName} can now sell every event`
+          : `${reseller.businessName} sells ${eventIds.length} event${eventIds.length === 1 ? '' : 's'}`,
+      );
+    },
+    onError: (error: any) => toast.error(error.message || 'Failed to update the assignment'),
+  });
+
+  const remove = (eventId: string) => {
+    const next = assigned.filter((id) => id !== eventId);
+    // Removing the LAST event does not narrow the reseller — it widens them to
+    // the whole catalogue. That inversion is too surprising to do on one click.
+    if (next.length === 0) {
+      setPendingClear(eventId);
+      return;
+    }
+    save.mutate(next);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h3 className="font-semibold text-slate-900">Events this reseller can sell</h3>
+          <p className="text-sm text-slate-500">
+            {assigned.length === 0
+              ? 'No restriction — every published event is available to their tills.'
+              : 'Their tills see only these events. Everything else is hidden and refused.'}
+          </p>
+        </div>
+        <div className="w-full sm:w-72">
+          <EventPicker
+            value={assigned}
+            onChange={(eventIds) => save.mutate(eventIds)}
+            disabled={save.isPending}
+            placeholder={assigned.length === 0 ? 'Restrict to specific events…' : 'Assign another event…'}
+          />
+        </div>
+      </div>
+
+      {assigned.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/60 px-6 py-10 text-center">
+          <Globe className="mx-auto h-8 w-8 text-slate-300" />
+          <p className="mt-3 font-medium text-slate-900">Sells every event</p>
+          <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">
+            This reseller can list and sell any published event on the platform. Assign one or
+            more events above to restrict them.
+          </p>
+        </div>
+      ) : (
+        <div className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200">
+          {assigned.map((eventId, index) => {
+            const query = details[index];
+            const event = query?.data;
+            return (
+              <div key={eventId} className="flex items-center gap-3 bg-white p-3">
+                {event?.posterUrl ? (
+                  <img
+                    src={event.posterUrl}
+                    alt=""
+                    className="h-12 w-12 shrink-0 rounded-md object-cover"
+                  />
+                ) : (
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-slate-100">
+                    <CalendarCheck className="h-5 w-5 text-slate-400" />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  {query?.isLoading ? (
+                    <p className="text-sm text-slate-400">Loading event…</p>
+                  ) : event ? (
+                    <>
+                      <p className="truncate font-medium text-slate-900">{event.name}</p>
+                      <div className="text-xs text-slate-500 sm:flex sm:gap-1">
+                        <p className="truncate">{event.venue}</p>
+                        <span className="hidden sm:inline">•</span>
+                        <p className="truncate">{formatEventDateTimeRange(event)}</p>
+                      </div>
+                    </>
+                  ) : (
+                    // Never render a silent placeholder here: an id that no
+                    // longer resolves is a real assignment pointing at nothing,
+                    // and it silently costs the reseller a sellable event.
+                    <>
+                      <p className="truncate font-medium text-red-600">Event unavailable</p>
+                      <p className="truncate font-mono text-xs text-slate-400">{eventId}</p>
+                    </>
+                  )}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={save.isPending}
+                  onClick={() => remove(eventId)}
+                  aria-label={`Unassign ${event?.name ?? 'event'}`}
+                  className="shrink-0 text-slate-400 hover:text-red-600"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={pendingClear !== null}
+        onOpenChange={(open) => !open && setPendingClear(null)}
+        title="Give this reseller every event?"
+        description={`Removing the last assigned event does not restrict ${reseller.businessName} — it lets them see and sell every published event on the platform.`}
+        confirmLabel="Yes, allow every event"
+        isLoading={save.isPending}
+        onConfirm={() => {
+          save.mutate([]);
+          setPendingClear(null);
+        }}
+      />
     </div>
   );
 }
@@ -776,6 +929,10 @@ export function ResellerDetailPage() {
     onError: (error: any) => toast.error(error.message || 'Failed to update reseller'),
   });
 
+  // Tab is controlled so the header chip can jump straight to the assignment.
+  const [tab, setTab] = useState('hubs');
+  const assignedCount = reseller?.eventIds?.length ?? 0;
+
   const handleEditSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.businessName.trim()) return;
@@ -827,6 +984,25 @@ export function ResellerDetailPage() {
                 <Badge variant={reseller.status === 'active' ? 'default' : 'destructive'}>
                   {reseller.status === 'active' ? 'Active' : 'Suspended'}
                 </Badge>
+                {/*
+                  Scope is the first thing you need to know about a reseller and
+                  the easiest to get wrong, so it reads at a glance instead of
+                  living one tab click away.
+                */}
+                <button
+                  type="button"
+                  onClick={() => setTab('events')}
+                  className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900"
+                >
+                  {assignedCount === 0 ? (
+                    <Globe className="h-3.5 w-3.5" />
+                  ) : (
+                    <CalendarCheck className="h-3.5 w-3.5" />
+                  )}
+                  {assignedCount === 0
+                    ? 'Sells all events'
+                    : `Sells ${assignedCount} event${assignedCount === 1 ? '' : 's'}`}
+                </button>
               </div>
               {reseller.email && <p className="text-slate-500 text-sm mt-1">{reseller.email}</p>}
               {reseller.phoneNumber && <p className="text-slate-500 text-sm">{reseller.phoneNumber}</p>}
@@ -937,9 +1113,10 @@ export function ResellerDetailPage() {
       </Dialog>
 
       {/* Tabs */}
-      <Tabs defaultValue="hubs">
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="hubs">Hubs</TabsTrigger>
+          <TabsTrigger value="events">Events</TabsTrigger>
           <TabsTrigger value="operators">Operators</TabsTrigger>
           <TabsTrigger value="settlement">Settlement</TabsTrigger>
           <TabsTrigger value="payouts">Payouts</TabsTrigger>
@@ -949,6 +1126,14 @@ export function ResellerDetailPage() {
           <Card>
             <CardContent className="pt-6">
               <HubsTab resellerId={id!} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="events" className="mt-4">
+          <Card>
+            <CardContent className="pt-6">
+              <EventsTab reseller={reseller} />
             </CardContent>
           </Card>
         </TabsContent>
