@@ -1,5 +1,21 @@
 export * from './reseller';
 
+/**
+ * Every payment method the API can return — mirrors PaymentMethod in the api's
+ * ticket.interface.ts. Kept as one exported union rather than repeated inline:
+ * the old three-value inline union claimed card, DeltaPay and Yoco could not
+ * occur, which is how a `method === 'keshless_wallet' ? 'Wallet' : 'Cash'`
+ * label typechecked while mislabelling live card revenue as cash.
+ */
+export type PaymentMethodValue =
+  | 'cash'
+  | 'keshless_wallet'
+  | 'mtn_momo'
+  | 'peach_card'
+  | 'deltapay'
+  | 'yoco'
+  | 'yebopay';
+
 // Authentication Types
 export interface LoginCredentials {
   identifier: string; // email or phone
@@ -80,6 +96,7 @@ export interface PaymentMethodSettings {
   peachCardEnabled: boolean;
   deltapayEnabled: boolean;
   yocoEnabled: boolean;
+  yebopayEnabled: boolean;
   defaultResellerCommissionPercent: number;
   platformFeePercent: number;
   // Buyer-paid FLAT service fee (E) per online method (added on top at checkout).
@@ -88,6 +105,7 @@ export interface PaymentMethodSettings {
   cardServiceFee: number;
   deltapayServiceFee: number;
   yocoServiceFee: number;
+  yebopayServiceFee: number;
 }
 
 // Event Types
