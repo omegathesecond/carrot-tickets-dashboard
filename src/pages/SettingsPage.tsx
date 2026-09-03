@@ -23,6 +23,7 @@ export function SettingsPage() {
   const [cardFeeInput, setCardFeeInput] = useState('');
   const [deltapayFeeInput, setDeltapayFeeInput] = useState('');
   const [yocoFeeInput, setYocoFeeInput] = useState('');
+  const [yebopayFeeInput, setYebopayFeeInput] = useState('');
   const [feesInitialised, setFeesInitialised] = useState(false);
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -40,6 +41,7 @@ export function SettingsPage() {
       setCardFeeInput(String(data.cardServiceFee ?? 0));
       setDeltapayFeeInput(String(data.deltapayServiceFee ?? 0));
       setYocoFeeInput(String(data.yocoServiceFee ?? 0));
+      setYebopayFeeInput(String(data.yebopayServiceFee ?? 0));
       setFeesInitialised(true);
     }
   }, [data, feesInitialised]);
@@ -97,7 +99,7 @@ export function SettingsPage() {
       </div>
     );
 
-  const toggle = (key: 'keshlessWalletEnabled' | 'mtnMomoEnabled' | 'cashEnabled' | 'peachCardEnabled' | 'deltapayEnabled' | 'yocoEnabled') => {
+  const toggle = (key: 'keshlessWalletEnabled' | 'mtnMomoEnabled' | 'cashEnabled' | 'peachCardEnabled' | 'deltapayEnabled' | 'yocoEnabled' | 'yebopayEnabled') => {
     const feeVal = parseFloat(feeInput);
     const commVal = parseFloat(commInput);
     mutation.mutate({
@@ -133,12 +135,15 @@ export function SettingsPage() {
   const cardFeeVal = parseFloat(cardFeeInput);
   const deltapayFeeVal = parseFloat(deltapayFeeInput);
   const yocoFeeVal = parseFloat(yocoFeeInput);
+  const yebopayFeeVal = parseFloat(yebopayFeeInput);
   const inRange = (v: number) => !isNaN(v) && v >= 0 && v <= 100000;
   const serviceFeesValid =
     keshFeeInput !== '' && momoFeeInput !== '' && cardFeeInput !== '' && deltapayFeeInput !== '' &&
     yocoFeeInput !== '' &&
+    yebopayFeeInput !== '' &&
     inRange(keshFeeVal) && inRange(momoFeeVal) && inRange(cardFeeVal) && inRange(deltapayFeeVal) &&
-    inRange(yocoFeeVal);
+    inRange(yocoFeeVal) &&
+    inRange(yebopayFeeVal);
 
   const saveServiceFees = () => {
     serviceFeesMutation.mutate({
@@ -148,6 +153,7 @@ export function SettingsPage() {
       cardServiceFee: cardFeeVal,
       deltapayServiceFee: deltapayFeeVal,
       yocoServiceFee: yocoFeeVal,
+      yebopayServiceFee: yebopayFeeVal,
     });
   };
 
@@ -213,13 +219,29 @@ export function SettingsPage() {
             <div>
               <Label className="text-base">Card payments (Yoco)</Label>
               <p className="text-sm text-muted-foreground">
-                Pay by Visa/Mastercard through Yoco. Settles in ZAR. Turning this on while
-                Peach is also on shows buyers two card buttons — run one card rail at a time.
+                Pay by Visa/Mastercard through Yoco. Settles in ZAR. If more than one card
+                rail is on, checkout names each one ("Card (Yoco)") instead of showing
+                identical buttons.
               </p>
             </div>
             <Switch
               checked={data.yocoEnabled}
               onCheckedChange={() => toggle('yocoEnabled')}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <Label className="text-base">Card payments (YeboPay)</Label>
+              <p className="text-sm text-muted-foreground">
+                Pay by card through YeboPay, priced in Emalangeni. YeboPay charges the
+                organizer 8% + E5 per card sale — noticeably more than the other card
+                rails on higher-priced tickets, so set the service fee below with that
+                in mind.
+              </p>
+            </div>
+            <Switch
+              checked={data.yebopayEnabled}
+              onCheckedChange={() => toggle('yebopayEnabled')}
             />
           </div>
           <div className="flex items-center justify-between">
@@ -348,6 +370,18 @@ export function SettingsPage() {
               step="0.01"
               value={yocoFeeInput}
               onChange={(e) => setYocoFeeInput(e.target.value)}
+              placeholder="e.g. 10"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="yebopay-fee">YeboPay card service fee (E)</Label>
+            <Input
+              id="yebopay-fee"
+              type="number"
+              min="0"
+              step="0.01"
+              value={yebopayFeeInput}
+              onChange={(e) => setYebopayFeeInput(e.target.value)}
               placeholder="e.g. 10"
             />
           </div>

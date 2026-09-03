@@ -13,7 +13,8 @@ export type PaymentMethodValue =
   | 'mtn_momo'
   | 'peach_card'
   | 'deltapay'
-  | 'yoco';
+  | 'yoco'
+  | 'yebopay';
 
 // Authentication Types
 export interface LoginCredentials {
@@ -95,6 +96,7 @@ export interface PaymentMethodSettings {
   peachCardEnabled: boolean;
   deltapayEnabled: boolean;
   yocoEnabled: boolean;
+  yebopayEnabled: boolean;
   defaultResellerCommissionPercent: number;
   platformFeePercent: number;
   // Buyer-paid FLAT service fee (E) per online method (added on top at checkout).
@@ -103,6 +105,7 @@ export interface PaymentMethodSettings {
   cardServiceFee: number;
   deltapayServiceFee: number;
   yocoServiceFee: number;
+  yebopayServiceFee: number;
 }
 
 // Event Types

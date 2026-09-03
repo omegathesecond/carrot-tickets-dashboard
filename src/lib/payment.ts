@@ -5,6 +5,7 @@ export const PAYMENT_LABEL: Record<string, string> = {
   peach_card: 'Card',
   deltapay: 'DeltaPay',
   yoco: 'Card (Yoco)',
+  yebopay: 'Card (YeboPay)',
 };
 
 export function paymentLabel(method: string): string {
