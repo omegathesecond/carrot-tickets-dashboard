@@ -23,7 +23,7 @@ import { EventTransactionLog } from '@/components/cashless/EventTransactionLog';
 import { StatCard } from '@/components/cashless/StatCard';
 import { CashiersPanel } from '@/components/CashiersPanel';
 import { useAuth } from '@/contexts/AuthContext';
-import { canManageAccess, canManageStock } from '@/lib/permissions';
+import { canManageAccess, canManageStock, canIssueTags } from '@/lib/permissions';
 
 /** Cashless wallet amounts move in ZAR cents on the wire. */
 const fmtR = (cents: number) => `R${((cents ?? 0) / 100).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -56,7 +56,7 @@ export function EventCashlessTab({ eventId }: Props) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [stallsView, setStallsView] = useState('takings');
   const [cashiersView, setCashiersView] = useState('activity');
-  const [registerView, setRegisterView] = useState('tags');
+  const [registerView, setRegisterView] = useState(canIssueTags(user) ? 'tags' : 'accounts');
 
   const showStalls = canManageAccess(user);
   const showCatalogue = canManageStock(user);
@@ -64,6 +64,10 @@ export function EventCashlessTab({ eventId }: Props) {
   // in-venue staff, so whoever can manage stall access can manage them too.
   const showCashiers = canManageAccess(user);
   const showRegister = canManageAccess(user);
+  // The tag box is its own capability server-side (ISSUE_TAGS), so it is gated
+  // separately from the Register sub-tab that contains it — otherwise a member
+  // given only MANAGE_ACCESS opens a pane the API answers with a 403.
+  const showTagRegister = canIssueTags(user);
   const requestedSub = searchParams.get('sub') ?? 'money';
   // Tags/Balances used to live inside Money; Balances is now its own tab, so
   // both old shapes of the link land there rather than on an empty pane.
@@ -140,14 +144,20 @@ export function EventCashlessTab({ eventId }: Props) {
   );
 
   const registerBody = (
-    <Tabs value={registerView} onValueChange={setRegisterView} className="space-y-4">
+    <Tabs
+      value={showTagRegister ? registerView : 'accounts'}
+      onValueChange={setRegisterView}
+      className="space-y-4"
+    >
       <TabsList>
-        <TabsTrigger value="tags">Registered tags</TabsTrigger>
+        {showTagRegister && <TabsTrigger value="tags">Registered tags</TabsTrigger>}
         <TabsTrigger value="accounts">Add account</TabsTrigger>
       </TabsList>
-      <TabsContent value="tags">
-        <EventTagRegisterPanel eventId={eventId} />
-      </TabsContent>
+      {showTagRegister && (
+        <TabsContent value="tags">
+          <EventTagRegisterPanel eventId={eventId} />
+        </TabsContent>
+      )}
       <TabsContent value="accounts">
         <EventRegisterPanel eventId={eventId} />
       </TabsContent>

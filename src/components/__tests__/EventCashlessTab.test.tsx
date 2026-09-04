@@ -52,6 +52,9 @@ vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: authUser() })
 // so `permissions: []` would grant both tabs rather than deny them.
 const SUPER_ADMIN = { isSuperAdmin: true } as unknown as AuthUser;
 const RESTRICTED = { permissions: ['tickets:view_sales'] } as unknown as AuthUser;
+// Hires the desk but may not fill the tag box — the two are separate
+// capabilities server-side (MANAGE_ACCESS vs ISSUE_TAGS).
+const DESK_MANAGER = { permissions: ['tickets:manage_access'] } as unknown as AuthUser;
 
 function renderTab(user: AuthUser | null, url = '/events/e1') {
   authUser.mockReturnValue(user);
@@ -153,6 +156,18 @@ describe('EventCashlessTab Register tab', () => {
 
     // Radix Tabs selects on mousedown, not click.
     fireEvent.mouseDown(addAccount, { button: 0 });
+    expect(await screen.findByText('register-pane')).toBeDefined();
+  });
+
+  it('hides the tag box from a member who may hire the desk but not issue tags', async () => {
+    // The API answers this person's tag-register call with a 403, so offering
+    // the pane could only ever produce "Could not load the tag register".
+    renderTab(DESK_MANAGER, '/events/e1?tab=cashless&sub=register');
+
+    expect(await screen.findByRole('tab', { name: 'Add account' })).toBeDefined();
+    expect(screen.queryByRole('tab', { name: 'Registered tags' })).toBeNull();
+    expect(screen.queryByText('tags-pane')).toBeNull();
+    // …and the pane they CAN use opens instead of an empty tab.
     expect(await screen.findByText('register-pane')).toBeDefined();
   });
 });

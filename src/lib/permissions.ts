@@ -23,6 +23,7 @@ export const TicketsPermission = {
   MANAGE_TRANSPORT: 'tickets:manage_transport',
   MANAGE_STOCK: 'tickets:manage_stock',
   MANAGE_MENU: 'tickets:manage_menu',
+  ISSUE_TAGS: 'tickets:issue_tags',
 } as const;
 
 export type TicketsPermissionValue =
@@ -167,4 +168,20 @@ export function canManageMenu(user: AuthUser | null | undefined): boolean {
   if (!user) return false;
   if (user.isSuperAdmin) return true;
   return hasPermission(user, TicketsPermission.MANAGE_MENU);
+}
+
+/**
+ * The event's TAG REGISTER (enrol / retire the physical NFC tags) — drives the
+ * "Registered tags" pane inside the Register sub-tab. Deliberately NOT the same
+ * gate as the Register sub-tab itself (canManageAccess): hiring a desk and
+ * filling the tag box are separate capabilities server-side, so a team member
+ * given only MANAGE_ACCESS would otherwise open a pane the API refuses.
+ * Same shape as canManageStock — super-admins always (they supply the tags),
+ * owners via hasPermission's "no permissions array" default, restricted team
+ * members only with the explicit `tickets:issue_tags`.
+ */
+export function canIssueTags(user: AuthUser | null | undefined): boolean {
+  if (!user) return false;
+  if (user.isSuperAdmin) return true;
+  return hasPermission(user, TicketsPermission.ISSUE_TAGS);
 }
