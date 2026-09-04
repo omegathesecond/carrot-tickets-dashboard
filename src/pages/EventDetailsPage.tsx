@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { publicEventUrl } from '@/lib/eventUrl';
@@ -26,12 +26,15 @@ import { GalleryManager } from '@/components/GalleryManager';
 import { EventAnalyticsTab } from '@/components/EventAnalyticsTab';
 import { EventFinancialsTab } from '@/components/EventFinancialsTab';
 import { EventCreatorTab } from '@/components/EventCreatorTab';
+import { EventCashlessTab } from '@/components/EventCashlessTab';
+import { EventMenuTab } from '@/components/EventMenuTab';
+import { EventCashlessSetting } from '@/components/cashless/EventCashlessSetting';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ChannelsManager } from '@/components/community/ChannelsManager';
 import { AnnouncementComposer } from '@/components/community/AnnouncementComposer';
 import { MembersModeration } from '@/components/community/MembersModeration';
 import { useAuth } from '@/contexts/AuthContext';
-import { canManageEvents, canEditEventInfo, canViewEventFinancials } from '@/lib/permissions';
+import { canManageEvents, canEditEventInfo, canViewEventFinancials, canManageMenu } from '@/lib/permissions';
 import {
   composeEventDateTime,
   eventToDateTimeInputs,
@@ -42,7 +45,7 @@ import { getSaleTicketType, getSaleTicketCodes } from '@/lib/sales';
 import {
   ArrowLeft, Calendar, MapPin, Users, CheckCircle, Clock,
   Edit, Trash2, Eye, EyeOff, QrCode, Plus, TrendingUp, TrendingDown, Image, BarChart3, UserCircle,
-  Share2, Link as LinkIcon, MessagesSquare, Coins
+  Share2, Link as LinkIcon, MessagesSquare, Coins, CreditCard, UtensilsCrossed
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -57,6 +60,15 @@ export function EventDetailsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') ?? 'overview';
+  const setActiveTab = (v: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('tab', v);
+    // Switching the top-level tab drops any sub-tab the cashless pane set.
+    if (v !== 'cashless') next.delete('sub');
+    setSearchParams(next, { replace: true });
+  };
   const [ticketDialogOpen, setTicketDialogOpen] = useState(false);
   const [editingTicket, setEditingTicket] = useState<TicketType | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -82,6 +94,7 @@ export function EventDetailsPage() {
   const canManageCommunity = canManageEvents(user);
   // Money tab — VIEW_REVENUE, mirroring the server guard on the financials route.
   const canSeeFinancials = canViewEventFinancials(user);
+  const showMenuTab = canManageMenu(user);
 
   // Inline rename of the event title in the header.
   const [isEditingName, setIsEditingName] = useState(false);
@@ -563,11 +576,12 @@ export function EventDetailsPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="overview" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList
           className={`grid w-full max-w-2xl ${
-            ['grid-cols-3', 'grid-cols-4', 'grid-cols-5'][
-              Number(canManageCommunity) + Number(canSeeFinancials)
+            // overview + analytics + creator, plus financials, community, cashless and/or menu when shown
+            { 3: 'grid-cols-3', 4: 'grid-cols-4', 5: 'grid-cols-5', 6: 'grid-cols-6', 7: 'grid-cols-7' }[
+              3 + (canSeeFinancials ? 1 : 0) + (canManageCommunity ? 1 : 0) + (event?.cashless ? 1 : 0) + (showMenuTab ? 1 : 0)
             ]
           }`}
         >
@@ -589,6 +603,18 @@ export function EventDetailsPage() {
             <UserCircle className="h-4 w-4" />
             Creator
           </TabsTrigger>
+          {event?.cashless && (
+            <TabsTrigger value="cashless" className="flex items-center gap-2">
+              <CreditCard className="h-4 w-4" />
+              Cashless
+            </TabsTrigger>
+          )}
+          {showMenuTab && (
+            <TabsTrigger value="menu" className="flex items-center gap-2">
+              <UtensilsCrossed className="h-4 w-4" />
+              Menu
+            </TabsTrigger>
+          )}
           {canManageCommunity && (
             <TabsTrigger value="community" className="flex items-center gap-2">
               <MessagesSquare className="h-4 w-4" />
@@ -832,6 +858,11 @@ export function EventDetailsPage() {
               </Button>
             </CardContent>
           </Card>
+
+          {/* Cashless Card — admin-held switch, organizer request path. Sits
+              with Ticketing because it's the other "how does money work at
+              this event" decision. */}
+          {event && <EventCashlessSetting event={event} isAdmin={isAdmin} />}
 
           {/* Ticket Types Card — Carrot's own tier editor. Not applicable
               when the organizer sells tickets externally: there's nothing
@@ -1210,6 +1241,20 @@ export function EventDetailsPage() {
         <TabsContent value="creator" className="mt-6">
           <EventCreatorTab eventId={id!} />
         </TabsContent>
+
+        {/* Cashless Tab — organizer's money report for a cashless event */}
+        {event?.cashless && (
+          <TabsContent value="cashless" className="mt-6">
+            <EventCashlessTab eventId={id!} />
+          </TabsContent>
+        )}
+
+        {/* Menu Tab — organiser's bar/vendor preorder catalogue + incoming orders */}
+        {showMenuTab && (
+          <TabsContent value="menu" className="mt-6">
+            <EventMenuTab eventId={id!} />
+          </TabsContent>
+        )}
 
         {/* Community Tab — channels, announcements, member moderation.
             "Recent messages" (per-channel delete/pin panel) is deferred to

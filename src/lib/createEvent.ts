@@ -9,6 +9,12 @@ export interface NewEventMedia {
 export interface CreateEventResult {
   event: Event;
   uploadError: string | null;
+  cashlessError: string | null;
+}
+
+/** An organizer's ask for cashless, made against the freshly-created event. */
+export interface NewEventCashlessRequest {
+  note?: string;
 }
 
 /**
@@ -24,9 +30,11 @@ export interface CreateEventResult {
 export async function submitNewEvent(
   data: EventFormData,
   media: NewEventMedia,
+  cashless?: NewEventCashlessRequest,
 ): Promise<CreateEventResult> {
   const event = await apiClient.events.createEvent(data);
   let uploadError: string | null = null;
+  let cashlessError: string | null = null;
   try {
     if (media.poster) {
       await apiClient.events.uploadPoster(event._id, media.poster);
@@ -37,5 +45,18 @@ export async function submitNewEvent(
   } catch (err: any) {
     uploadError = err?.message || 'Image upload failed';
   }
-  return { event, uploadError };
+
+  // Third phase, same reasoning as the uploads: /cashless-request is keyed by
+  // an event id that doesn't exist until create returns. A failure here must
+  // NOT reject — the event was created, and rejecting would tell the organizer
+  // their event failed, which is both false and unrecoverable from the form.
+  if (cashless) {
+    try {
+      await apiClient.events.requestCashless(event._id, cashless.note);
+    } catch (err: any) {
+      cashlessError = err?.message || 'Cashless request failed';
+    }
+  }
+
+  return { event, uploadError, cashlessError };
 }

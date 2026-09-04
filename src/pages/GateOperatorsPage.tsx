@@ -1,9 +1,10 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { KeyRound, Plus, Power, UserPlus } from 'lucide-react';
+import { CalendarRange, KeyRound, Plus, Power, UserPlus } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { apiClient, type GateOperatorRow } from '@/lib/api';
+import { type OperatorGrant, apiClient, type GateOperatorRow } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,6 +17,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { OperatorCredentialsDialog } from '@/components/OperatorCredentialsDialog';
+import { EventPicker } from '@/components/EventPicker';
+import { OperatorGrantsField } from '@/components/OperatorGrantsField';
+import { OperatorEventsDialog } from '@/components/OperatorEventsDialog';
+import { ViewAffordance } from '@/components/ViewAffordance';
 
 const initialsOf = (name: string) =>
   name
@@ -30,6 +35,8 @@ type AddForm = {
   phoneNumber: string;
   scope: 'platform' | 'organizer';
   vendorId: string;
+  eventIds: string[];
+  grants: OperatorGrant[];
 };
 
 const DEFAULT_FORM: AddForm = {
@@ -37,14 +44,28 @@ const DEFAULT_FORM: AddForm = {
   phoneNumber: '',
   scope: 'organizer',
   vendorId: '',
+  eventIds: [],
+  grants: [],
 };
 
 export function GateOperatorsPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [form, setForm] = useState<AddForm>(DEFAULT_FORM);
   const [issued, setIssued] = useState<{ title: string; loginCode?: string; pin: string } | null>(null);
+  const [editingEvents, setEditingEvents] = useState<GateOperatorRow | null>(null);
+
+  const setGrants = useMutation({
+    mutationFn: ({ id, grants }: { id: string; grants: OperatorGrant[] }) =>
+      apiClient.gateOperators.setGrants(id, grants),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['gate-operators'] });
+      toast.success('Permissions updated');
+    },
+    onError: (e: Error) => toast.error(e.message || 'Failed to update permissions'),
+  });
 
   const { data: operators = [], isLoading } = useQuery({
     queryKey: ['gate-operators'],
@@ -56,6 +77,8 @@ export function GateOperatorsPage() {
       const data: Parameters<typeof apiClient.gateOperators.create>[0] = {
         fullName: form.fullName,
         ...(form.phoneNumber.trim() ? { phoneNumber: form.phoneNumber.trim() } : {}),
+        ...(form.eventIds.length ? { eventIds: form.eventIds } : {}),
+        ...(form.grants.length ? { grants: form.grants } : {}),
         ...(user?.isSuperAdmin
           ? {
               scope: form.scope,
@@ -91,6 +114,17 @@ export function GateOperatorsPage() {
       toast.success(vars.isActive ? 'Operator activated' : 'Operator deactivated');
     },
     onError: (e: any) => toast.error(e.message || 'Failed to update operator'),
+  });
+
+  const setEvents = useMutation({
+    mutationFn: ({ id, eventIds }: { id: string; eventIds: string[] }) =>
+      apiClient.gateOperators.setEvents(id, eventIds),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['gate-operators'] });
+      toast.success('Events updated');
+      setEditingEvents(null);
+    },
+    onError: (e: any) => toast.error(e.message || 'Failed to update events'),
   });
 
   const pendingActiveId = setActive.isPending ? setActive.variables?.id : undefined;
@@ -177,6 +211,24 @@ export function GateOperatorsPage() {
                     )}
                   </>
                 )}
+                <div className="space-y-2">
+                  <Label>Events</Label>
+                  <EventPicker
+                    value={form.eventIds}
+                    onChange={(eventIds) => setForm((f) => ({ ...f, eventIds }))}
+                    {...(user?.isSuperAdmin && form.scope === 'organizer' && form.vendorId.trim()
+                      ? { vendorId: form.vendorId.trim() }
+                      : {})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Extra permissions</Label>
+                  <OperatorGrantsField
+                    idPrefix="go"
+                    value={form.grants}
+                    onChange={(grants) => setForm((f) => ({ ...f, grants }))}
+                  />
+                </div>
                 <div className="flex justify-end space-x-2 pt-2">
                   <Button type="button" variant="outline" onClick={() => setIsAddOpen(false)}>
                     Cancel
@@ -221,14 +273,18 @@ export function GateOperatorsPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {operators.map((op: GateOperatorRow) => (
-              <Card key={op._id} className={op.isActive ? '' : 'opacity-75'}>
+              <Card
+                key={op._id}
+                onClick={() => navigate(`/gate-operators/${op._id}`)}
+                className={`group transition hover:shadow-md cursor-pointer ${op.isActive ? '' : 'opacity-75'}`}
+              >
                 <CardContent className="pt-5 flex flex-col gap-4 h-full">
                   <div className="flex items-start gap-3">
                     <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-amber-500 text-white font-bold">
                       {initialsOf(op.fullName)}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-slate-900 leading-tight truncate">{op.fullName}</p>
+                      <p className="font-semibold text-slate-900 leading-tight truncate group-hover:text-orange-600">{op.fullName}</p>
                       {op.phoneNumber && (
                         <p className="text-xs text-slate-500 mt-0.5">{op.phoneNumber}</p>
                       )}
@@ -248,7 +304,25 @@ export function GateOperatorsPage() {
                     <p className="font-mono text-sm text-slate-800">{op.loginCode}</p>
                   </div>
 
-                  <div className="mt-auto grid grid-cols-2 gap-2">
+                  <div className="rounded-lg bg-slate-50 px-3 py-2">
+                    <p className="text-[11px] uppercase tracking-wide text-slate-400">Events</p>
+                    <p className="text-sm text-slate-800">
+                      {op.eventIds?.length
+                        ? `${op.eventIds.length} assigned`
+                        : 'All events'}
+                    </p>
+                  </div>
+
+                  <ViewAffordance label="View activity" />
+
+                  <div className="mt-auto grid grid-cols-2 gap-2" onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setEditingEvents(op)}
+                    >
+                      <CalendarRange className="h-4 w-4 mr-1.5" /> Events
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -257,16 +331,24 @@ export function GateOperatorsPage() {
                     >
                       <KeyRound className="h-4 w-4 mr-1.5" /> Reset PIN
                     </Button>
+                    <div className="col-span-2">
+                      <OperatorGrantsField
+                        idPrefix={`go-${op._id}`}
+                        value={op.grants ?? []}
+                        disabled={setGrants.isPending}
+                        onChange={(grants) => setGrants.mutate({ id: op._id, grants })}
+                      />
+                    </div>
                     <Button
                       variant="outline"
                       size="sm"
                       disabled={pendingActiveId === op._id}
                       onClick={() => setActive.mutate({ id: op._id, isActive: !op.isActive })}
-                      className={
+                      className={`col-span-2 ${
                         op.isActive
                           ? 'text-red-600 hover:text-red-700 hover:border-red-300'
                           : 'text-emerald-600 hover:text-emerald-700 hover:border-emerald-300'
-                      }
+                      }`}
                     >
                       <Power className="h-4 w-4 mr-1.5" />
                       {op.isActive ? 'Disable' : 'Enable'}
@@ -278,6 +360,17 @@ export function GateOperatorsPage() {
           </div>
         )}
       </div>
+
+      {editingEvents && (
+        <OperatorEventsDialog
+          open={!!editingEvents}
+          onClose={() => setEditingEvents(null)}
+          personName={editingEvents.fullName}
+          initialEventIds={editingEvents.eventIds ?? []}
+          isSaving={setEvents.isPending}
+          onSave={(eventIds) => setEvents.mutate({ id: editingEvents._id, eventIds })}
+        />
+      )}
 
       {issued && (
         <OperatorCredentialsDialog

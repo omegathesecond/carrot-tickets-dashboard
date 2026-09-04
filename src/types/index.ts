@@ -138,6 +138,13 @@ export interface Event {
   galleryImages?: string[];
   qrCodeUrl?: string;
   status: 'draft' | 'pending_approval' | 'published' | 'cancelled' | 'completed';
+  // NFC closed-loop cashless event: attendees carry funded wristbands, vendors
+  // charge them, cashiers top up + cash out. Gates the organizer Cashless tab.
+  cashless?: boolean;
+  // Organizer's standing ask for cashless — an organizer may not set the flag
+  // themselves (the API 403s), so they request and an admin grants.
+  cashlessRequestedAt?: string | null;
+  cashlessRequestNote?: string | null;
   createdAt: string;
   updatedAt: string;
   // Who sells the tickets: 'carrot' (default, existing checkout) or
@@ -193,6 +200,9 @@ export interface EventFormData {
   currency?: 'SZL' | 'ZAR';
   priceMin?: number;
   priceMax?: number;
+  // Admin-only. The API rejects this from a non-super-admin token, so the
+  // form only ever sends it when the toggle was rendered for an admin.
+  cashless?: boolean;
 }
 
 // Event creator (organizer) + their event history — powers the admin
@@ -486,6 +496,8 @@ export interface EventQueryParams {
   limit?: number;
   status?: 'draft' | 'published' | 'cancelled' | 'completed';
   search?: string;
+  /** Platform staff only: narrow the platform-wide list to one organizer. */
+  vendorId?: string;
 }
 
 export interface SalesQueryParams {
@@ -570,6 +582,8 @@ export interface Organizer {
   phoneNumber: string | null;
   primaryContact: string | null;
   businessType: string | null;
+  operatorType?: string;
+  serviceCategory?: string;
   verificationStatus: OrganizerVerificationStatus;
   verifiedAt: string | null;
   rejectionReason: string | null;
@@ -741,4 +755,64 @@ export interface TransportBooking {
   totalAmount: number;
   status: string;
   createdAt?: string;
+}
+
+// ── Organizer cashless report (NFC closed-loop) ────────────────────────────
+export interface CashlessVendorRow {
+  merchantId: string;
+  name: string;
+  gross: number;      // cents charged
+  commission: number; // cents Carrot kept
+  net: number;        // cents owed to the vendor
+  chargeCount: number;
+}
+
+export interface CashlessCashierRow {
+  cashierId: string;
+  name: string;
+  toppedUp: number;  // cents loaded
+  withdrawn: number; // cents handed back
+  txnCount: number;
+}
+
+export interface CashlessSummary {
+  event?: { id: string; name: string };
+  circulated: number; // Σ top-ups
+  spent: number;      // Σ vendor charges
+  withdrawn: number;  // Σ cash-outs
+  leftBehind: number; // Σ remaining wallet balances (un-withdrawn)
+  fees: number;       // Carrot commission collected
+  walletsFunded: number;
+  vendors: CashlessVendorRow[];
+  cashiers: CashlessCashierRow[];
+}
+
+export interface CashlessTxn {
+  id: string;
+  type: 'topup' | 'withdrawal' | 'purchase';
+  amount: number; // cents
+  at: string;     // ISO
+  /** WHO moved the money: vendor name (purchase) or cashier/reseller name (top-up/cash-out). */
+  actorName?: string;
+  actorType?: string;
+  actorId?: string | null;
+  bandUid?: string;
+  /** The caller's own reference (clientTxnId) — what a support query is traced by. */
+  ref?: string | null;
+  status?: string;
+  walletId?: string;
+  /**
+   * The tag this moved on, as it was AT THE TIME. Null when the wallet had no
+   * band bound then — a desk top-up before the attendee collected their tag.
+   */
+  tagUid?: string | null;
+  fee?: number;
+  netAmount?: number;
+}
+
+export interface CashlessTxnsResult {
+  transactions: CashlessTxn[];
+  page: number;
+  limit: number;
+  hasMore: boolean;
 }

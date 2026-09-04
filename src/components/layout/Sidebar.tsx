@@ -25,6 +25,7 @@ import {
   Armchair,
   Receipt,
   Smartphone,
+  type LucideIcon,
 } from 'lucide-react';
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -45,7 +46,7 @@ import {
 interface NavigationItem {
   name: string;
   href: string;
-  icon: any;
+  icon: LucideIcon;
   show: boolean;
 }
 
@@ -119,6 +120,14 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       href: '/gate-operators',
       icon: ShieldCheck,
       show: canManageAccess(user),
+    },
+    {
+      name: 'Cashiers',
+      href: '/cashiers',
+      icon: Banknote,
+      // Organizer cashiers live inside their event (Cashless > Cashiers);
+      // this entry is now only Carrot's own platform-scoped staff.
+      show: !!user?.isSuperAdmin,
     },
     {
       name: 'Analytics',

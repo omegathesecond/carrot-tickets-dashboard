@@ -21,6 +21,8 @@ export const TicketsPermission = {
   MODERATE_SOCIAL: 'tickets:moderate_social',
   VIEW_TRANSPORT: 'tickets:view_transport',
   MANAGE_TRANSPORT: 'tickets:manage_transport',
+  MANAGE_STOCK: 'tickets:manage_stock',
+  MANAGE_MENU: 'tickets:manage_menu',
 } as const;
 
 export type TicketsPermissionValue =
@@ -140,4 +142,29 @@ export function canManageTransport(user: AuthUser | null | undefined): boolean {
  */
 export function canViewEventFinancials(user: AuthUser | null | undefined): boolean {
   return hasPermission(user, TicketsPermission.VIEW_REVENUE);
+}
+
+/**
+ * Cashless stock/catalogue management — drives the Catalogue page + sidebar
+ * entry. Super-admins always; vendor owners (no permissions array) keep access
+ * via hasPermission's default; restricted team members only with the explicit
+ * `tickets:manage_stock`. The API still enforces per request.
+ */
+export function canManageStock(user: AuthUser | null | undefined): boolean {
+  if (!user) return false;
+  if (user.isSuperAdmin) return true;
+  return hasPermission(user, TicketsPermission.MANAGE_STOCK);
+}
+
+/**
+ * Event Menu (bar/vendor preorder catalogue) management — drives the Menu
+ * tab + incoming-preorders view. Same shape as canManageStock: super-admins
+ * always; vendor owners (no permissions array) keep access via
+ * hasPermission's default; restricted team members only with the explicit
+ * `tickets:manage_menu`. The API still enforces per request.
+ */
+export function canManageMenu(user: AuthUser | null | undefined): boolean {
+  if (!user) return false;
+  if (user.isSuperAdmin) return true;
+  return hasPermission(user, TicketsPermission.MANAGE_MENU);
 }

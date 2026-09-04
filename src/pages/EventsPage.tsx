@@ -9,9 +9,10 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Textarea } from '@/components/ui/textarea';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import {
-  Plus, Calendar, MapPin, Trash2, CheckCircle, XCircle,
+  Plus, Calendar, MapPin, Trash2, CheckCircle, XCircle, Nfc,
   CalendarDays, Ticket as TicketIcon, DollarSign, Activity,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -64,6 +65,10 @@ export function EventsPage() {
   const [isMultiDay, setIsMultiDay] = useState(true);
   const [activeTab, setActiveTab] = useState<Bucket>('all');
   const [deleteTarget, setDeleteTarget] = useState<Event | null>(null);
+  // Cashless at creation. An admin sets it outright; an organizer can only
+  // ask, and the ask is a second call once the event id exists.
+  const [cashlessWanted, setCashlessWanted] = useState(false);
+  const [cashlessNote, setCashlessNote] = useState('');
   const [posterFile, setPosterFile] = useState<File | null>(null);
   const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
   const [currency, setCurrency] = useState<Currency>('SZL');
@@ -79,18 +84,30 @@ export function EventsPage() {
   const resetCreateForm = () => {
     setIsDialogOpen(false);
     setIsMultiDay(true);
+    setCashlessWanted(false);
+    setCashlessNote('');
     setPosterFile(null);
     setGalleryFiles([]);
     setCurrency('SZL');
   };
 
   const createMutation = useMutation({
-    mutationFn: (vars: { data: EventFormData; poster: File | null; gallery: File[] }) =>
-      submitNewEvent(vars.data, { poster: vars.poster, gallery: vars.gallery }),
-    onSuccess: ({ uploadError }) => {
+    mutationFn: (vars: {
+      data: EventFormData;
+      poster: File | null;
+      gallery: File[];
+      cashless?: { note?: string };
+    }) =>
+      submitNewEvent(vars.data, { poster: vars.poster, gallery: vars.gallery }, vars.cashless),
+    onSuccess: ({ uploadError, cashlessError }) => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
       if (uploadError) {
         toast.error(`Event created, but the images didn't upload: ${uploadError} Add them from the event page.`);
+      } else if (cashlessError) {
+        // The event exists either way — say so, and say what to do instead.
+        toast.error(`Event created, but the cashless request didn't send: ${cashlessError} Ask again from the event page.`);
+      } else if (cashlessWanted && !isAdmin) {
+        toast.success('Event created — your cashless request is with Carrot');
       } else {
         toast.success('Event created successfully');
       }
@@ -152,13 +169,19 @@ export function EventsPage() {
     return c;
   }, [allEvents, classified]);
 
-  const filteredEvents = useMemo(
-    () =>
+  const filteredEvents = useMemo(() => {
+    const base =
       activeTab === 'all'
         ? allEvents
-        : classified.filter((c) => c.bucket === activeTab).map((c) => c.event),
-    [allEvents, classified, activeTab]
-  );
+        : classified.filter((c) => c.bucket === activeTab).map((c) => c.event);
+    // A pending cashless ask is only actionable by Carrot staff, and there is
+    // no admin notification channel in this system (event approval works the
+    // same way) — so the list itself has to carry the signal. Float the asks
+    // to the top for admins rather than leaving them to be noticed.
+    if (!isAdmin) return base;
+    const pending = (e: Event) => (e.cashlessRequestedAt && !e.cashless ? 0 : 1);
+    return [...base].sort((a, b) => pending(a) - pending(b));
+  }, [allEvents, classified, activeTab, isAdmin]);
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -197,9 +220,17 @@ export function EventsPage() {
       isMultiDay,
       ticketTypes: [],
       currency,
+      // Only an admin may create an event already cashless; the API 403s it
+      // from anyone else, so an organizer's wish becomes a request instead.
+      ...(isAdmin && cashlessWanted ? { cashless: true } : {}),
     };
 
-    createMutation.mutate({ data, poster: posterFile, gallery: galleryFiles });
+    createMutation.mutate({
+      data,
+      poster: posterFile,
+      gallery: galleryFiles,
+      cashless: !isAdmin && cashlessWanted ? { note: cashlessNote.trim() || undefined } : undefined,
+    });
   };
 
   if (isLoading) return <div className="p-8">Loading...</div>;
@@ -314,6 +345,39 @@ export function EventsPage() {
                 You'll set how many tickets are available when you add ticket types to this event.
               </p>
 
+              {/* Cashless. Asymmetric because the API is: an admin may create
+                  an event already cashless, an organizer may only ask and
+                  gets a 403 if they try to set it. Showing an organizer a
+                  switch would be showing them a control that cannot work. */}
+              <div className="space-y-3 rounded-lg border border-slate-200 p-3">
+                <div className="flex items-start gap-2">
+                  <Checkbox
+                    id="cashless-wanted"
+                    checked={cashlessWanted}
+                    onCheckedChange={(v) => setCashlessWanted(v === true)}
+                  />
+                  <div className="space-y-1">
+                    <Label htmlFor="cashless-wanted" className="text-sm font-medium">
+                      {isAdmin ? 'Enable cashless for this event' : 'Request cashless for this event'}
+                    </Label>
+                    <p className="text-xs text-slate-500">
+                      Attendees carry funded NFC wristbands, stalls charge them, and cashiers top
+                      up and cash out at the desk.
+                      {!isAdmin && ' Carrot reviews the request and switches it on.'}
+                    </p>
+                  </div>
+                </div>
+
+                {cashlessWanted && !isAdmin && (
+                  <Textarea
+                    value={cashlessNote}
+                    onChange={(e) => setCashlessNote(e.target.value)}
+                    placeholder="Anything Carrot should know — expected crowd, number of bars…"
+                    rows={2}
+                  />
+                )}
+              </div>
+
               <div className="space-y-3 rounded-lg border border-slate-200 p-3">
                 <div>
                   <p className="text-sm font-medium text-slate-900">Poster & photos</p>
@@ -399,6 +463,14 @@ export function EventsPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
+                    {/* A cashless ask is only actionable by Carrot staff, so it
+                        surfaces here for them rather than in the organizer's list. */}
+                    {isAdmin && event.cashlessRequestedAt && !event.cashless && (
+                      <div className="flex items-center gap-1.5 text-xs font-medium text-orange-700">
+                        <Nfc className="h-3.5 w-3.5" />
+                        Cashless requested
+                      </div>
+                    )}
                     <div className="space-y-2 text-sm">
                       <div className="flex items-center text-slate-600">
                         <MapPin className="h-4 w-4 mr-2" />
