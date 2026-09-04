@@ -2,9 +2,13 @@ import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Upload, X, Image as ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ImageCropperDialog } from '@/components/ImageCropperDialog';
+import type { CropPresetKey } from '@/lib/cropPresets';
 
 interface ImageUploadInputProps {
   label: string;
+  /** Which surface this is — decides the locked crop ratio and output size. */
+  preset: CropPresetKey;
   currentImageUrl?: string;
   onFileSelect: (file: File) => void;
   onRemove?: () => void;
@@ -16,6 +20,7 @@ interface ImageUploadInputProps {
 
 export function ImageUploadInput({
   label,
+  preset,
   currentImageUrl,
   onFileSelect,
   onRemove,
@@ -26,13 +31,15 @@ export function ImageUploadInput({
 }: ImageUploadInputProps) {
   const [preview, setPreview] = useState<string | null>(currentImageUrl || null);
   const [error, setError] = useState<string | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validate file size
+    // Validate BEFORE opening the cropper — no point cropping a file that's
+    // about to be rejected.
     const fileSizeMB = file.size / (1024 * 1024);
     if (fileSizeMB > maxSize) {
       setError(`File size must be less than ${maxSize}MB`);
@@ -46,16 +53,15 @@ export function ImageUploadInput({
     }
 
     setError(null);
+    setPendingFile(file);
+  };
 
-    // Create preview
+  const handleCropped = (cropped: File) => {
+    setPendingFile(null);
     const reader = new FileReader();
-    reader.onloadend = () => {
-      setPreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
-
-    // Notify parent
-    onFileSelect(file);
+    reader.onloadend = () => setPreview(reader.result as string);
+    reader.readAsDataURL(cropped);
+    onFileSelect(cropped);
   };
 
   const handleRemove = () => {
@@ -136,6 +142,15 @@ export function ImageUploadInput({
 
       {error && (
         <p className="text-sm text-red-600">{error}</p>
+      )}
+
+      {pendingFile && (
+        <ImageCropperDialog
+          file={pendingFile}
+          preset={preset}
+          onCancel={() => setPendingFile(null)}
+          onCropped={handleCropped}
+        />
       )}
     </div>
   );

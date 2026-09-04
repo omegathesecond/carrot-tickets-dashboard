@@ -385,6 +385,7 @@ export function EventsPage() {
                 </div>
                 <ImageUploadInput
                   label="Event poster"
+                  preset="eventPoster"
                   onFileSelect={setPosterFile}
                   onRemove={() => setPosterFile(null)}
                 />
