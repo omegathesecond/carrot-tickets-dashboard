@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { StatCard } from '@/components/cashless/StatCard';
+import { EventStockReport } from '@/components/EventStockReport';
 
 type ProductForm = {
   name: string;
@@ -78,7 +79,8 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
   // pair above it — a refresh or a shared link lands back on the same view
   // instead of bouncing to the default.
   const [searchParams, setSearchParams] = useSearchParams();
-  const view = searchParams.get('view') === 'catalogue' ? 'catalogue' : 'levels';
+  const requestedView = searchParams.get('view');
+  const view = requestedView === 'catalogue' || requestedView === 'stock' ? requestedView : 'levels';
   const setView = (v: string) => {
     const next = new URLSearchParams(searchParams);
     next.set('view', v);
@@ -272,6 +274,7 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
         <TabsList>
           <TabsTrigger value="levels">Stock levels</TabsTrigger>
           <TabsTrigger value="catalogue">Catalogue</TabsTrigger>
+          <TabsTrigger value="stock">Stock</TabsTrigger>
         </TabsList>
 
         <TabsContent value="levels" className="space-y-4">
@@ -387,6 +390,10 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        <TabsContent value="stock" className="space-y-4">
+          <EventStockReport eventId={eventId} />
         </TabsContent>
       </Tabs>
       <StockOpDialogs
