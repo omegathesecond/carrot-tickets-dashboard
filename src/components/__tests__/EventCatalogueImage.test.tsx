@@ -1,9 +1,18 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, cleanup, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, waitFor, within, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { EventCataloguePanel } from '@/components/cashless/EventCataloguePanel';
+
+// Same mock shape as BarcodeField.test.tsx: decodeFromImageUrl is what the
+// component's photo-decode path actually calls.
+const decodeFromImageUrl = vi.fn();
+vi.mock('@zxing/browser', () => ({
+  BrowserMultiFormatReader: class {
+    decodeFromImageUrl = decodeFromImageUrl;
+  },
+}));
 
 // Same importOriginal shape as StallOperatorsPanel.test.tsx / EventMenuTabCategory.test.tsx —
 // keeps the real PRODUCT_CATEGORIES export while faking the network-touching methods.
@@ -50,6 +59,8 @@ const EXISTING_PRODUCT = {
 };
 
 beforeEach(() => {
+  global.URL.createObjectURL = vi.fn(() => 'blob:barcode-photo');
+  global.URL.revokeObjectURL = vi.fn();
   listProducts.mockResolvedValue([]);
   createProduct.mockResolvedValue({ _id: 'new-product' });
   updateProduct.mockResolvedValue({});
@@ -113,6 +124,32 @@ describe('EventCataloguePanel product image', () => {
     );
   });
 
+  it('keeps what was typed elsewhere while the image upload is still pending', async () => {
+    // setForm({ ...form, imageUrl }) at the ImageUploadField call site
+    // captures `form` from the render when the file was chosen. Anything
+    // typed into another field while the upload is in flight is thrown away
+    // when that stale closure fires on resolve. The other test above awaits
+    // findByRole('img') BEFORE typing, which steps around this exact bug —
+    // this one types WHILE the upload is still pending.
+    let resolveUpload!: (url: string) => void;
+    uploadProductImage.mockReturnValue(new Promise((resolve) => { resolveUpload = resolve; }));
+    await renderCataloguePanel();
+    const dialog = await openAddProductDialog();
+
+    const file = new File([new Uint8Array([1])], 'castle.jpg', { type: 'image/jpeg' });
+    fireEvent.change(screen.getByTestId('image-upload-input'), { target: { files: [file] } });
+
+    // Type into the name field WHILE the upload is pending.
+    fireEvent.change(within(dialog).getByPlaceholderText('Castle Lite 330ml'), {
+      target: { value: 'Test Product' },
+    });
+
+    await act(async () => { resolveUpload('https://cdn.example/castle.jpg'); });
+    await screen.findByRole('img');
+
+    expect(within(dialog).getByDisplayValue('Test Product')).toBeTruthy();
+  });
+
   it('omits imageUrl entirely when no image was chosen', async () => {
     await renderCataloguePanel();
     await openAddProductDialog();
@@ -144,5 +181,32 @@ describe('EventCataloguePanel product image', () => {
     await waitFor(() =>
       expect(updateProduct).toHaveBeenCalledWith('p1', expect.objectContaining({ imageUrl: null })),
     );
+  });
+});
+
+describe('EventCataloguePanel barcode photo decode', () => {
+  it('keeps what was typed elsewhere while a barcode photo is still decoding', async () => {
+    // BarcodeField.onPhoto calls accept() (which calls onChange) after an
+    // await, same trap as the image upload above: setForm({ ...form,
+    // barcode }) at this call site captures a stale `form`, so anything
+    // typed into another field while the photo is decoding is thrown away
+    // the moment the decode resolves.
+    let resolveDecode!: (result: { getText: () => string }) => void;
+    decodeFromImageUrl.mockReturnValue(new Promise((resolve) => { resolveDecode = resolve; }));
+    await renderCataloguePanel();
+    const dialog = await openAddProductDialog();
+
+    const file = new File([new Uint8Array([1])], 'barcode.png', { type: 'image/png' });
+    fireEvent.change(within(dialog).getByTestId('barcode-photo-input'), { target: { files: [file] } });
+
+    // Type into the name field WHILE the barcode photo is still decoding.
+    fireEvent.change(within(dialog).getByPlaceholderText('Castle Lite 330ml'), {
+      target: { value: 'Test Product' },
+    });
+
+    await act(async () => { resolveDecode({ getText: () => '6001240100015' }); });
+    await within(dialog).findByDisplayValue('6001240100015');
+
+    expect(within(dialog).getByDisplayValue('Test Product')).toBeTruthy();
   });
 });

@@ -437,14 +437,14 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
               <Label>Barcode <span className="text-muted-foreground text-xs">(optional, EAN/UPC)</span></Label>
               <BarcodeField
                 value={form.barcode}
-                onChange={(barcode) => setForm({ ...form, barcode })}
+                onChange={(barcode) => setForm((f) => ({ ...f, barcode }))}
               />
             </div>
             <div className="space-y-1">
               <Label>Image <span className="text-muted-foreground text-xs">(optional)</span></Label>
               <ImageUploadField
                 value={form.imageUrl}
-                onChange={(imageUrl) => setForm({ ...form, imageUrl })}
+                onChange={(imageUrl) => setForm((f) => ({ ...f, imageUrl }))}
                 onUpload={(file) => apiClient.events.uploadProductImage(eventId, file)}
               />
             </div>
