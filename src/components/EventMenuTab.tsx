@@ -543,7 +543,7 @@ export function EventMenuTab({ eventId }: { eventId: string }) {
               <Label>Image <span className="text-muted-foreground text-xs">(optional)</span></Label>
               <ImageUploadField
                 value={form.imageUrl}
-                onChange={(imageUrl) => setForm({ ...form, imageUrl })}
+                onChange={(imageUrl) => setForm((f) => ({ ...f, imageUrl }))}
                 onUpload={(file) => apiClient.events.uploadMenuItemImage(eventId, file)}
               />
             </div>
