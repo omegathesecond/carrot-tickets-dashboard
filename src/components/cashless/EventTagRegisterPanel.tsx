@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Nfc, Plus, Search, Trash2 } from 'lucide-react';
+import { Nfc, Plus, Search, Trash2, HandCoins } from 'lucide-react';
 import { apiClient, type EventTagRow, type EventTagStatus } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -72,6 +72,22 @@ export function EventTagRegisterPanel({ eventId }: { eventId: string }) {
       setUidText('');
     },
     onError: (e: Error) => toast.error(e.message || 'Failed to register the tags'),
+  });
+
+  const handOut = useMutation({
+    mutationFn: (bandUid: string) => apiClient.tags.issue(eventId, bandUid),
+    onSuccess: (res) => {
+      invalidate();
+      // The endpoint is idempotent, so say which of the two actually happened
+      // rather than a bare "done" — pressing twice is safe but the operator
+      // should still know the tag was already live.
+      toast.success(
+        res.created
+          ? 'Tag handed out — the cashier desk can load it now'
+          : 'That tag was already handed out — it is ready to load',
+      );
+    },
+    onError: (e: Error) => toast.error(e.message || 'Could not hand out the tag'),
   });
 
   const retire = useMutation({
@@ -210,12 +226,19 @@ export function EventTagRegisterPanel({ eventId }: { eventId: string }) {
                       </TableCell>
                       <TableCell className="text-right">
                         {t.status === 'active' && (
-                          <Button variant="outline" size="sm"
-                            disabled={retire.isPending && retire.variables === t.bandUid}
-                            onClick={() => retire.mutate(t.bandUid)}
-                            className="text-red-600 hover:text-red-700 hover:border-red-300">
-                            <Trash2 className="h-4 w-4 mr-1.5" /> Retire
-                          </Button>
+                          <div className="flex items-center justify-end gap-2">
+                            <Button variant="outline" size="sm"
+                              disabled={handOut.isPending && handOut.variables === t.bandUid}
+                              onClick={() => handOut.mutate(t.bandUid)}>
+                              <HandCoins className="h-4 w-4 mr-1.5" /> Hand out
+                            </Button>
+                            <Button variant="outline" size="sm"
+                              disabled={retire.isPending && retire.variables === t.bandUid}
+                              onClick={() => retire.mutate(t.bandUid)}
+                              className="text-red-600 hover:text-red-700 hover:border-red-300">
+                              <Trash2 className="h-4 w-4 mr-1.5" /> Retire
+                            </Button>
+                          </div>
                         )}
                       </TableCell>
                     </TableRow>

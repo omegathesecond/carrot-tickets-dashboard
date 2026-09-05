@@ -1052,6 +1052,20 @@ export class ApiClient {
       this.request<TagDetail>(`/tickets/events/${eventId}/tags/${walletId}`),
 
     /**
+     * Hand a registered tag to somebody who has no ticket: gives it a wallet of
+     * its own so the cashier desk can load it. Idempotent — a second call
+     * returns the same wallet with `created: false`, so pressing twice is safe.
+     */
+    issue: async (
+      eventId: string,
+      bandUid: string,
+    ): Promise<{ bandUid: string; walletId: string; balance: number; created: boolean }> =>
+      this.request(`/tickets/events/${eventId}/tags/issue`, {
+        method: 'POST',
+        body: JSON.stringify({ bandUid }),
+      }),
+
+    /**
      * The event's tag REGISTER — the physical tags this organizer has enrolled
      * into this show. Distinct from `list` above: that reads the wallets behind
      * tags already on someone's wrist; this is the pool of plastic allowed to
