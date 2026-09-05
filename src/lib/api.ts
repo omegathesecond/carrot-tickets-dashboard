@@ -1751,17 +1751,30 @@ export interface ResellerWithdrawal {
   createdAt: string;
 }
 
+/** Which operator population a grant can be held by. A grant means nothing to
+ *  a population it isn't listed for — the API's namespace maps agree. */
+export type OperatorPopulation = 'gate' | 'cashier' | 'merchant';
+
 /**
  * Per-person capabilities an organizer can grant to an operator, on top of
  * whatever their role already carries. Mirrors OperatorGrant in the API; the
  * server drops any value it doesn't recognise.
  */
-export type OperatorGrant = 'issue_tags';
+export type OperatorGrant = 'issue_tags' | 'manage_stock';
 
-export const OPERATOR_GRANT_LABELS: Record<OperatorGrant, { label: string; hint: string }> = {
+export const OPERATOR_GRANT_LABELS: Record<
+  OperatorGrant,
+  { label: string; hint: string; appliesTo: OperatorPopulation[] }
+> = {
   issue_tags: {
     label: 'Works the Register desk',
     hint: 'Register your tags to an event, and bind one to an attendee\'s ticket',
+    appliesTo: ['gate', 'cashier'],
+  },
+  manage_stock: {
+    label: 'Controls this stall\'s stock',
+    hint: 'Receive deliveries, write off breakage, and move stock to another stall from the handheld',
+    appliesTo: ['merchant'],
   },
 };
 

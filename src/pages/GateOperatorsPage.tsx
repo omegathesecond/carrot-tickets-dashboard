@@ -224,6 +224,7 @@ export function GateOperatorsPage() {
                 <div className="space-y-2">
                   <Label>Extra permissions</Label>
                   <OperatorGrantsField
+                    population="gate"
                     idPrefix="go"
                     value={form.grants}
                     onChange={(grants) => setForm((f) => ({ ...f, grants }))}
@@ -333,6 +334,7 @@ export function GateOperatorsPage() {
                     </Button>
                     <div className="col-span-2">
                       <OperatorGrantsField
+                        population="gate"
                         idPrefix={`go-${op._id}`}
                         value={op.grants ?? []}
                         disabled={setGrants.isPending}

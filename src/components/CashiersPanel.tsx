@@ -114,6 +114,7 @@ export function CashiersPanel({ eventId }: { eventId: string }) {
               <div className="space-y-2">
                 <Label>Extra permissions</Label>
                 <OperatorGrantsField
+                  population="cashier"
                   idPrefix="cashier"
                   value={form.grants}
                   onChange={(grants) => setForm((f) => ({ ...f, grants }))}
