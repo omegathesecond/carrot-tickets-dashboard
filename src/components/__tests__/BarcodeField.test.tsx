@@ -142,4 +142,40 @@ describe('BarcodeField', () => {
 
     await waitFor(() => expect(lateStop).toHaveBeenCalled());
   });
+
+  it('does not let a superseded scan adopt its late permission grant after a second scan has started', async () => {
+    // Neighbouring sequence to the one above: Scan, Stop (while pending),
+    // Scan again — a single boolean "cancelled" flag would get cleared by
+    // the second attempt and wrongly let the *first* attempt's late grant
+    // through. Each attempt must own only its own stream.
+    withCamera(true);
+    let resolveFirst!: (controls: { stop: () => void }) => void;
+    const firstStop = vi.fn();
+    const secondStop = vi.fn();
+
+    decodeFromVideoDevice
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }))
+      .mockImplementationOnce(() => Promise.resolve({ stop: secondStop }));
+
+    render(<BarcodeField value="" onChange={vi.fn()} />);
+
+    // First attempt: permission prompt opens and does not answer yet.
+    fireEvent.click(screen.getByRole('button', { name: /scan/i }));
+    await waitFor(() => expect(decodeFromVideoDevice).toHaveBeenCalledTimes(1));
+
+    // Organizer gives up waiting and clicks Stop while it's still pending.
+    fireEvent.click(screen.getByRole('button', { name: /stop/i }));
+
+    // Organizer tries again — a second attempt starts and (this time) resolves.
+    fireEvent.click(screen.getByRole('button', { name: /scan/i }));
+    await waitFor(() => expect(decodeFromVideoDevice).toHaveBeenCalledTimes(2));
+
+    // The first prompt is *finally* granted, after the second attempt already took over.
+    resolveFirst({ stop: firstStop });
+
+    // The first attempt's stream must be shut down immediately...
+    await waitFor(() => expect(firstStop).toHaveBeenCalled());
+    // ...and never touch the second attempt's stream, which is the one now active.
+    expect(secondStop).not.toHaveBeenCalled();
+  });
 });

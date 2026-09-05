@@ -31,11 +31,14 @@ export function BarcodeField({
   const readerRef = useRef<BrowserMultiFormatReader | null>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
   // decodeFromVideoDevice awaits the native permission prompt, which can sit
-  // open indefinitely. If Stop is clicked (or the field unmounts) before the
-  // prompt is answered, controlsRef is still null when that happens — this
-  // flag is what tells the eventually-resolved promise to shut the stream
-  // down immediately instead of arming it into an untracked, unstoppable camera.
-  const cancelledRef = useRef(false);
+  // open indefinitely. A single "cancelled" boolean isn't enough: Scan, Stop,
+  // Scan again would clear it for the *second* attempt while the *first*
+  // attempt's prompt is still pending, so a late grant from the first would
+  // get wrongly adopted. Each call to startScan claims the next generation
+  // number instead, so only the attempt that is still current when its
+  // promise resolves gets to keep the stream — every superseded one stops
+  // its own controls and is otherwise ignored.
+  const scanGenerationRef = useRef(0);
 
   const hasCamera =
     typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
@@ -45,7 +48,7 @@ export function BarcodeField({
   // A camera left running after the component unmounts is a lit LED and a
   // battery drain the organizer cannot explain, so stop it on the way out.
   useEffect(() => () => {
-    cancelledRef.current = true;
+    scanGenerationRef.current++;
     controlsRef.current?.stop();
   }, []);
 
@@ -80,18 +83,19 @@ export function BarcodeField({
   const startScan = async () => {
     setMessage(null);
     setScanning(true);
-    cancelledRef.current = false;
+    const generation = ++scanGenerationRef.current;
     try {
       const controls = await reader().decodeFromVideoDevice(
         undefined,
         videoRef.current!,
         (result) => { if (result) accept(result.getText()); },
       );
-      if (cancelledRef.current) {
-        // Stop was clicked (or we unmounted) while the permission prompt was
-        // still open. The browser granted access after we'd already given
-        // up waiting, so this stream must be killed the instant it exists —
-        // otherwise nothing left holds a reference to stop it.
+      if (scanGenerationRef.current !== generation) {
+        // Stop was clicked, the field unmounted, or a newer scan attempt has
+        // since started while this one's permission prompt was still open.
+        // Whoever holds the current generation owns controlsRef; this stream
+        // belongs to a superseded attempt and must be killed the instant it
+        // exists, or nothing is left to stop it.
         controls.stop();
         return;
       }
@@ -107,7 +111,7 @@ export function BarcodeField({
   };
 
   const stopScan = () => {
-    cancelledRef.current = true;
+    scanGenerationRef.current++;
     controlsRef.current?.stop();
     controlsRef.current = null;
     setScanning(false);
