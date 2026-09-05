@@ -1276,7 +1276,7 @@ export class ApiClient {
 
     create: async (
       merchantId: string,
-      data: { fullName: string; phoneNumber?: string },
+      data: { fullName: string; phoneNumber?: string; grants?: OperatorGrant[] },
     ): Promise<IssuedMerchantOperatorCredentials> =>
       this.request<IssuedMerchantOperatorCredentials>(`/tickets/merchants/${merchantId}/operators`, {
         method: 'POST',
@@ -1285,7 +1285,7 @@ export class ApiClient {
 
     update: async (
       id: string,
-      data: { fullName?: string; isActive?: boolean },
+      data: { fullName?: string; isActive?: boolean; grants?: OperatorGrant[] },
     ): Promise<{ operator: MerchantOperatorRow }> =>
       this.request<{ operator: MerchantOperatorRow }>(`/tickets/merchant-operators/${id}`, {
         method: 'PATCH',
@@ -1967,6 +1967,9 @@ export interface MerchantOperatorRow {
   eventId: string;
   loginCode: string;
   isActive: boolean;
+  /** Per-person capability grants. Optional: rows created before the field
+   *  existed come back without it, and `?? []` is the correct read. */
+  grants?: OperatorGrant[];
   lastLoginAt?: string;
   createdAt: string;
 }
