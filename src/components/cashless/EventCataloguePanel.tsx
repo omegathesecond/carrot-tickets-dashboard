@@ -15,6 +15,7 @@ import { fmtR, randToCents, centsToRand } from '@/lib/money';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { BarcodeField } from '@/components/BarcodeField';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -427,7 +428,10 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
             </div>
             <div className="space-y-1">
               <Label>Barcode <span className="text-muted-foreground text-xs">(optional, EAN/UPC)</span></Label>
-              <Input value={form.barcode} onChange={(e) => setForm({ ...form, barcode: e.target.value })} placeholder="6001240100015" />
+              <BarcodeField
+                value={form.barcode}
+                onChange={(barcode) => setForm({ ...form, barcode })}
+              />
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1">
