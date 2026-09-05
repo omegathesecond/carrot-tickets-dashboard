@@ -1283,6 +1283,43 @@ export class ApiClient {
       ),
   };
 
+  // Waiters — the organizer's floor staff for ONE event (open a table, add
+  // items). Unlike a cashier, a waiter always belongs to an organizer — there
+  // is no platform scope — and settling a table (taking final payment) is a
+  // separate grant, off by default, turned on per person via setGrants.
+  waiters = {
+    list: async (eventId: string): Promise<WaiterRow[]> =>
+      this.request<WaiterRow[]>(`/tickets/waiters?eventId=${eventId}`),
+
+    create: async (data: {
+      fullName: string;
+      phoneNumber?: string;
+      eventId: string;
+      grants?: OperatorGrant[];
+    }): Promise<IssuedWaiterCredentials> =>
+      this.request<IssuedWaiterCredentials>(`/tickets/waiters`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    setGrants: async (id: string, grants: OperatorGrant[]): Promise<WaiterRow> =>
+      this.request<WaiterRow>(`/tickets/waiters/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ grants }),
+      }),
+
+    setActive: async (id: string, isActive: boolean): Promise<WaiterRow> =>
+      this.request<WaiterRow>(`/tickets/waiters/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ isActive }),
+      }),
+
+    resetPin: async (id: string): Promise<{ pin: string }> =>
+      this.request<{ pin: string }>(`/tickets/waiters/${id}/reset-pin`, {
+        method: 'POST',
+      }),
+  };
+
   // Vendors (in-event merchants) — the stalls that charge bands. Scoped to one event.
   // A stall holds no credentials of its own (see MerchantOperator below) —
   // create/update just return the merchant record.
@@ -1815,14 +1852,14 @@ export interface ResellerWithdrawal {
 
 /** Which operator population a grant can be held by. A grant means nothing to
  *  a population it isn't listed for — the API's namespace maps agree. */
-export type OperatorPopulation = 'gate' | 'cashier' | 'merchant';
+export type OperatorPopulation = 'gate' | 'cashier' | 'merchant' | 'waiter';
 
 /**
  * Per-person capabilities an organizer can grant to an operator, on top of
  * whatever their role already carries. Mirrors OperatorGrant in the API; the
  * server drops any value it doesn't recognise.
  */
-export type OperatorGrant = 'issue_tags' | 'manage_stock';
+export type OperatorGrant = 'issue_tags' | 'manage_stock' | 'settle_tables';
 
 export const OPERATOR_GRANT_LABELS: Record<
   OperatorGrant,
@@ -1837,6 +1874,14 @@ export const OPERATOR_GRANT_LABELS: Record<
     label: 'Controls this stall\'s stock',
     hint: 'Receive deliveries, write off breakage, and move stock to another stall from the handheld',
     appliesTo: ['merchant'],
+  },
+  settle_tables: {
+    // Off by default: a waiter can open a table and add items without it,
+    // but only someone with this grant may take final payment and close the
+    // table out — the API refuses a settle attempt without it.
+    label: 'Can settle tables',
+    hint: 'Take final payment and close out a table at the end of service',
+    appliesTo: ['waiter'],
   },
 };
 
@@ -2007,6 +2052,27 @@ export interface CashierDetail {
   cashier: CashierRow;
   transactions: CashierDeskTxn[];
   summary: { toppedUp: number; withdrawn: number; net: number; count: number };
+}
+
+// ── Waiters (organizer floor staff) ────────────────────────────────────────
+// Unlike a cashier, a waiter always belongs to an organizer's event — there is
+// no platform scope and eventId is required and immutable at the API.
+export interface WaiterRow {
+  _id: string;
+  fullName: string;
+  phoneNumber?: string;
+  vendorId?: string | null;
+  eventId: string;
+  isActive: boolean;
+  loginCode: string;
+  grants?: OperatorGrant[];
+  createdAt: string;
+}
+
+export interface IssuedWaiterCredentials {
+  waiter: WaiterRow;
+  loginCode: string;
+  pin: string;
 }
 
 // ── Vendors (in-event merchants) ───────────────────────────────────────────

@@ -22,6 +22,7 @@ import { EventTagRegisterPanel } from '@/components/cashless/EventTagRegisterPan
 import { EventTransactionLog } from '@/components/cashless/EventTransactionLog';
 import { StatCard } from '@/components/cashless/StatCard';
 import { CashiersPanel } from '@/components/CashiersPanel';
+import { WaitersPanel } from '@/components/WaitersPanel';
 import { useAuth } from '@/contexts/AuthContext';
 import { canManageAccess, canManageStock, canIssueTags } from '@/lib/permissions';
 
@@ -64,6 +65,8 @@ export function EventCashlessTab({ eventId }: Props) {
   // in-venue staff, so whoever can manage stall access can manage them too.
   const showCashiers = canManageAccess(user);
   const showRegister = canManageAccess(user);
+  // Hiring floor staff is the same capability as hiring a cashier.
+  const showWaiters = canManageAccess(user);
   // The tag box is its own capability server-side (ISSUE_TAGS), so it is gated
   // separately from the Register sub-tab that contains it — otherwise a member
   // given only MANAGE_ACCESS opens a pane the API answers with a 403.
@@ -79,6 +82,7 @@ export function EventCashlessTab({ eventId }: Props) {
     || (normalisedSub === 'catalogue' && !showCatalogue)
     || (normalisedSub === 'cashiers' && !showCashiers)
     || (normalisedSub === 'register' && !showRegister)
+    || (normalisedSub === 'waiters' && !showWaiters)
       ? 'money'
       : normalisedSub;
   const setSub = (v: string) => {
@@ -189,6 +193,7 @@ export function EventCashlessTab({ eventId }: Props) {
         {showStalls && <TabsTrigger value="stalls">Stalls</TabsTrigger>}
         {showCatalogue && <TabsTrigger value="catalogue">Catalogue</TabsTrigger>}
         {showCashiers && <TabsTrigger value="cashiers">Cashiers</TabsTrigger>}
+        {showWaiters && <TabsTrigger value="waiters">Waiters</TabsTrigger>}
         <TabsTrigger value="balances">Balances</TabsTrigger>
       </TabsList>
       <TabsContent value="money">{moneyBody}</TabsContent>
@@ -204,6 +209,11 @@ export function EventCashlessTab({ eventId }: Props) {
         </TabsContent>
       )}
       {showCashiers && <TabsContent value="cashiers">{cashiersBody}</TabsContent>}
+      {showWaiters && (
+        <TabsContent value="waiters">
+          <WaitersPanel eventId={eventId} />
+        </TabsContent>
+      )}
       <TabsContent value="balances">
         <EventTagsPanel eventId={eventId} />
       </TabsContent>
