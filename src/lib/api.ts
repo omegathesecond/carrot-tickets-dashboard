@@ -2209,6 +2209,10 @@ export interface StockMovementRow {
   refId: string | null;
   byType: string;
   by: string;
+  /** The person, when one is knowable: the stall operator's name for
+   *  byType 'Merchant'. Null for organizer/platform rows, whose `by` is a
+   *  vendor id rather than a human. */
+  byName: string | null;
   note: string | null;
 }
 export interface StockMovementsPage {

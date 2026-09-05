@@ -379,6 +379,7 @@ function MovementsSection({ eventId }: { eventId: string }) {
                   <TableHead>Stall</TableHead>
                   <TableHead>Product</TableHead>
                   <TableHead>Reason</TableHead>
+                  <TableHead className="hidden md:table-cell">Who</TableHead>
                   <TableHead className="text-right">Δ</TableHead>
                   <TableHead className="text-right">After</TableHead>
                 </TableRow>
@@ -390,6 +391,9 @@ function MovementsSection({ eventId }: { eventId: string }) {
                     <TableCell>{m.merchantName}</TableCell>
                     <TableCell className="font-medium">{m.productName}</TableCell>
                     <TableCell><Badge variant="secondary" className={REASON_CLASS[m.reason] ?? 'bg-gray-100 text-gray-800'}>{m.reason}</Badge></TableCell>
+                    <TableCell className="hidden md:table-cell text-muted-foreground">
+                      {m.byName ?? '—'}
+                    </TableCell>
                     <TableCell className={`text-right font-medium ${m.delta < 0 ? 'text-red-700' : 'text-green-700'}`}>{m.delta > 0 ? `+${m.delta}` : m.delta}</TableCell>
                     <TableCell className="text-right">{m.balanceAfter}</TableCell>
                   </TableRow>
