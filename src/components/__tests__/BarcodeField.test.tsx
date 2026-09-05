@@ -109,15 +109,19 @@ describe('BarcodeField', () => {
     // A mock satisfies "decodeFromVideoDevice was called" no matter what its
     // second argument is. The real @zxing/browser builds its OWN detached
     // <video> when handed null, so the organizer's on-screen element never
-    // gets the camera stream. Only an instanceof check on the real DOM type
-    // catches that — a mock-shaped assertion would pass either way.
+    // gets the camera stream. Asserting identity against the element actually
+    // in the document is what catches that: an instanceof check alone would
+    // also accept a detached video we created ourselves, which reproduces the
+    // very symptom — a preview on screen that never receives the stream.
     withCamera(true);
-    render(<BarcodeField value="" onChange={vi.fn()} />);
+    const { container } = render(<BarcodeField value="" onChange={vi.fn()} />);
 
     fireEvent.click(screen.getByRole('button', { name: /scan/i }));
     await waitFor(() => expect(decodeFromVideoDevice).toHaveBeenCalled());
 
-    expect(decodeFromVideoDevice.mock.calls[0][1]).toBeInstanceOf(HTMLVideoElement);
+    const onScreen = container.querySelector('video');
+    expect(onScreen).toBeInstanceOf(HTMLVideoElement);
+    expect(decodeFromVideoDevice.mock.calls[0][1]).toBe(onScreen);
   });
 
   it('stops the camera stream when Stop is clicked', async () => {
