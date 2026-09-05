@@ -81,7 +81,7 @@ describe('EventCashlessTab main tabs', () => {
     expect(screen.queryByRole('tab', { name: 'Stalls' })).toBeNull();
     expect(screen.queryByRole('tab', { name: 'Catalogue' })).toBeNull();
     expect(screen.queryByRole('tab', { name: 'Cashiers' })).toBeNull();
-    expect(screen.getByRole('tab', { name: 'Money' })).toBeDefined();
+    expect(screen.getByRole('tab', { name: 'Transactions' })).toBeDefined();
   });
 
   it('offers Balances to everyone, restricted or not', () => {
@@ -116,17 +116,17 @@ describe('EventCashlessTab main tabs', () => {
     expect(screen.getByRole('tab', { name: 'Balances' }).getAttribute('data-state')).toBe('active');
   });
 
-  it('falls back to Money when the URL names a sub-tab the user cannot see', () => {
+  it('falls back to Transactions when the URL names a sub-tab the user cannot see', () => {
     renderTab(RESTRICTED, '/events/e1?tab=cashless&sub=catalogue');
-    // Not an empty pane: the Money tab is selected instead.
+    // Not an empty pane: the Transactions tab is selected instead.
     expect(screen.queryByText('catalogue-pane')).toBeNull();
-    expect(screen.getByRole('tab', { name: 'Money' }).getAttribute('data-state')).toBe('active');
+    expect(screen.getByRole('tab', { name: 'Transactions' }).getAttribute('data-state')).toBe('active');
   });
 
-  it('falls back to Money when the URL names cashiers and the user cannot see it', () => {
+  it('falls back to Transactions when the URL names cashiers and the user cannot see it', () => {
     renderTab(RESTRICTED, '/events/e1?tab=cashless&sub=cashiers');
     expect(screen.queryByText('cashiers-pane')).toBeNull();
-    expect(screen.getByRole('tab', { name: 'Money' }).getAttribute('data-state')).toBe('active');
+    expect(screen.getByRole('tab', { name: 'Transactions' }).getAttribute('data-state')).toBe('active');
   });
 
   it('offers Register to a user who can manage access', () => {

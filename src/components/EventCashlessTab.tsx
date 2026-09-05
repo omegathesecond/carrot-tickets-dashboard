@@ -33,11 +33,11 @@ interface Props {
 }
 
 /**
- * Everything cashless for ONE event. Money is the organizer's transaction
- * report; Register, Stalls, Catalogue, Cashiers and Balances each manage the
- * people, products and tags behind it, and each carries its own breakdown
- * (activity, takings, stock) as a nested tab rather than dumping every
- * breakdown under Money regardless of which desk it is actually about.
+ * Everything cashless for ONE event. Transactions is the organizer's
+ * transaction report; Register, Stalls, Catalogue, Cashiers and Balances each
+ * manage the people, products and tags behind it, and each carries its own
+ * breakdown (activity, takings, stock) as a nested tab rather than dumping
+ * every breakdown under Transactions regardless of which desk it is about.
  * Stalls, products and stock are all eventId-bound in the model, so they live
  * here rather than on a top-level page that asks which event you meant.
  */
@@ -182,7 +182,9 @@ export function EventCashlessTab({ eventId }: Props) {
   return (
     <Tabs value={sub} onValueChange={setSub} className="space-y-4">
       <TabsList>
-        <TabsTrigger value="money">Money</TabsTrigger>
+        {/* value stays "money": it is the ?sub= deep-link key and the fallback
+            target above. Only the label changed. */}
+        <TabsTrigger value="money">Transactions</TabsTrigger>
         {showRegister && <TabsTrigger value="register">Register</TabsTrigger>}
         {showStalls && <TabsTrigger value="stalls">Stalls</TabsTrigger>}
         {showCatalogue && <TabsTrigger value="catalogue">Catalogue</TabsTrigger>}
