@@ -15,6 +15,13 @@ describe('ImageUploadField', () => {
     fireEvent.change(screen.getByTestId('image-upload-input'), { target: { files: [file] } });
 
     await waitFor(() => expect(onChange).toHaveBeenCalledWith('https://cdn.example/burger.jpg'));
+    // The exact File object, not merely a "File-shaped" one: jsdom's File has
+    // no own enumerable properties (name/size/type are prototype getters), so
+    // toHaveBeenCalledWith(file) — deep equality — would pass even if the
+    // component fabricated an unrelated empty File and uploaded that instead.
+    // toBe (reference/Object.is) is what actually proves "the file you picked
+    // is the file that gets uploaded", which is the entire feature.
+    expect(onUpload.mock.calls[0][0]).toBe(file);
   });
 
   it('surfaces an upload failure and leaves the existing image alone', async () => {
