@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { KeyRound, Plus, Power, UserPlus } from 'lucide-react';
+import { KeyRound, Plus, Power, UserPlus, Nfc } from 'lucide-react';
 import { type OperatorGrant, apiClient, type CashierRow } from '@/lib/api';
 import { OperatorGrantsField } from '@/components/OperatorGrantsField';
 import { Button } from '@/components/ui/button';
@@ -65,6 +65,20 @@ export function CashiersPanel({ eventId }: { eventId: string }) {
     mutationFn: (id: string) => apiClient.cashiers.resetPin(id),
     onSuccess: (res) => setIssued({ title: 'PIN reset', pin: res.pin }),
     onError: (e: Error) => toast.error(e.message || 'Failed to reset PIN'),
+  });
+
+  const setTagDesk = useMutation({
+    mutationFn: ({ id, on }: { id: string; on: boolean }) =>
+      apiClient.cashiers.setGrants(id, on ? ['issue_tags'] : []),
+    onSuccess: (_res, vars) => {
+      invalidate();
+      toast.success(
+        vars.on
+          ? 'Tag desk on — they can hand out a blank tag and load it in one tap'
+          : 'Tag desk off — they can only top up tags that already have a wallet',
+      );
+    },
+    onError: (e: Error) => toast.error(e.message || 'Could not change the tag desk setting'),
   });
 
   const setActive = useMutation({
@@ -194,6 +208,18 @@ export function CashiersPanel({ eventId }: { eventId: string }) {
                 <ViewAffordance label="View activity" />
 
                 <div className="mt-auto grid grid-cols-2 gap-2">
+                  <Button variant="outline" size="sm"
+                    disabled={setTagDesk.isPending && setTagDesk.variables?.id === c._id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setTagDesk.mutate({ id: c._id, on: !(c.grants ?? []).includes('issue_tags') });
+                    }}
+                    className={(c.grants ?? []).includes('issue_tags')
+                      ? 'col-span-2 text-orange-600 hover:text-orange-700 hover:border-orange-300'
+                      : 'col-span-2'}>
+                    <Nfc className="h-4 w-4 mr-1.5" />
+                    {(c.grants ?? []).includes('issue_tags') ? 'Tag desk on' : 'Tag desk off'}
+                  </Button>
                   <Button variant="outline" size="sm" disabled={pendingResetId === c._id}
                     onClick={(e) => { e.stopPropagation(); resetPin.mutate(c._id); }}>
                     <KeyRound className="h-4 w-4 mr-1.5" /> Reset PIN
