@@ -1,0 +1,148 @@
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent, cleanup, waitFor, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router-dom';
+import { EventCataloguePanel } from '@/components/cashless/EventCataloguePanel';
+
+// Same importOriginal shape as StallOperatorsPanel.test.tsx / EventMenuTabCategory.test.tsx —
+// keeps the real PRODUCT_CATEGORIES export while faking the network-touching methods.
+const listProducts = vi.fn();
+const createProduct = vi.fn();
+const updateProduct = vi.fn();
+const listMerchants = vi.fn();
+const getEventStockBoard = vi.fn();
+const uploadProductImage = vi.fn();
+
+vi.mock('@/lib/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/api')>();
+  return {
+    ...actual,
+    apiClient: {
+      stock: {
+        listProducts: (...a: unknown[]) => listProducts(...a),
+        createProduct: (...a: unknown[]) => createProduct(...a),
+        updateProduct: (...a: unknown[]) => updateProduct(...a),
+      },
+      merchants: { list: (...a: unknown[]) => listMerchants(...a) },
+      events: {
+        getEventStockBoard: (...a: unknown[]) => getEventStockBoard(...a),
+        // The endpoint under test: mirrors uploadMenuItemImage's shape one
+        // level up, against apiClient.events (Task 3's convention for every
+        // media-upload method, not just menu items).
+        uploadProductImage: (...a: unknown[]) => uploadProductImage(...a),
+      },
+    },
+  };
+});
+
+const EXISTING_PRODUCT = {
+  _id: 'p1',
+  name: 'Castle Lite 330ml',
+  category: 'beer',
+  price: 2500,
+  barcode: '6001240100015',
+  unitLabel: 'unit',
+  unitsPerPack: 24,
+  packLabel: 'case',
+  imageUrl: 'https://cdn.example/old.jpg',
+  active: true,
+};
+
+beforeEach(() => {
+  listProducts.mockResolvedValue([]);
+  createProduct.mockResolvedValue({ _id: 'new-product' });
+  updateProduct.mockResolvedValue({});
+  listMerchants.mockResolvedValue([]);
+  getEventStockBoard.mockResolvedValue({
+    event: { id: 'e1', name: 'Cashless Tap Test' },
+    perBar: [],
+    byProduct: [],
+  });
+});
+afterEach(() => { cleanup(); vi.clearAllMocks(); });
+
+/** Renders the catalogue tab, landed directly on the price-list view. */
+async function renderCataloguePanel() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={['/events/e1?tab=cashless&sub=catalogue&view=catalogue']}>
+        <EventCataloguePanel eventId="e1" />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  await screen.findByRole('button', { name: /Add product/ });
+}
+
+async function openAddProductDialog() {
+  fireEvent.click(screen.getByRole('button', { name: /Add product/ }));
+  return screen.findByRole('dialog');
+}
+
+/**
+ * Fills the two fields every submit needs (name, price) and submits — scoped
+ * to the dialog, since the header's "Add product" trigger and the dialog's
+ * own submit button share the exact same label.
+ */
+async function fillRequiredFieldsAndSubmit() {
+  const dialog = screen.getByRole('dialog');
+  fireEvent.change(within(dialog).getByPlaceholderText('Castle Lite 330ml'), {
+    target: { value: 'Test Product' },
+  });
+  fireEvent.change(within(dialog).getByPlaceholderText('25.00'), { target: { value: '10.00' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Add product' }));
+}
+
+describe('EventCataloguePanel product image', () => {
+  it('sends the uploaded image url when creating a product', async () => {
+    uploadProductImage.mockResolvedValue('https://cdn.example/castle.jpg');
+    await renderCataloguePanel();
+    await openAddProductDialog();
+
+    const file = new File([new Uint8Array([1])], 'castle.jpg', { type: 'image/jpeg' });
+    fireEvent.change(screen.getByTestId('image-upload-input'), { target: { files: [file] } });
+    await screen.findByRole('img');
+    await fillRequiredFieldsAndSubmit();
+
+    await waitFor(() =>
+      expect(createProduct).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ imageUrl: 'https://cdn.example/castle.jpg' }),
+      ),
+    );
+  });
+
+  it('omits imageUrl entirely when no image was chosen', async () => {
+    await renderCataloguePanel();
+    await openAddProductDialog();
+    await fillRequiredFieldsAndSubmit();
+
+    // The API validates imageUrl as a URI; sending '' would be a 400.
+    await waitFor(() => expect(createProduct).toHaveBeenCalled());
+    const [, payload] = createProduct.mock.calls[0];
+    expect(payload.imageUrl).toBeUndefined();
+  });
+
+  it('sends null for imageUrl when an existing image is removed during edit', async () => {
+    // The other direction of the same trap: updateProductSchema allows null
+    // to CLEAR the field, but omitting the key means "leave unchanged" — so
+    // clearing a previously-saved image must send imageUrl: null, not omit it.
+    listProducts.mockResolvedValue([EXISTING_PRODUCT]);
+    await renderCataloguePanel();
+    const row = (await screen.findByText('Castle Lite 330ml')).closest('tr')!;
+
+    // The row's only button is the pencil/edit icon trigger — no visible
+    // text, so scope to the row rather than guessing at an accessible name.
+    fireEvent.click(within(row).getByRole('button'));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('img')).toHaveProperty('src', 'https://cdn.example/old.jpg');
+
+    fireEvent.click(within(dialog).getByRole('button', { name: /remove/i }));
+    fireEvent.click(within(dialog).getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() =>
+      expect(updateProduct).toHaveBeenCalledWith('p1', expect.objectContaining({ imageUrl: null })),
+    );
+  });
+});

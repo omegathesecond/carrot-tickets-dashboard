@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { BarcodeField } from '@/components/BarcodeField';
+import { ImageUploadField } from '@/components/ImageUploadField';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -40,11 +41,12 @@ type ProductForm = {
   unitLabel: string;
   unitsPerPack: string;
   packLabel: string;
+  imageUrl: string;
   active: boolean;
 };
 const EMPTY_FORM: ProductForm = {
   name: '', category: 'beer', priceRand: '', barcode: '',
-  unitLabel: 'unit', unitsPerPack: '', packLabel: '', active: true,
+  unitLabel: 'unit', unitsPerPack: '', packLabel: '', imageUrl: '', active: true,
 };
 
 type OpForm = {
@@ -211,6 +213,7 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
       unitLabel: p.unitLabel ?? 'unit',
       unitsPerPack: p.unitsPerPack != null ? String(p.unitsPerPack) : '',
       packLabel: p.packLabel ?? '',
+      imageUrl: p.imageUrl ?? '',
       active: p.active,
     });
     setDialogOpen(true);
@@ -227,6 +230,7 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
     const barcode = form.barcode.trim();
     const packLabel = form.packLabel.trim();
     const unitLabel = form.unitLabel.trim() || 'unit';
+    const imageUrl = form.imageUrl.trim();
 
     if (editing) {
       // Edit: send null to CLEAR an optional field (omitting it would leave the
@@ -240,11 +244,13 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
           unitLabel,
           unitsPerPack: packN,
           packLabel: packLabel ? packLabel : null,
+          imageUrl: imageUrl ? imageUrl : null,
           active: form.active,
         },
       });
     } else {
-      // Create: the schema rejects null, so omit empty optionals.
+      // Create: the schema rejects null (imageUrl is Joi.string().uri(), and
+      // '' fails that check too), so omit empty optionals entirely.
       saveProduct.mutate({
         create: {
           name: form.name.trim(),
@@ -254,6 +260,7 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
           unitLabel,
           ...(packN != null ? { unitsPerPack: packN } : {}),
           ...(packLabel ? { packLabel } : {}),
+          ...(imageUrl ? { imageUrl } : {}),
         },
       });
     }
@@ -431,6 +438,14 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
               <BarcodeField
                 value={form.barcode}
                 onChange={(barcode) => setForm({ ...form, barcode })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Image <span className="text-muted-foreground text-xs">(optional)</span></Label>
+              <ImageUploadField
+                value={form.imageUrl}
+                onChange={(imageUrl) => setForm({ ...form, imageUrl })}
+                onUpload={(file) => apiClient.events.uploadProductImage(eventId, file)}
               />
             </div>
             <div className="grid grid-cols-3 gap-3">
