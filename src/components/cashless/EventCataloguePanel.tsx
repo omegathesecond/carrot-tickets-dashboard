@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Plus, Package, Pencil, Bell, TrendingUp, Boxes, Coins, AlertTriangle } from 'lucide-react';
+import { Plus, Package, Pencil, Bell, Ban, TrendingUp, Boxes, Coins, AlertTriangle } from 'lucide-react';
 import {
   apiClient,
   PRODUCT_CATEGORIES,
@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { BarcodeField } from '@/components/BarcodeField';
 import { ImageUploadField } from '@/components/ImageUploadField';
+import { ProductStockDialog } from '@/components/cashless/ProductStockDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -25,7 +26,7 @@ import {
   Table, TableHeader, TableRow, TableHead, TableBody, TableCell,
 } from '@/components/ui/table';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -80,6 +81,24 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<StockProductRow | null>(null);
   const [form, setForm] = useState<ProductForm>(EMPTY_FORM);
+  // Inline price edit on the catalogue row. Only one cell is open at a
+  // time, so the open row's id and its draft are all the state needed.
+  const [priceEditId, setPriceEditId] = useState<string | null>(null);
+  const [priceDraft, setPriceDraft] = useState('');
+  // Inline on-hand edit. Keyed by stall AND product: one product appears
+  // once per stall that carries it, so the product id alone would open
+  // every stall's row at once.
+  const [stockEditKey, setStockEditKey] = useState<string | null>(null);
+  const [stockDraft, setStockDraft] = useState('');
+  // The product being written off, once its confirm dialog is open.
+  const [zeroOut, setZeroOut] = useState<{ productId: string; name: string } | null>(null);
+  // One filter serves both lists: an event with 200+ products makes an
+  // unfiltered table unusable for inline edits, and switching tab to fix a
+  // price for the row you just found should not lose your search.
+  const [search, setSearch] = useState('');
+  // The product whose detail view is open, by id — resolved against the
+  // live catalogue so the dialog follows an edit instead of freezing a copy.
+  const [detailId, setDetailId] = useState<string | null>(null);
 
   // Which half of the page you're on rides in the URL, same as the ?tab/?sub
   // pair above it — a refresh or a shared link lands back on the same view
@@ -148,13 +167,14 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
   // board.perBar grouped by stall, for the levels panel.
   const levelsByStall = useMemo(() => {
     const m = new Map<string, { name: string; rows: NonNullable<typeof board>['perBar'] }>();
-    (board?.perBar ?? []).forEach((r) => {
+    const q = search.trim().toLowerCase();
+    (board?.perBar ?? []).filter((r) => !q || r.productName.toLowerCase().includes(q)).forEach((r) => {
       const g = m.get(r.merchantId) ?? { name: r.merchantName, rows: [] };
       g.rows.push(r);
       m.set(r.merchantId, g);
     });
     return [...m.entries()];
-  }, [board]);
+  }, [board, search]);
 
   /**
    * Event-wide roll-up for the stock tiles. Summed off byProduct rather than
@@ -171,12 +191,108 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
     };
   }, [board]);
 
+  const visibleProducts = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return q ? products.filter((p) => p.name.toLowerCase().includes(q)) : products;
+  }, [products, search]);
+
+  const detailProduct = useMemo(
+    () => products.find((p) => p._id === detailId) ?? null,
+    [products, detailId],
+  );
+  const detailLevels = useMemo(
+    () => (board?.perBar ?? [])
+      .filter((r) => r.productId === detailId)
+      .map((r) => ({ merchantId: r.merchantId, merchantName: r.merchantName, onHand: r.onHand, unitsSold: r.unitsSold })),
+    [board, detailId],
+  );
+
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['stock-products', eventId] });
     queryClient.invalidateQueries({ queryKey: ['stock-board', eventId] });
   };
+  // The stock board reports every product that has a stock row, switched off
+  // or not, so a product deactivated in the Catalogue keeps its shelf line.
+  // The handheld already hides it (the POS query filters active), but the
+  // units are still physically there — flag them rather than hiding the row,
+  // which would lose sight of stock that still needs writing off.
+  const activeById = useMemo(
+    () => new Map(products.map((p) => [p._id, p.active])),
+    [products],
+  );
+
   const invalidateAllocations = () =>
     queryClient.invalidateQueries({ queryKey: ['event-stock-allocations', eventId] });
+
+  // Price alone, straight from the row. updateProductSchema is .min(1), so a
+  // one-field PATCH is valid and leaves every other field untouched.
+  const savePrice = useMutation({
+    mutationFn: ({ id, price }: { id: string; price: number }) =>
+      apiClient.stock.updateProduct(id, { price }),
+    onSuccess: () => { invalidate(); setPriceEditId(null); toast.success('Price updated'); },
+    onError: (e: Error) => toast.error(e.message || 'Failed to update price'),
+  });
+
+  const commitPrice = (id: string) => {
+    const cents = randToCents(priceDraft);
+    if (cents == null) { toast.error('Enter a valid price'); return; }
+    savePrice.mutate({ id, price: cents });
+  };
+
+  // Typing a new total means "this is what is on the shelf", which is a
+  // COUNT, not a receive: StockService has no set-to-N, and a count is the
+  // one operation whose journal leg records the difference as a variance.
+  const saveCount = useMutation({
+    mutationFn: (v: { merchantId: string; productId: string; countedOnHand: number }) =>
+      apiClient.stock.recordCount(eventId, v),
+    onSuccess: (r) => {
+      invalidate();
+      setStockEditKey(null);
+      toast.success(
+        r.variance === 0
+          ? `Counted — still ${r.onHand}`
+          : `Set to ${r.onHand} — variance ${r.variance > 0 ? `+${r.variance}` : r.variance}`,
+      );
+    },
+    onError: (e: Error) => toast.error(e.message || 'Failed to update stock'),
+  });
+
+  const commitCount = (merchantId: string, productId: string) => {
+    const n = Number(stockDraft);
+    if (!Number.isInteger(n) || n < 0) { toast.error('Enter a whole number of units'); return; }
+    saveCount.mutate({ merchantId, productId, countedOnHand: n });
+  };
+
+  // Writing a product off: count it to zero at every stall that carries it,
+  // THEN drop its allocations so it leaves the handhelds. The counts go first
+  // — de-allocating a stall that still shows units would strand them with no
+  // journal leg explaining where they went.
+  const zeroOutM = useMutation({
+    mutationFn: async (productId: string) => {
+      const carrying = (board?.perBar ?? []).filter((r) => r.productId === productId);
+      // Sequential: the first failure stops the run and is reported, rather
+      // than firing every request and guessing which stalls actually zeroed.
+      for (const r of carrying) {
+        await apiClient.stock.recordCount(eventId, {
+          merchantId: r.merchantId, productId, countedOnHand: 0,
+        });
+      }
+      await apiClient.stock.setAllocations(eventId, { productId, merchantIds: [] });
+    },
+    onSuccess: () => {
+      invalidate();
+      invalidateAllocations();
+      setZeroOut(null);
+      toast.success('Zeroed out and removed from every stall');
+    },
+    onError: (e: Error) => {
+      // A partial run may already have zeroed some stalls — refetch rather
+      // than leave the page showing counts that no longer exist.
+      invalidate();
+      invalidateAllocations();
+      toast.error(e.message || 'Failed to zero out');
+    },
+  });
 
   const saveProduct = useMutation({
     mutationFn: async (payload: { create?: NewProduct; update?: UpdateProduct; merchantIds: string[] }) => {
@@ -391,6 +507,14 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
           <TabsTrigger value="stock">Stock</TabsTrigger>
         </TabsList>
 
+        <Input
+          className="max-w-xs"
+          placeholder="Search products…"
+          aria-label="Search products"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+
         <TabsContent value="levels" className="space-y-4">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard icon={<TrendingUp className="h-4 w-4" />} label="Units sold" value={totals.unitsSold.toLocaleString('en-ZA')} hint="rung up on itemised charges" tone="blue" />
@@ -431,12 +555,60 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
                           <TableBody>
                             {g.rows.map((r) => (
                               <TableRow key={r.productId} className="hover:bg-slate-50">
-                                <TableCell className="font-medium">{r.productName}</TableCell>
+                                <TableCell className="font-medium">
+                                  <button
+                                    type="button"
+                                    aria-label={`Details for ${r.productName}`}
+                                    className="rounded px-1 text-left hover:bg-slate-100 hover:underline"
+                                    onClick={() => setDetailId(r.productId)}
+                                  >
+                                    {r.productName}
+                                  </button>
+                                  {activeById.get(r.productId) === false && (
+                                    <span className="ml-2 rounded bg-gray-200 px-1.5 py-0.5 text-[11px] font-medium text-gray-700">
+                                      Inactive
+                                    </span>
+                                  )}
+                                </TableCell>
                                 <TableCell className="text-right tabular-nums">{r.unitsSold}</TableCell>
-                                <TableCell className="text-right tabular-nums font-semibold">{r.onHand}</TableCell>
+                                <TableCell className="text-right tabular-nums font-semibold">
+                                  {stockEditKey === `${merchantId}:${r.productId}` ? (
+                                    <Input
+                                      autoFocus
+                                      inputMode="numeric"
+                                      aria-label={`On hand for ${r.productName} at ${g.name}`}
+                                      className="h-8 w-20 text-right"
+                                      value={stockDraft}
+                                      disabled={saveCount.isPending}
+                                      onChange={(e) => setStockDraft(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') { e.preventDefault(); commitCount(merchantId, r.productId); }
+                                        if (e.key === 'Escape') setStockEditKey(null);
+                                      }}
+                                      onBlur={() => { if (!saveCount.isPending) setStockEditKey(null); }}
+                                    />
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      aria-label={`Edit stock for ${r.productName} at ${g.name}`}
+                                      className="rounded px-1 hover:bg-slate-100"
+                                      onClick={() => {
+                                        setStockEditKey(`${merchantId}:${r.productId}`);
+                                        setStockDraft(String(r.onHand));
+                                      }}
+                                    >
+                                      {r.onHand}
+                                    </button>
+                                  )}
+                                </TableCell>
                                 <TableCell className="text-right tabular-nums font-semibold">{fmtR(r.revenue)}</TableCell>
                                 <TableCell><StatusPill status={r.status} /></TableCell>
                                 <TableCell>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7"
+                                    aria-label={`Zero out ${r.productName}`} title="Zero out and remove from stalls"
+                                    onClick={() => setZeroOut({ productId: r.productId, name: r.productName })}>
+                                    <Ban className="h-3.5 w-3.5" />
+                                  </Button>
                                   <Button variant="ghost" size="icon" className="h-7 w-7" title="Low-stock alert"
                                     onClick={() => { setOpForm({ ...EMPTY_OP, merchantId, productId: r.productId, quantity: r.lowStockThreshold != null ? String(r.lowStockThreshold) : '' }); setOp('threshold'); }}>
                                     <Bell className="h-3.5 w-3.5" />
@@ -491,10 +663,17 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {products.map((p) => (
+                    {visibleProducts.map((p) => (
                       <TableRow key={p._id} className="hover:bg-slate-50">
                         <TableCell className="font-medium">
-                          {p.name}
+                          <button
+                            type="button"
+                            aria-label={`Details for ${p.name}`}
+                            className="rounded px-1 text-left hover:bg-slate-100 hover:underline"
+                            onClick={() => setDetailId(p._id)}
+                          >
+                            {p.name}
+                          </button>
                           {allocationsLoaded && (allocations[p._id]?.length ?? 0) === 0 && (
                             <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">
                               Not on any stall
@@ -502,7 +681,36 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
                           )}
                         </TableCell>
                         <TableCell className="text-muted-foreground">{categoryLabel(p.category)}</TableCell>
-                        <TableCell className="text-right font-semibold">{fmtR(p.price)}</TableCell>
+                        <TableCell className="text-right font-semibold">
+                          {priceEditId === p._id ? (
+                            <Input
+                              autoFocus
+                              inputMode="decimal"
+                              aria-label={`Price for ${p.name}`}
+                              className="h-8 w-24 text-right"
+                              value={priceDraft}
+                              disabled={savePrice.isPending}
+                              onChange={(e) => setPriceDraft(e.target.value)}
+                              // Enter commits, Escape and blur abandon. A stock
+                              // or money field must never be written by a stray
+                              // click landing outside the input.
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') { e.preventDefault(); commitPrice(p._id); }
+                                if (e.key === 'Escape') setPriceEditId(null);
+                              }}
+                              onBlur={() => { if (!savePrice.isPending) setPriceEditId(null); }}
+                            />
+                          ) : (
+                            <button
+                              type="button"
+                              aria-label={`Edit price for ${p.name}`}
+                              className="rounded px-1 hover:bg-slate-100"
+                              onClick={() => { setPriceEditId(p._id); setPriceDraft(centsToRand(p.price)); }}
+                            >
+                              {fmtR(p.price)}
+                            </button>
+                          )}
+                        </TableCell>
                         <TableCell className="text-muted-foreground font-mono text-xs">{p.barcode ?? '—'}</TableCell>
                         <TableCell className="text-muted-foreground">{p.unitsPerPack ? `${p.unitsPerPack} / ${p.packLabel ?? 'pack'}` : '—'}</TableCell>
                         <TableCell>
@@ -531,6 +739,37 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
         products={products} stalls={stalls}
         receiveM={receiveM} transferM={transferM} countM={countM} thresholdM={thresholdM}
       />
+
+      <ProductStockDialog
+        eventId={eventId}
+        product={detailProduct}
+        levels={detailLevels}
+        onClose={() => setDetailId(null)}
+      />
+
+      <Dialog open={!!zeroOut} onOpenChange={(o) => !o && setZeroOut(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Zero out {zeroOut?.name}?</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {(() => {
+              const units = (board?.perBar ?? [])
+                .filter((r) => r.productId === zeroOut?.productId)
+                .reduce((n, r) => n + r.onHand, 0);
+              return `This writes off ${units} unit${units === 1 ? '' : 's'} as a stock count and takes the product off every stall. It stays in the catalogue and the write-off is recorded in the stock history.`;
+            })()}
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setZeroOut(null)}>Cancel</Button>
+            <Button
+              className="bg-red-600 hover:bg-red-700"
+              disabled={zeroOutM.isPending}
+              onClick={() => zeroOut && zeroOutM.mutate(zeroOut.productId)}
+            >
+              {zeroOutM.isPending ? 'Zeroing…' : 'Zero out and remove'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>

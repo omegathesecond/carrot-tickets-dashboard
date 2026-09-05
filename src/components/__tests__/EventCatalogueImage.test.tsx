@@ -183,9 +183,9 @@ describe('EventCataloguePanel product image', () => {
     await renderCataloguePanel();
     const row = (await screen.findByText('Castle Lite 330ml')).closest('tr')!;
 
-    // The row's only button is the pencil/edit icon trigger — no visible
-    // text, so scope to the row rather than guessing at an accessible name.
-    fireEvent.click(within(row).getByRole('button'));
+    // The row now carries several buttons (product detail, inline price edit,
+    // the pencil), so name the pencil rather than taking the row's only one.
+    fireEvent.click(within(row).getByRole('button', { name: /^Edit Castle Lite 330ml$/ }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByRole('img')).toHaveProperty('src', 'https://cdn.example/old.jpg');
 
