@@ -55,6 +55,13 @@ export function BarcodeField({
   const accept = (text: string) => {
     setMessage(null);
     setScanning(false);
+    // BrowserCodeReader.scan runs its decode loop synchronously before
+    // decodeFromVideoDevice's promise resolves, so a barcode already in frame
+    // can call accept() before startScan has assigned controlsRef — stop()
+    // below would be a no-op on null. Advancing the generation here means the
+    // generation check at :93-101 recognizes those controls as superseded
+    // the moment they do arrive, and stops them instead of adopting them.
+    scanGenerationRef.current++;
     controlsRef.current?.stop();
     controlsRef.current = null;
     onChange(text);

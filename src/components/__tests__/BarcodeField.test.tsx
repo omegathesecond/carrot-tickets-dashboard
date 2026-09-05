@@ -131,6 +131,33 @@ describe('BarcodeField', () => {
     await waitFor(() => expect(scannerStop).toHaveBeenCalled());
   });
 
+  it('stops the camera when a barcode is already in frame on the very first tick', async () => {
+    // BrowserCodeReader.scan runs its decode loop synchronously before
+    // decodeFromVideoDevice's promise resolves, so a barcode already in frame
+    // fires the result callback (and therefore accept()) BEFORE
+    // controlsRef.current is assigned at the end of startScan. If accept()
+    // doesn't also advance the generation, the check that follows still
+    // matches and the orphaned controls get adopted — the camera and its
+    // onChange-every-500ms loop run forever, silently overwriting the field.
+    withCamera(true);
+    const controls = { stop: scannerStop };
+    decodeFromVideoDevice.mockImplementation(
+      (_device: unknown, _video: unknown, callback: (r: { getText: () => string } | null) => void) => {
+        // Simulate the real reader: invoke the callback synchronously, before
+        // the promise the caller is awaiting has even resolved.
+        callback({ getText: () => '6001240100015' });
+        return Promise.resolve(controls);
+      },
+    );
+    const onChange = vi.fn();
+    render(<BarcodeField value="" onChange={onChange} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /scan/i }));
+
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith('6001240100015'));
+    await waitFor(() => expect(scannerStop).toHaveBeenCalled());
+  });
+
   it('stops a camera whose permission prompt resolves after Stop was already clicked', async () => {
     // The native permission prompt can stay open indefinitely. If the
     // organizer gives up and clicks Stop before it resolves, and the browser
