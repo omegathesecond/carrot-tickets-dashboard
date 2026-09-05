@@ -100,10 +100,13 @@ export function BarcodeField({
         return;
       }
       controlsRef.current = controls;
-    } catch (err: any) {
+    } catch (err) {
       setScanning(false);
+      const denied =
+        typeof err === 'object' && err !== null && 'name' in err &&
+        (err as { name?: unknown }).name === 'NotAllowedError';
       setMessage(
-        err?.name === 'NotAllowedError'
+        denied
           ? 'Camera blocked. Allow camera access, or use a photo.'
           : 'Could not start the camera. Use a photo, or type the barcode.',
       );
