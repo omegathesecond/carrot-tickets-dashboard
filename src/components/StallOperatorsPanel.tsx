@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { apiClient } from '@/lib/api';
+import { apiClient, type OperatorGrant } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { OperatorCredentialsDialog } from '@/components/OperatorCredentialsDialog';
+import { OperatorGrantsField } from '@/components/OperatorGrantsField';
 
 type Credentials = { title: string; loginCode?: string; pin: string };
 
@@ -21,7 +22,9 @@ type Credentials = { title: string; loginCode?: string; pin: string };
 export function StallOperatorsPanel({ merchantId, stallName }: { merchantId: string; stallName: string }) {
   const qc = useQueryClient();
   const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState({ fullName: '', phoneNumber: '' });
+  const [form, setForm] = useState<{ fullName: string; phoneNumber: string; grants: OperatorGrant[] }>(
+    { fullName: '', phoneNumber: '', grants: [] },
+  );
   const [credentials, setCredentials] = useState<Credentials | null>(null);
 
   const { data, isLoading, isError, error } = useQuery({
@@ -35,10 +38,11 @@ export function StallOperatorsPanel({ merchantId, stallName }: { merchantId: str
     mutationFn: () => apiClient.merchantOperators.create(merchantId, {
       fullName: form.fullName.trim(),
       ...(form.phoneNumber.trim() ? { phoneNumber: form.phoneNumber.trim() } : {}),
+      grants: form.grants,
     }),
     onSuccess: (res) => {
       setAdding(false);
-      setForm({ fullName: '', phoneNumber: '' });
+      setForm({ fullName: '', phoneNumber: '', grants: [] });
       setCredentials({ title: `${res.operator.fullName} — till login`, loginCode: res.loginCode, pin: res.pin });
       invalidate();
     },
@@ -54,6 +58,13 @@ export function StallOperatorsPanel({ merchantId, stallName }: { merchantId: str
   const setActive = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
       apiClient.merchantOperators.update(id, { isActive }),
+    onSuccess: invalidate,
+    onError: (e: Error) => toast.error(e.message || 'Failed to update person'),
+  });
+
+  const setGrants = useMutation({
+    mutationFn: ({ id, grants }: { id: string; grants: OperatorGrant[] }) =>
+      apiClient.merchantOperators.update(id, { grants }),
     onSuccess: invalidate,
     onError: (e: Error) => toast.error(e.message || 'Failed to update person'),
   });
@@ -92,29 +103,38 @@ export function StallOperatorsPanel({ merchantId, stallName }: { merchantId: str
       {!isError && operators.length > 0 && (
         <ul className="divide-y rounded-md border">
           {operators.map((op) => (
-            <li key={op._id} className="flex items-center justify-between gap-4 p-3">
-              <div className="min-w-0">
-                <p className="truncate font-medium">{op.fullName}</p>
-                <p className="text-sm text-muted-foreground">
-                  {op.loginCode}
-                  {!op.isActive && ' · deactivated'}
-                  {op.lastLoginAt && ` · last in ${new Date(op.lastLoginAt).toLocaleString()}`}
-                </p>
+            <li key={op._id} className="flex flex-col gap-3 p-3">
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{op.fullName}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {op.loginCode}
+                    {!op.isActive && ' · deactivated'}
+                    {op.lastLoginAt && ` · last in ${new Date(op.lastLoginAt).toLocaleString()}`}
+                  </p>
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <Button size="sm" variant="outline" disabled={pendingResetId === op._id}
+                    onClick={() => resetPin.mutate(op._id)}>
+                    Reset PIN
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={op.isActive ? 'outline' : 'default'}
+                    disabled={pendingActiveId === op._id}
+                    onClick={() => setActive.mutate({ id: op._id, isActive: !op.isActive })}
+                  >
+                    {op.isActive ? 'Deactivate' : 'Reactivate'}
+                  </Button>
+                </div>
               </div>
-              <div className="flex shrink-0 gap-2">
-                <Button size="sm" variant="outline" disabled={pendingResetId === op._id}
-                  onClick={() => resetPin.mutate(op._id)}>
-                  Reset PIN
-                </Button>
-                <Button
-                  size="sm"
-                  variant={op.isActive ? 'outline' : 'default'}
-                  disabled={pendingActiveId === op._id}
-                  onClick={() => setActive.mutate({ id: op._id, isActive: !op.isActive })}
-                >
-                  {op.isActive ? 'Deactivate' : 'Reactivate'}
-                </Button>
-              </div>
+              <OperatorGrantsField
+                population="merchant"
+                idPrefix={`stall-op-${op._id}`}
+                value={op.grants ?? []}
+                disabled={setGrants.isPending}
+                onChange={(grants) => setGrants.mutate({ id: op._id, grants })}
+              />
             </li>
           ))}
         </ul>
@@ -136,6 +156,15 @@ export function StallOperatorsPanel({ merchantId, stallName }: { merchantId: str
               <Input
                 id="op-phone" className="h-12" value={form.phoneNumber}
                 onChange={(e) => setForm((f) => ({ ...f, phoneNumber: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Extra permissions</Label>
+              <OperatorGrantsField
+                population="merchant"
+                idPrefix="stall-op"
+                value={form.grants}
+                onChange={(grants) => setForm((f) => ({ ...f, grants }))}
               />
             </div>
             <Button
