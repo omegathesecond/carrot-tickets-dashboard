@@ -181,6 +181,28 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
     },
   });
 
+  const allocateAll = useMutation({
+    mutationFn: async () => {
+      const merchantIds = stalls.map((s) => s._id);
+      // Sequential, not Promise.all: the first failure stops the run and is
+      // reported, rather than firing every request and surfacing one rejection
+      // out of many with no idea which products actually landed.
+      for (const p of products) {
+        await apiClient.stock.setAllocations(eventId, { productId: p._id, merchantIds });
+      }
+    },
+    onSuccess: () => {
+      invalidateAllocations();
+      toast.success('Every product is now on every stall');
+    },
+    onError: (e: Error) => {
+      // A partial run may have already allocated some products before the
+      // failure — refetch rather than leave the UI showing stale allocations.
+      invalidateAllocations();
+      toast.error(e.message || 'Failed to allocate to all stalls');
+    },
+  });
+
   // ---- stock operations ----
   const [op, setOp] = useState<null | 'receive' | 'transfer' | 'count' | 'threshold'>(null);
   const [opForm, setOpForm] = useState<OpForm>(EMPTY_OP);
@@ -382,7 +404,16 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
         </TabsContent>
 
         <TabsContent value="catalogue" className="space-y-4">
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            {stalls.length > 0 && (
+              <Button
+                variant="outline"
+                disabled={allocateAll.isPending}
+                onClick={() => allocateAll.mutate()}
+              >
+                {allocateAll.isPending ? 'Allocating…' : 'Allocate to all stalls'}
+              </Button>
+            )}
             <Button onClick={openAdd} className="bg-orange-600 hover:bg-orange-700">
               <Plus className="h-4 w-4 mr-1" /> Add product
             </Button>
@@ -410,7 +441,14 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
                   <TableBody>
                     {products.map((p) => (
                       <TableRow key={p._id} className="hover:bg-slate-50">
-                        <TableCell className="font-medium">{p.name}</TableCell>
+                        <TableCell className="font-medium">
+                          {p.name}
+                          {(allocations[p._id]?.length ?? 0) === 0 && (
+                            <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">
+                              Not on any stall
+                            </span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-muted-foreground">{categoryLabel(p.category)}</TableCell>
                         <TableCell className="text-right font-semibold">{fmtR(p.price)}</TableCell>
                         <TableCell className="text-muted-foreground font-mono text-xs">{p.barcode ?? '—'}</TableCell>

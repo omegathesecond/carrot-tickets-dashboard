@@ -156,3 +156,59 @@ describe('stall allocation on the product dialog', () => {
     expect(setAllocations).not.toHaveBeenCalled();
   });
 });
+
+describe('unallocated products', () => {
+  it('flags a product that no stall carries', async () => {
+    getAllocations.mockResolvedValue({ allocations: { 'p-beer': [] } });
+    renderPanel();
+
+    expect(await screen.findByText(/not on any stall/i)).toBeTruthy();
+  });
+
+  it('does not flag a product that a stall carries', async () => {
+    getAllocations.mockResolvedValue({ allocations: { 'p-beer': ['m-bar'] } });
+    renderPanel();
+
+    await screen.findByText('Castle Lite 330ml');
+    expect(screen.queryByText(/not on any stall/i)).toBeNull();
+  });
+
+  it('allocates every product to every stall in one action', async () => {
+    listProducts.mockResolvedValue([BEER, { ...BEER, _id: 'p-chicken', name: 'Quarter Chicken' }]);
+    getAllocations.mockResolvedValue({ allocations: { 'p-beer': [], 'p-chicken': [] } });
+    renderPanel();
+
+    fireEvent.click(await screen.findByRole('button', { name: /allocate to all stalls/i }));
+
+    await waitFor(() => expect(setAllocations).toHaveBeenCalledTimes(2));
+    expect(setAllocations).toHaveBeenCalledWith('e1', { productId: 'p-beer', merchantIds: ['m-bar', 'm-shi'] });
+    expect(setAllocations).toHaveBeenCalledWith('e1', { productId: 'p-chicken', merchantIds: ['m-bar', 'm-shi'] });
+  });
+
+  it('reports a partial failure rather than claiming every product was allocated', async () => {
+    listProducts.mockResolvedValue([BEER, { ...BEER, _id: 'p-chicken', name: 'Quarter Chicken' }]);
+    getAllocations.mockResolvedValue({ allocations: { 'p-beer': [], 'p-chicken': [] } });
+    setAllocations
+      .mockResolvedValueOnce({ allocated: ['m-bar', 'm-shi'] })
+      .mockRejectedValueOnce(new Error('Cannot remove a stall that still holds stock: Bar (12)'));
+    renderPanel();
+
+    fireEvent.click(await screen.findByRole('button', { name: /allocate to all stalls/i }));
+
+    // As in "surfaces an allocation failure instead of reporting a clean
+    // save" above: sonner is mocked and no <Toaster/> is mounted in this
+    // tree, so toast.error's message never reaches the DOM — assert the
+    // mock call instead of hunting for rendered toast text.
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(expect.stringMatching(/still holds stock/i)),
+    );
+  });
+
+  it('offers no bulk action when the event has no stalls', async () => {
+    listMerchants.mockResolvedValue([]);
+    renderPanel();
+
+    await screen.findByText('Castle Lite 330ml');
+    expect(screen.queryByRole('button', { name: /allocate to all stalls/i })).toBeNull();
+  });
+});
