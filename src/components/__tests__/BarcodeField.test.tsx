@@ -105,6 +105,21 @@ describe('BarcodeField', () => {
     expect(await screen.findByText(/camera/i)).toBeTruthy();
   });
 
+  it('hands the real mounted <video> element to decodeFromVideoDevice, not a null ref', async () => {
+    // A mock satisfies "decodeFromVideoDevice was called" no matter what its
+    // second argument is. The real @zxing/browser builds its OWN detached
+    // <video> when handed null, so the organizer's on-screen element never
+    // gets the camera stream. Only an instanceof check on the real DOM type
+    // catches that — a mock-shaped assertion would pass either way.
+    withCamera(true);
+    render(<BarcodeField value="" onChange={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /scan/i }));
+    await waitFor(() => expect(decodeFromVideoDevice).toHaveBeenCalled());
+
+    expect(decodeFromVideoDevice.mock.calls[0][1]).toBeInstanceOf(HTMLVideoElement);
+  });
+
   it('stops the camera stream when Stop is clicked', async () => {
     withCamera(true);
     render(<BarcodeField value="" onChange={vi.fn()} />);

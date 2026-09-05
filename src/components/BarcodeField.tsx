@@ -147,9 +147,16 @@ export function BarcodeField({
         />
       </div>
 
-      {scanning && (
-        <video ref={videoRef} className="w-full rounded-md border" muted playsInline />
-      )}
+      {/* Always mounted, hidden while idle: startScan reads videoRef.current
+          synchronously right after setScanning(true), and React batches that
+          state update — a `{scanning && <video>}` guard means the element
+          hasn't mounted yet and the ref is still null on that read. */}
+      <video
+        ref={videoRef}
+        className={scanning ? 'w-full rounded-md border' : 'hidden'}
+        muted
+        playsInline
+      />
 
       {message && <p className="text-xs text-red-600">{message}</p>}
     </div>
