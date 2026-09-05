@@ -50,7 +50,12 @@ const EMPTY_ITEM_FORM: ItemForm = {
 const sectionLabel = (v: MenuSection) => MENU_SECTIONS.find((s) => s.value === v)?.label ?? v;
 const productCategoryLabel = (v: string) => PRODUCT_CATEGORIES.find((c) => c.value === v)?.label ?? v;
 
-/** Sentinel for the "create one" row. A real category is never this. */
+/**
+ * Sentinel for the picker's "create one" row. Only the picker's own
+ * onValueChange is guarded against it (an option can't collide with a value
+ * the user picked) — the free-text input it reveals is not, so `submit()`
+ * separately rejects a typed category that equals this sentinel.
+ */
 const NEW_CATEGORY = '__new__';
 
 /**
@@ -244,6 +249,14 @@ export function EventMenuTab({ eventId }: { eventId: string }) {
     const cents = randToCents(form.priceRand);
     if (!form.name.trim()) { toast.error('Name is required'); return; }
     if (!form.category.trim()) { toast.error('Category is required'); return; }
+    // The sentinel only guards the picker's own "+ New category…" row — the
+    // free-text input reachable from it has no such check, so an organizer
+    // could otherwise type the sentinel itself and make that category
+    // permanently unselectable (it would collide with the picker's own row).
+    if (form.category.trim() === NEW_CATEGORY) {
+      toast.error('That category name is reserved — please choose another');
+      return;
+    }
     if (cents == null) { toast.error('Enter a valid price'); return; }
     const vendorName = form.vendorName.trim();
     const description = form.description.trim();
@@ -430,7 +443,7 @@ export function EventMenuTab({ eventId }: { eventId: string }) {
                             onValueChange={(v) => fulfillmentM.mutate({ orderId: order._id, status: v as MenuOrderFulfillmentStatus })}
                             disabled={order.paymentStatus !== 'completed'}
                           >
-                            <SelectTrigger className="h-8 w-36"><SelectValue /></SelectTrigger>
+                            <SelectTrigger className="h-8 w-36" aria-label="Status"><SelectValue /></SelectTrigger>
                             <SelectContent>
                               {Object.entries(MENU_ORDER_FULFILLMENT_LABELS).map(([value, label]) => (
                                 <SelectItem key={value} value={value}>{label}</SelectItem>
@@ -455,7 +468,14 @@ export function EventMenuTab({ eventId }: { eventId: string }) {
             <div className="space-y-1">
               <Label>Menu</Label>
               <Select value={form.section} onValueChange={(v) => setForm({ ...form, section: v as MenuSection })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                {/* Every SelectTrigger in this file gets an aria-label matching
+                    its visible <Label> (or column header, for the order-status
+                    one below): role="combobox" doesn't take its accessible
+                    name from visible content the way a plain <button> would,
+                    and none of these sibling <Label>s are programmatically
+                    associated (no htmlFor/id) — so without it, the control has
+                    no accessible name at all. */}
+                <SelectTrigger aria-label="Menu"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {MENU_SECTIONS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
                 </SelectContent>
@@ -498,9 +518,6 @@ export function EventMenuTab({ eventId }: { eventId: string }) {
                     setForm({ ...form, category: v });
                   }}
                 >
-                  {/* role="combobox" doesn't take its accessible name from
-                      visible content, and the sibling <Label> above isn't
-                      programmatically associated — needs an explicit label. */}
                   <SelectTrigger aria-label="Category"><SelectValue placeholder="Pick a category" /></SelectTrigger>
                   <SelectContent>
                     {categoryOptions.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -573,7 +590,7 @@ export function EventMenuTab({ eventId }: { eventId: string }) {
               <div className="space-y-1">
                 <Label>Add to</Label>
                 <Select value={importSection} onValueChange={(v) => setImportSection(v as MenuSection)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger aria-label="Add to"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {MENU_SECTIONS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
                   </SelectContent>

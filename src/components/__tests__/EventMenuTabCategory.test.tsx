@@ -3,8 +3,14 @@ import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, cleanup, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
+import { toast } from 'sonner';
 import { EventMenuTab } from '@/components/EventMenuTab';
 import type { MenuItemRow, MenuSection } from '@/lib/api';
+
+// Same mock shape as EventRegisterPanel.test.tsx — lets the sentinel-collision
+// test assert the rejection is visible (toast.error), not just that the save
+// was skipped.
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
 
 // Radix Select needs two things jsdom doesn't ship: ResizeObserver (its popper
 // positioning measures the trigger/content) and scrollIntoView (called on the
@@ -168,5 +174,25 @@ describe('EventMenuTab category picker', () => {
     await waitFor(() =>
       expect(createItem).toHaveBeenCalledWith(expect.objectContaining({ category: 'Starters' })),
     );
+  });
+
+  // The picker's "+ New category…" row is a sentinel value (NEW_CATEGORY),
+  // guarded only inside the picker's own onValueChange. The free-text input
+  // it reveals has no such guard, so an organizer typing the sentinel itself
+  // must be refused rather than silently saved — otherwise that category
+  // would collide with the picker's own row and become unselectable.
+  it('refuses to save the sentinel value if typed as a new category', async () => {
+    await renderMenuTabWithItems([{ category: 'Starters', section: 'vendor', name: 'Wings' }]);
+    await openAddItemDialog();
+
+    fireEvent.click(await screen.findByRole('combobox', { name: /category/i }));
+    fireEvent.click(await screen.findByRole('option', { name: /new category/i }));
+
+    const input = await screen.findByPlaceholderText(/cold drinks/i);
+    fireEvent.change(input, { target: { value: '__new__' } });
+    await fillRequiredFieldsAndSubmit();
+
+    expect(createItem).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith(expect.stringMatching(/reserved/i));
   });
 });
