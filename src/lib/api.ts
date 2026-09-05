@@ -1374,6 +1374,22 @@ export class ApiClient {
         body: JSON.stringify(data),
       }),
 
+    /** productId → the stalls that carry it. Every product at the event is a
+     *  key; a product no stall carries maps to an empty array. */
+    getAllocations: async (eventId: string): Promise<{ allocations: Record<string, string[]> }> =>
+      this.request<{ allocations: Record<string, string[]> }>(
+        `/tickets/events/${eventId}/stock/allocations`,
+      ),
+
+    setAllocations: async (
+      eventId: string,
+      data: { productId: string; merchantIds: string[] },
+    ): Promise<{ allocated: string[] }> =>
+      this.request<{ allocated: string[] }>(`/tickets/events/${eventId}/stock/allocations`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+
     transfer: async (
       eventId: string,
       data: { productId: string; fromMerchantId: string; toMerchantId: string; qty: number; note?: string },

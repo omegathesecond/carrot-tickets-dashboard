@@ -15,6 +15,7 @@ import { fmtR, randToCents, centsToRand } from '@/lib/money';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { BarcodeField } from '@/components/BarcodeField';
 import { ImageUploadField } from '@/components/ImageUploadField';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -43,10 +44,12 @@ type ProductForm = {
   packLabel: string;
   imageUrl: string;
   active: boolean;
+  merchantIds: string[];
 };
 const EMPTY_FORM: ProductForm = {
   name: '', category: 'beer', priceRand: '', barcode: '',
   unitLabel: 'unit', unitsPerPack: '', packLabel: '', imageUrl: '', active: true,
+  merchantIds: [],
 };
 
 type OpForm = {
@@ -102,6 +105,12 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
     enabled: !!eventId,
   });
 
+  const { data: allocationData } = useQuery({
+    queryKey: ['event-stock-allocations', eventId],
+    queryFn: () => apiClient.stock.getAllocations(eventId),
+  });
+  const allocations = allocationData?.allocations ?? {};
+
   const { data: board } = useQuery({
     queryKey: ['stock-board', eventId],
     queryFn: () => apiClient.events.getEventStockBoard(eventId),
@@ -138,18 +147,38 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
     queryClient.invalidateQueries({ queryKey: ['stock-products', eventId] });
     queryClient.invalidateQueries({ queryKey: ['stock-board', eventId] });
   };
+  const invalidateAllocations = () =>
+    queryClient.invalidateQueries({ queryKey: ['event-stock-allocations', eventId] });
 
   const saveProduct = useMutation({
-    mutationFn: (payload: { create?: NewProduct; update?: UpdateProduct }) =>
-      payload.update
-        ? apiClient.stock.updateProduct(editing!._id, payload.update)
-        : apiClient.stock.createProduct(eventId, payload.create!),
+    mutationFn: async (payload: { create?: NewProduct; update?: UpdateProduct; merchantIds: string[] }) => {
+      const saved = editing
+        ? await apiClient.stock.updateProduct(editing._id, payload.update!)
+        : await apiClient.stock.createProduct(eventId, payload.create!);
+      // A product must exist before it can be allocated, so this follows the
+      // save rather than running alongside it. A failure here propagates — a
+      // half-applied save must never report success.
+      if (stalls.length) {
+        await apiClient.stock.setAllocations(eventId, {
+          productId: saved._id,
+          merchantIds: payload.merchantIds,
+        });
+      }
+      return saved;
+    },
     onSuccess: () => {
       invalidate();
+      invalidateAllocations();
       toast.success(editing ? 'Product updated' : 'Product added');
       setDialogOpen(false);
     },
-    onError: (e: Error) => toast.error(e.message || 'Failed to save product'),
+    onError: (e: Error) => {
+      // A 409 here (stock arrived at a stall mid-save) can land after part of
+      // the write already applied — new allocations written, non-racing
+      // delists applied — so refetch rather than assume nothing changed.
+      invalidateAllocations();
+      toast.error(e.message || 'Failed to save product');
+    },
   });
 
   // ---- stock operations ----
@@ -215,6 +244,7 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
       packLabel: p.packLabel ?? '',
       imageUrl: p.imageUrl ?? '',
       active: p.active,
+      merchantIds: allocations[p._id] ?? [],
     });
     setDialogOpen(true);
   };
@@ -247,6 +277,7 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
           imageUrl: imageUrl ? imageUrl : null,
           active: form.active,
         },
+        merchantIds: form.merchantIds,
       });
     } else {
       // Create: the schema rejects null (imageUrl is Joi.string().uri(), and
@@ -262,6 +293,7 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
           ...(packLabel ? { packLabel } : {}),
           ...(imageUrl ? { imageUrl } : {}),
         },
+        merchantIds: form.merchantIds,
       });
     }
   };
@@ -389,7 +421,7 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
                             : <Badge variant="secondary" className="bg-gray-100 text-gray-700">Inactive</Badge>}
                         </TableCell>
                         <TableCell>
-                          <Button variant="ghost" size="icon" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" aria-label={`Edit ${p.name}`} onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -432,6 +464,35 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
                 <Label>Price (R per unit)</Label>
                 <Input inputMode="decimal" value={form.priceRand} onChange={(e) => setForm({ ...form, priceRand: e.target.value })} placeholder="25.00" />
               </div>
+            </div>
+            <div className="space-y-1">
+              <Label>Sold at</Label>
+              {stalls.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Create a stall first on the Stalls tab — a product with no stall
+                  does not appear on any handheld.
+                </p>
+              ) : (
+                <div className="space-y-2 rounded-lg border p-3">
+                  {stalls.map((s) => (
+                    <div key={s._id} className="flex items-center gap-2">
+                      <Checkbox
+                        id={`stall-${s._id}`}
+                        checked={form.merchantIds.includes(s._id)}
+                        onCheckedChange={(on) =>
+                          setForm((f) => ({
+                            ...f,
+                            merchantIds: on
+                              ? [...new Set([...f.merchantIds, s._id])]
+                              : f.merchantIds.filter((id) => id !== s._id),
+                          }))
+                        }
+                      />
+                      <Label htmlFor={`stall-${s._id}`} className="font-normal">{s.name}</Label>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="space-y-1">
               <Label>Barcode <span className="text-muted-foreground text-xs">(optional, EAN/UPC)</span></Label>
