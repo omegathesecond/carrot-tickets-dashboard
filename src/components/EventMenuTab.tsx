@@ -50,6 +50,9 @@ const EMPTY_ITEM_FORM: ItemForm = {
 const sectionLabel = (v: MenuSection) => MENU_SECTIONS.find((s) => s.value === v)?.label ?? v;
 const productCategoryLabel = (v: string) => PRODUCT_CATEGORIES.find((c) => c.value === v)?.label ?? v;
 
+/** Sentinel for the "create one" row. A real category is never this. */
+const NEW_CATEGORY = '__new__';
+
 /**
  * Event Menu management (bar + vendor preorder catalogue) — the organiser
  * side of the public event page's "Menu" tab. Items are event-scoped (a
@@ -62,6 +65,8 @@ export function EventMenuTab({ eventId }: { eventId: string }) {
   const [editing, setEditing] = useState<MenuItemRow | null>(null);
   const [form, setForm] = useState<ItemForm>(EMPTY_ITEM_FORM);
   const [deleting, setDeleting] = useState<MenuItemRow | null>(null);
+  // True while the organizer is naming a category that does not exist yet.
+  const [newCategory, setNewCategory] = useState(false);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const view = searchParams.get('menuView') === 'orders' ? 'orders' : 'items';
@@ -214,7 +219,7 @@ export function EventMenuTab({ eventId }: { eventId: string }) {
     onError: (e: Error) => toast.error(e.message || 'Failed to add items from the catalogue'),
   });
 
-  const openAdd = () => { setEditing(null); setForm(EMPTY_ITEM_FORM); setDialogOpen(true); };
+  const openAdd = () => { setEditing(null); setForm(EMPTY_ITEM_FORM); setNewCategory(false); setDialogOpen(true); };
   const openEdit = (item: MenuItemRow) => {
     setEditing(item);
     setForm({
@@ -227,6 +232,11 @@ export function EventMenuTab({ eventId }: { eventId: string }) {
       imageUrl: item.imageUrl ?? '',
       active: item.active,
     });
+    // The category options are derived from the items on this menu, so the
+    // item's own category will normally be among them — but a race or a
+    // just-deleted last item in that category could leave it absent. Start
+    // in create mode so the existing value is shown, not silently dropped.
+    setNewCategory(!categoryOptions.includes(item.category));
     setDialogOpen(true);
   };
 
@@ -464,12 +474,40 @@ export function EventMenuTab({ eventId }: { eventId: string }) {
             )}
             <div className="space-y-1">
               <Label>Category</Label>
-              <Input
-                list="menu-category-options"
-                value={form.category}
-                onChange={(e) => setForm({ ...form, category: e.target.value })}
-                placeholder="Cold Drinks"
-              />
+              {newCategory ? (
+                <div className="flex gap-2">
+                  <Input
+                    autoFocus
+                    value={form.category}
+                    onChange={(e) => setForm({ ...form, category: e.target.value })}
+                    placeholder="Cold Drinks"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => { setNewCategory(false); setForm({ ...form, category: '' }); }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              ) : (
+                <Select
+                  value={form.category}
+                  onValueChange={(v) => {
+                    if (v === NEW_CATEGORY) { setNewCategory(true); setForm({ ...form, category: '' }); return; }
+                    setForm({ ...form, category: v });
+                  }}
+                >
+                  {/* role="combobox" doesn't take its accessible name from
+                      visible content, and the sibling <Label> above isn't
+                      programmatically associated — needs an explicit label. */}
+                  <SelectTrigger aria-label="Category"><SelectValue placeholder="Pick a category" /></SelectTrigger>
+                  <SelectContent>
+                    {categoryOptions.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    <SelectItem value={NEW_CATEGORY}>+ New category…</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
             </div>
             <div className="space-y-1">
               <Label>Name</Label>
@@ -506,13 +544,12 @@ export function EventMenuTab({ eventId }: { eventId: string }) {
         </DialogContent>
       </Dialog>
 
-      {/* Shared suggestion lists — plain <input list> so the field stays
-          type-anything but shows what's already in use, no combobox needed. */}
+      {/* Vendor name suggestions — plain <input list> so the field stays
+          type-anything but shows what's already in use, no combobox needed.
+          Category has its own picker (a Select above) instead: unlike vendor
+          names, a datalist there was invisible and easy to typo-duplicate. */}
       <datalist id="menu-vendor-options">
         {vendorOptions.map((v) => <option key={v} value={v} />)}
-      </datalist>
-      <datalist id="menu-category-options">
-        {categoryOptions.map((c) => <option key={c} value={c} />)}
       </datalist>
 
       <ConfirmDialog
