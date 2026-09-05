@@ -22,6 +22,8 @@ const updateProduct = vi.fn();
 const listMerchants = vi.fn();
 const getEventStockBoard = vi.fn();
 const uploadProductImage = vi.fn();
+const getAllocations = vi.fn();
+const setAllocations = vi.fn();
 
 vi.mock('@/lib/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/api')>();
@@ -32,6 +34,8 @@ vi.mock('@/lib/api', async (importOriginal) => {
         listProducts: (...a: unknown[]) => listProducts(...a),
         createProduct: (...a: unknown[]) => createProduct(...a),
         updateProduct: (...a: unknown[]) => updateProduct(...a),
+        getAllocations: (...a: unknown[]) => getAllocations(...a),
+        setAllocations: (...a: unknown[]) => setAllocations(...a),
       },
       merchants: { list: (...a: unknown[]) => listMerchants(...a) },
       events: {
@@ -58,13 +62,23 @@ const EXISTING_PRODUCT = {
   active: true,
 };
 
+// A real event has stalls, and the create/edit save path allocates to
+// whichever were ticked — image upload doesn't touch that, but before this
+// fix `listMerchants` resolved to `[]`, which took every test below down the
+// no-stalls branch and never exercised `setAllocations` at all. That made
+// this file's coverage of image-upload-on-save run a path no real event
+// takes.
+const STALL = { _id: 'm-bar', name: 'Bar' };
+
 beforeEach(() => {
   global.URL.createObjectURL = vi.fn(() => 'blob:barcode-photo');
   global.URL.revokeObjectURL = vi.fn();
   listProducts.mockResolvedValue([]);
   createProduct.mockResolvedValue({ _id: 'new-product' });
   updateProduct.mockResolvedValue({});
-  listMerchants.mockResolvedValue([]);
+  listMerchants.mockResolvedValue([STALL]);
+  getAllocations.mockResolvedValue({ allocations: {} });
+  setAllocations.mockResolvedValue({ allocated: [] });
   getEventStockBoard.mockResolvedValue({
     event: { id: 'e1', name: 'Cashless Tap Test' },
     perBar: [],
