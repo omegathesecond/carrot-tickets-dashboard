@@ -93,6 +93,37 @@ describe('StallOperatorsPanel grants', () => {
     );
   });
 
+  it('does not disable other operators while one operator\'s grant save is in flight', async () => {
+    // Guards against a global `setGrants.isPending` flag disabling the
+    // switch on every row instead of just the one being saved — this panel
+    // manages several people per stall, so one person's save must not freeze
+    // everyone else's switch.
+    list.mockResolvedValue({
+      operators: [
+        { _id: 'op1', fullName: 'Nomsa Shongwe', merchantId: 'm1', eventId: 'e1',
+          loginCode: '123456', isActive: true, grants: [], createdAt: '2026-09-05T00:00:00.000Z' },
+        { _id: 'op2', fullName: 'Thabo Dlamini', merchantId: 'm1', eventId: 'e1',
+          loginCode: '654321', isActive: true, grants: [], createdAt: '2026-09-05T00:00:00.000Z' },
+      ],
+    });
+    let resolveUpdate: (value: { operator: { _id: string; grants: string[] } }) => void = () => {};
+    update.mockImplementation(() => new Promise((resolve) => { resolveUpdate = resolve; }));
+
+    renderPanel();
+    await screen.findByText('Nomsa Shongwe');
+    await screen.findByText('Thabo Dlamini');
+
+    const switches = screen.getAllByRole('switch', { name: /stock/i });
+    expect(switches).toHaveLength(2);
+
+    fireEvent.click(switches[0]);
+    await waitFor(() => expect(switches[0]).toHaveProperty('disabled', true));
+    expect(switches[1]).toHaveProperty('disabled', false);
+
+    resolveUpdate({ operator: { _id: 'op1', grants: ['manage_stock'] } });
+    await waitFor(() => expect(switches[0]).toHaveProperty('disabled', false));
+  });
+
   it('does not send grants when toggling active status', async () => {
     // Guards the API's `if ('grants' in req.body)` contract from the client
     // side: this panel has no rename action for an existing operator, so the

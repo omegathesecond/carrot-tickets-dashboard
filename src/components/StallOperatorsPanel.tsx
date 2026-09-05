@@ -75,6 +75,7 @@ export function StallOperatorsPanel({ merchantId, stallName }: { merchantId: str
   // pendingActiveId in this same commit).
   const pendingResetId = resetPin.isPending ? resetPin.variables : undefined;
   const pendingActiveId = setActive.isPending ? setActive.variables?.id : undefined;
+  const pendingGrantsId = setGrants.isPending ? setGrants.variables?.id : undefined;
 
   return (
     <div className="space-y-4">
@@ -132,7 +133,7 @@ export function StallOperatorsPanel({ merchantId, stallName }: { merchantId: str
                 population="merchant"
                 idPrefix={`stall-op-${op._id}`}
                 value={op.grants ?? []}
-                disabled={setGrants.isPending}
+                disabled={pendingGrantsId === op._id}
                 onChange={(grants) => setGrants.mutate({ id: op._id, grants })}
               />
             </li>
