@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, cleanup, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, waitFor, within, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -138,6 +138,12 @@ describe('stall allocation on the product dialog', () => {
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith(expect.stringMatching(/still holds stock/i)),
     );
+    // M4: the test's own name claims a "clean save" was NOT reported — the
+    // assertion above only checked that an error toast fired, which says
+    // nothing about whether a success toast ALSO fired or the dialog closed
+    // out from under the organizer as if nothing were wrong.
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog')).toBeTruthy();
   });
 
   it('points at the Stalls tab when the event has none, and still saves the product', async () => {
@@ -186,8 +192,18 @@ describe('unallocated products', () => {
   });
 
   it('reports a partial failure rather than claiming every product was allocated', async () => {
-    listProducts.mockResolvedValue([BEER, { ...BEER, _id: 'p-chicken', name: 'Quarter Chicken' }]);
-    getAllocations.mockResolvedValue({ allocations: { 'p-beer': [], 'p-chicken': [] } });
+    // Three products, rejecting the second: with only two products (the
+    // original shape of this test) a Promise.all implementation and the
+    // actual sequential-for design are indistinguishable — both would call
+    // setAllocations twice and both would surface the same rejection. A
+    // third product gives the loop something to skip, so this only passes
+    // under a design that genuinely stops after the failure.
+    listProducts.mockResolvedValue([
+      BEER,
+      { ...BEER, _id: 'p-chicken', name: 'Quarter Chicken' },
+      { ...BEER, _id: 'p-chips', name: 'Boerewors Roll' },
+    ]);
+    getAllocations.mockResolvedValue({ allocations: { 'p-beer': [], 'p-chicken': [], 'p-chips': [] } });
     setAllocations
       .mockResolvedValueOnce({ allocated: ['m-bar', 'm-shi'] })
       .mockRejectedValueOnce(new Error('Cannot remove a stall that still holds stock: Bar (12)'));
@@ -202,6 +218,9 @@ describe('unallocated products', () => {
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith(expect.stringMatching(/still holds stock/i)),
     );
+    // The third product's request must never fire once the second one has
+    // already failed.
+    expect(setAllocations).toHaveBeenCalledTimes(2);
   });
 
   it('offers no bulk action when the event has no stalls', async () => {
@@ -210,5 +229,83 @@ describe('unallocated products', () => {
 
     await screen.findByText('Castle Lite 330ml');
     expect(screen.queryByRole('button', { name: /allocate to all stalls/i })).toBeNull();
+  });
+
+  it('does not flag a product while the allocations fetch is still in flight (M2)', async () => {
+    // The badge is this slice's only safety signal — rendering it on every
+    // product while the query is still loading (before it has any evidence
+    // either way) trains organizers to ignore it.
+    let resolveAllocations!: (v: { allocations: Record<string, string[]> }) => void;
+    getAllocations.mockReturnValue(new Promise((resolve) => { resolveAllocations = resolve; }));
+    renderPanel();
+
+    await screen.findByText('Castle Lite 330ml');
+    expect(screen.queryByText(/not on any stall/i)).toBeNull();
+
+    await act(async () => { resolveAllocations({ allocations: { 'p-beer': [] } }); });
+    expect(await screen.findByText(/not on any stall/i)).toBeTruthy();
+  });
+});
+
+// C1: a MANAGER (MANAGE_STOCK, no MANAGE_ACCESS) sees the Catalogue tab but
+// the stalls list 403s — GET /api/tickets/merchants is gated on
+// MANAGE_ACCESS, which ROLE_PERMISSIONS[MANAGER] omits. `stalls` then
+// collapses to `[]`, which today is indistinguishable from an event that
+// genuinely has no stalls.
+describe('stalls could not be loaded (as distinct from genuinely having none)', () => {
+  it('does not claim the event has no stalls, and does not report a clean save, when the stalls fetch fails', async () => {
+    listMerchants.mockRejectedValue(new Error('Forbidden'));
+    renderPanel();
+    await openAdd();
+
+    // Honest message: the event may already have stalls — a MANAGER who
+    // cannot see the Stalls tab (gated on MANAGE_ACCESS) must not be told to
+    // go create one there over a permissions/network hiccup that isn't a
+    // setup problem at all.
+    expect(await screen.findByText(/stalls could not be loaded/i)).toBeTruthy();
+    expect(screen.queryByText(/create a stall first/i)).toBeNull();
+
+    fireEvent.change(screen.getByPlaceholderText('Castle Lite 330ml'), { target: { value: 'Savanna Dry' } });
+    fireEvent.change(screen.getByPlaceholderText('25.00'), { target: { value: '30.00' } });
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /^add product$/i }));
+
+    await waitFor(() => expect(createProduct).toHaveBeenCalled());
+    // Allocation was skipped because we never learned the stall list — that
+    // must never be reported as a clean, fully-applied save.
+    expect(setAllocations).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith(expect.stringMatching(/stalls could not be loaded/i));
+  });
+});
+
+// C2: `openEdit` seeds `merchantIds` from the allocations query's own
+// snapshot, and `submit` sends it as AUTHORITATIVE desired state to a
+// destructive PUT. Nothing today gates on that query having actually
+// succeeded — so a failed or still-loading allocations fetch turns any
+// unrelated product edit (e.g. a price change) into a request to strip the
+// product off every stall it is actually on.
+describe('allocations could not be loaded (mass-delist guard)', () => {
+  it('never sends merchantIds for an edit when the allocations fetch has failed', async () => {
+    getAllocations.mockRejectedValue(new Error('network error'));
+    renderPanel();
+    fireEvent.click(await screen.findByRole('button', { name: /edit castle lite 330ml/i }));
+
+    // Price-only edit — the stall checkboxes are never touched. openEdit
+    // seeded them from `allocations['p-beer'] ?? []`, and with the fetch
+    // failed that snapshot is `[]` regardless of what the product is
+    // actually on (per this feature, every stall it's newly allocated to
+    // sits at onHand: 0 — exactly what a real API deletes outright).
+    fireEvent.change(screen.getByPlaceholderText('25.00'), { target: { value: '35.00' } });
+    fireEvent.click(screen.getByRole('button', { name: /^save changes$/i }));
+
+    await waitFor(() => expect(updateProduct).toHaveBeenCalled());
+    expect(setAllocations).not.toHaveBeenCalled();
+  });
+
+  it('surfaces the allocations fetch failure as an error, not only through its side effects', async () => {
+    getAllocations.mockRejectedValue(new Error('Could not reach the server'));
+    renderPanel();
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Could not reach the server'));
   });
 });

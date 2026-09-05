@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -99,17 +99,45 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
     enabled: !!eventId,
   });
 
-  const { data: stalls = [] } = useQuery({
+  const {
+    data: stalls = [],
+    // `stalls.length` alone can't tell "this event genuinely has no stalls"
+    // apart from "we haven't heard back yet / the fetch failed" — GET
+    // /tickets/merchants is gated on MANAGE_ACCESS, which a MANAGER (who
+    // still has MANAGE_STOCK and so sees this tab) does not hold, so this
+    // query 403s for them every time. isSuccess is the only honest signal.
+    isSuccess: stallsLoaded,
+    isError: stallsErrored,
+  } = useQuery({
     queryKey: ['merchants', eventId],
     queryFn: () => apiClient.merchants.list(eventId),
     enabled: !!eventId,
   });
 
-  const { data: allocationData } = useQuery({
+  const {
+    data: allocationData,
+    isSuccess: allocationsLoaded,
+    isError: allocationsErrored,
+    error: allocationsError,
+  } = useQuery({
     queryKey: ['event-stock-allocations', eventId],
     queryFn: () => apiClient.stock.getAllocations(eventId),
+    enabled: !!eventId, // matches its three siblings above/below
   });
   const allocations = allocationData?.allocations ?? {};
+
+  // react-query v5 dropped the per-query onError callback, so a failed
+  // allocations fetch previously only showed up through its side effects —
+  // the "Not on any stall" flag never lighting up, an edit unable to change
+  // stall assignments. Surface it directly, the same way a mutation would.
+  useEffect(() => {
+    if (allocationsErrored) {
+      toast.error(
+        (allocationsError as Error)?.message ||
+          'Could not load stall allocations — the "Not on any stall" flag and stall edits are unavailable until this loads.',
+      );
+    }
+  }, [allocationsErrored, allocationsError]);
 
   const { data: board } = useQuery({
     queryKey: ['stock-board', eventId],
@@ -158,18 +186,42 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
       // A product must exist before it can be allocated, so this follows the
       // save rather than running alongside it. A failure here propagates — a
       // half-applied save must never report success.
-      if (stalls.length) {
-        await apiClient.stock.setAllocations(eventId, {
-          productId: saved._id,
-          merchantIds: payload.merchantIds,
-        });
+      //
+      // `stalls.length` alone can't distinguish "this event genuinely has no
+      // stalls" (nothing to allocate to — skip silently) from "we never
+      // learned the stall list, or never learned its current allocations"
+      // (skipping is still correct, but `payload.merchantIds` — seeded from
+      // that same unproven snapshot in openEdit — must NOT be sent to this
+      // destructive PUT as authoritative desired state, and the save must
+      // not be reported as a clean, fully-applied success).
+      let allocationSkipped: 'stalls-unknown' | 'allocations-unknown' | false = false;
+      if (!stallsLoaded) {
+        allocationSkipped = 'stalls-unknown';
+      } else if (stalls.length) {
+        if (allocationsLoaded) {
+          await apiClient.stock.setAllocations(eventId, {
+            productId: saved._id,
+            merchantIds: payload.merchantIds,
+          });
+        } else {
+          allocationSkipped = 'allocations-unknown';
+        }
       }
-      return saved;
+      return { saved, allocationSkipped };
     },
-    onSuccess: () => {
+    onSuccess: ({ allocationSkipped }) => {
       invalidate();
       invalidateAllocations();
-      toast.success(editing ? 'Product updated' : 'Product added');
+      if (allocationSkipped) {
+        const verb = editing ? 'Product updated' : 'Product added';
+        toast.error(
+          allocationSkipped === 'stalls-unknown'
+            ? `${verb}, but stalls could not be loaded — it has not been allocated to any stall. Reopen and save again once stalls load.`
+            : `${verb}, but current stall allocations could not be confirmed — none were changed. Reopen and save again once they load.`,
+        );
+      } else {
+        toast.success(editing ? 'Product updated' : 'Product added');
+      }
       setDialogOpen(false);
     },
     onError: (e: Error) => {
@@ -443,7 +495,7 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
                       <TableRow key={p._id} className="hover:bg-slate-50">
                         <TableCell className="font-medium">
                           {p.name}
-                          {(allocations[p._id]?.length ?? 0) === 0 && (
+                          {allocationsLoaded && (allocations[p._id]?.length ?? 0) === 0 && (
                             <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">
                               Not on any stall
                             </span>
@@ -505,7 +557,13 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
             </div>
             <div className="space-y-1">
               <Label>Sold at</Label>
-              {stalls.length === 0 ? (
+              {!stallsLoaded ? (
+                <p className={stallsErrored ? 'text-xs text-red-600' : 'text-xs text-muted-foreground'}>
+                  {stallsErrored
+                    ? 'Stalls could not be loaded — this event may already have stalls, so this is not necessarily a setup problem. This product will not be assigned to a stall until it is saved again once stalls load.'
+                    : 'Loading stalls…'}
+                </p>
+              ) : stalls.length === 0 ? (
                 <p className="text-xs text-muted-foreground">
                   Create a stall first on the Stalls tab — a product with no stall
                   does not appear on any handheld.
