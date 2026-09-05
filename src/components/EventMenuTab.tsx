@@ -32,6 +32,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { ImageUploadField } from '@/components/ImageUploadField';
 
 type ItemForm = {
   section: MenuSection;
@@ -539,11 +540,12 @@ export function EventMenuTab({ eventId }: { eventId: string }) {
               <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} />
             </div>
             <div className="space-y-1">
-              <Label>Image URL <span className="text-muted-foreground text-xs">(optional)</span></Label>
-              <Input value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} placeholder="https://…" />
-              {form.imageUrl && (
-                <img src={form.imageUrl} alt="" className="mt-1 h-16 w-16 rounded-md object-cover" />
-              )}
+              <Label>Image <span className="text-muted-foreground text-xs">(optional)</span></Label>
+              <ImageUploadField
+                value={form.imageUrl}
+                onChange={(imageUrl) => setForm({ ...form, imageUrl })}
+                onUpload={(file) => apiClient.events.uploadMenuItemImage(eventId, file)}
+              />
             </div>
             {editing && (
               <div className="flex items-center justify-between pt-1">

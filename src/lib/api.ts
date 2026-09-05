@@ -549,6 +549,29 @@ export class ApiClient {
       return data.data;
     },
 
+    uploadMenuItemImage: async (eventId: string, file: File): Promise<string> => {
+      const formData = new FormData();
+      formData.append('image', file);
+
+      const token = this.getToken();
+      const uploadHeaders: Record<string, string> = {};
+      if (token) uploadHeaders['Authorization'] = `Bearer ${token}`;
+      if (APP_API_KEY) uploadHeaders['x-api-key'] = APP_API_KEY;
+      const response = await fetch(`${this.baseUrl}/media/events/${eventId}/menu-item`, {
+        method: 'POST',
+        headers: uploadHeaders,
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: 'Upload failed' }));
+        throw new Error(error.message || 'Failed to upload image');
+      }
+
+      const data = await response.json();
+      return data.data.media.url;
+    },
+
     uploadThumbnail: async (eventId: string, file: File): Promise<Event> => {
       const formData = new FormData();
       formData.append('thumbnail', file);
