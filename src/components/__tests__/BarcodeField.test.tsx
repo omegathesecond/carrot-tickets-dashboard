@@ -7,13 +7,21 @@ import { BarcodeField } from '@/components/BarcodeField';
 // `decodeFromVideoDevice` resolves to an `IScannerControls` object whose
 // `stop()` ends the scan loop. The mock below matches that shape rather than
 // the older reader.reset() API.
-const decodeFromImageElement = vi.fn();
+//
+// It mocks decodeFromImageUrl, not decodeFromImageElement — the real
+// decodeFromImageElement treats a string argument as a DOM element id
+// (document.getElementById) rather than a URL, so a component that passed
+// our blob: URL to it would throw on every real photo while this mock,
+// stubbing the wrong method, would just report "not called". Mocking the
+// URL-accepting method means a regression back to the element-accepting one
+// fails here instead of only in a real browser.
+const decodeFromImageUrl = vi.fn();
 const decodeFromVideoDevice = vi.fn();
 const scannerStop = vi.fn();
 
 vi.mock('@zxing/browser', () => ({
   BrowserMultiFormatReader: class {
-    decodeFromImageElement = decodeFromImageElement;
+    decodeFromImageUrl = decodeFromImageUrl;
     decodeFromVideoDevice = decodeFromVideoDevice;
   },
 }));
@@ -57,7 +65,7 @@ describe('BarcodeField', () => {
 
   it('fills the field from a decoded photo', async () => {
     withCamera(false);
-    decodeFromImageElement.mockResolvedValue({ getText: () => '6001240100015' });
+    decodeFromImageUrl.mockResolvedValue({ getText: () => '6001240100015' });
     const onChange = vi.fn();
     render(<BarcodeField value="" onChange={onChange} />);
 
@@ -65,11 +73,14 @@ describe('BarcodeField', () => {
     fireEvent.change(screen.getByTestId('barcode-photo-input'), { target: { files: [file] } });
 
     await waitFor(() => expect(onChange).toHaveBeenCalledWith('6001240100015'));
+    // Must be the URL-accepting call, not the element-id one — passing this
+    // same blob: string to decodeFromImageElement would throw in production.
+    expect(decodeFromImageUrl).toHaveBeenCalledWith('blob:barcode-photo');
   });
 
   it('says so when a photo has no readable barcode, and keeps what was typed', async () => {
     withCamera(false);
-    decodeFromImageElement.mockRejectedValue(new Error('NotFoundException'));
+    decodeFromImageUrl.mockRejectedValue(new Error('NotFoundException'));
     const onChange = vi.fn();
     render(<BarcodeField value="already typed" onChange={onChange} />);
 
@@ -103,5 +114,32 @@ describe('BarcodeField', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: /stop/i }));
     await waitFor(() => expect(scannerStop).toHaveBeenCalled());
+  });
+
+  it('stops a camera whose permission prompt resolves after Stop was already clicked', async () => {
+    // The native permission prompt can stay open indefinitely. If the
+    // organizer gives up and clicks Stop before it resolves, and the browser
+    // grants access anyway a moment later, the resulting stream must be
+    // killed immediately — otherwise nothing left holds a reference to it
+    // and the camera runs forever.
+    withCamera(true);
+    let resolveDecode!: (controls: { stop: () => void }) => void;
+    decodeFromVideoDevice.mockReturnValue(
+      new Promise((resolve) => { resolveDecode = resolve; }),
+    );
+    const lateStop = vi.fn();
+
+    render(<BarcodeField value="" onChange={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /scan/i }));
+    await waitFor(() => expect(decodeFromVideoDevice).toHaveBeenCalled());
+
+    // The prompt is still pending — Stop is clicked before it answers.
+    fireEvent.click(screen.getByRole('button', { name: /stop/i }));
+
+    // The browser resolves permission after the organizer already gave up.
+    resolveDecode({ stop: lateStop });
+
+    await waitFor(() => expect(lateStop).toHaveBeenCalled());
   });
 });

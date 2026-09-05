@@ -30,6 +30,12 @@ export function BarcodeField({
   const fileRef = useRef<HTMLInputElement | null>(null);
   const readerRef = useRef<BrowserMultiFormatReader | null>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
+  // decodeFromVideoDevice awaits the native permission prompt, which can sit
+  // open indefinitely. If Stop is clicked (or the field unmounts) before the
+  // prompt is answered, controlsRef is still null when that happens — this
+  // flag is what tells the eventually-resolved promise to shut the stream
+  // down immediately instead of arming it into an untracked, unstoppable camera.
+  const cancelledRef = useRef(false);
 
   const hasCamera =
     typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
@@ -38,7 +44,10 @@ export function BarcodeField({
 
   // A camera left running after the component unmounts is a lit LED and a
   // battery drain the organizer cannot explain, so stop it on the way out.
-  useEffect(() => () => { controlsRef.current?.stop(); }, []);
+  useEffect(() => () => {
+    cancelledRef.current = true;
+    controlsRef.current?.stop();
+  }, []);
 
   const accept = (text: string) => {
     setMessage(null);
@@ -53,7 +62,10 @@ export function BarcodeField({
     setMessage(null);
     const url = URL.createObjectURL(file);
     try {
-      const result = await reader().decodeFromImageElement(url);
+      // decodeFromImageElement treats a string argument as a DOM element id
+      // (document.getElementById), not a URL — decodeFromImageUrl is the one
+      // that actually builds an <img>, sets its src, and waits for it to load.
+      const result = await reader().decodeFromImageUrl(url);
       accept(result.getText());
     } catch {
       // Distinguishing "no barcode in this photo" from a broken component is
@@ -68,12 +80,21 @@ export function BarcodeField({
   const startScan = async () => {
     setMessage(null);
     setScanning(true);
+    cancelledRef.current = false;
     try {
       const controls = await reader().decodeFromVideoDevice(
         undefined,
         videoRef.current!,
         (result) => { if (result) accept(result.getText()); },
       );
+      if (cancelledRef.current) {
+        // Stop was clicked (or we unmounted) while the permission prompt was
+        // still open. The browser granted access after we'd already given
+        // up waiting, so this stream must be killed the instant it exists —
+        // otherwise nothing left holds a reference to stop it.
+        controls.stop();
+        return;
+      }
       controlsRef.current = controls;
     } catch (err: any) {
       setScanning(false);
@@ -86,6 +107,7 @@ export function BarcodeField({
   };
 
   const stopScan = () => {
+    cancelledRef.current = true;
     controlsRef.current?.stop();
     controlsRef.current = null;
     setScanning(false);
