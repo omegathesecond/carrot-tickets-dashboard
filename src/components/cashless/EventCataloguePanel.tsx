@@ -66,6 +66,32 @@ const EMPTY_OP: OpForm = {
   merchantId: '', productId: '', fromMerchantId: '', toMerchantId: '',
   quantity: '', unit: 'unit', note: '',
 };
+/**
+ * The "no category filter" tab. A sentinel rather than null so the selected
+ * tab is always a string and the comparison in [visibleProducts] has no
+ * special case.
+ */
+const ALL_CATEGORIES = '__all__';
+
+/**
+ * On-hand for one product, with low / sold-out called out rather than left as
+ * a number to interpret.
+ *
+ * Undefined means the board has no line for it — never stocked anywhere —
+ * which reads as a dash. A zero would say the same thing as a product that
+ * has sold out, and those call for different actions.
+ */
+const stockCell = (row?: { onHand: number; status: string }) => {
+  if (!row) return <span className="text-muted-foreground">—</span>;
+  if (row.status === 'sold_out') {
+    return <Badge variant="secondary" className="bg-red-100 text-red-800">Sold out</Badge>;
+  }
+  if (row.status === 'low') {
+    return <Badge variant="secondary" className="bg-amber-100 text-amber-800">Low · {row.onHand}</Badge>;
+  }
+  return <span className="font-medium">{row.onHand}</span>;
+};
+
 const categoryLabel = (v: string) =>
   PRODUCT_CATEGORIES.find((c) => c.value === v)?.label ?? v;
 
@@ -98,6 +124,8 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
   const [search, setSearch] = useState('');
   // The product whose detail view is open, by id — resolved against the
   // live catalogue so the dialog follows an edit instead of freezing a copy.
+  // Which category tab is selected on the Catalogue view.
+  const [category, setCategory] = useState<string>(ALL_CATEGORIES);
   const [detailId, setDetailId] = useState<string | null>(null);
 
   // Which half of the page you're on rides in the URL, same as the ?tab/?sub
@@ -191,10 +219,55 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
     };
   }, [board]);
 
+  /**
+   * On-hand and status per product, keyed for the Catalogue's stock column.
+   *
+   * From byProduct rather than perBar for the same reason [totals] is: it
+   * already folds in a product sold at a stall that never carried a stock
+   * row, which perBar has no line for at all. A product absent from the map
+   * has never been stocked anywhere, which the column renders as a dash — not
+   * a zero, because "never stocked" and "stocked, none left" are different
+   * things to an organizer deciding what to order.
+   */
+  const stockByProduct = useMemo(() => {
+    const m = new Map<string, { onHand: number; status: string }>();
+    (board?.byProduct ?? []).forEach((r) => {
+      m.set(r.productId, { onHand: r.totalOnHand, status: r.status });
+    });
+    return m;
+  }, [board]);
+
+  /**
+   * The categories actually in use, with a count each.
+   *
+   * Derived from the products rather than listing PRODUCT_CATEGORIES whole: a
+   * tab for a category this event sells nothing in is a dead end, and the
+   * counts are what let an organizer see the shape of the catalogue without
+   * tapping through it. Ordered by the canonical PRODUCT_CATEGORIES so the
+   * tabs do not reshuffle as products are added.
+   */
+  const categoryTabs = useMemo(() => {
+    const counts = new Map<string, number>();
+    products.forEach((p) => counts.set(p.category, (counts.get(p.category) ?? 0) + 1));
+    const known = PRODUCT_CATEGORIES
+      .filter((c) => counts.has(c.value))
+      .map((c) => ({ value: c.value, label: c.label, count: counts.get(c.value)! }));
+    // A product carrying a category no longer in PRODUCT_CATEGORIES (renamed
+    // since it was created) must still be reachable, so it gets its own tab
+    // under its raw value rather than vanishing from every tab but All.
+    const extra = [...counts.entries()]
+      .filter(([v]) => !PRODUCT_CATEGORIES.some((c) => c.value === v))
+      .map(([value, count]) => ({ value, label: value, count }));
+    return [...known, ...extra];
+  }, [products]);
+
   const visibleProducts = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return q ? products.filter((p) => p.name.toLowerCase().includes(q)) : products;
-  }, [products, search]);
+    return products.filter((p) => {
+      if (category !== ALL_CATEGORIES && p.category !== category) return false;
+      return !q || p.name.toLowerCase().includes(q);
+    });
+  }, [products, search, category]);
 
   const detailProduct = useMemo(
     () => products.find((p) => p._id === detailId) ?? null,
@@ -643,10 +716,45 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
             </Button>
           </div>
 
+          {/* Category tabs, the treatment that makes the Menu tab navigable:
+              a long price list is unreadable as one flat table, and the
+              Category column meant reading every row to find the beers. */}
+          {products.length > 0 && (
+            <div
+              role="group"
+              aria-label="Filter by category"
+              className="flex flex-wrap gap-2"
+            >
+              {[{ value: ALL_CATEGORIES, label: 'All', count: products.length }, ...categoryTabs].map((c) => (
+                <button
+                  key={c.value}
+                  type="button"
+                  aria-pressed={category === c.value}
+                  onClick={() => setCategory(c.value)}
+                  className={
+                    category === c.value
+                      ? 'rounded-full bg-orange-600 px-3 py-1.5 text-sm font-medium text-white'
+                      : 'rounded-full border px-3 py-1.5 text-sm text-muted-foreground hover:bg-slate-50'
+                  }
+                >
+                  {c.label}
+                  <span className="ml-1.5 opacity-70">{c.count}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
           {isLoading ? (
             <Card><CardContent className="py-12 text-center text-muted-foreground">Loading products…</CardContent></Card>
           ) : products.length === 0 ? (
             <Card><CardContent className="py-12 text-center text-muted-foreground">No products yet. Add your first one.</CardContent></Card>
+          ) : visibleProducts.length === 0 ? (
+            // Both the category tab and the search box filter this table, so
+            // an empty one has to say which of them emptied it rather than
+            // reading like a catalogue with nothing in it.
+            <Card><CardContent className="py-12 text-center text-muted-foreground">
+              No products in that category{search.trim() ? ` matching “${search.trim()}”` : ''}.
+            </CardContent></Card>
           ) : (
             <Card>
               <CardContent className="pt-6 overflow-x-auto">
@@ -656,6 +764,7 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
                       <TableHead>Product</TableHead>
                       <TableHead>Category</TableHead>
                       <TableHead className="text-right">Price</TableHead>
+                      <TableHead className="text-right">On hand</TableHead>
                       <TableHead>Barcode</TableHead>
                       <TableHead>Pack</TableHead>
                       <TableHead>Status</TableHead>
@@ -710,6 +819,12 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
                               {fmtR(p.price)}
                             </button>
                           )}
+                        </TableCell>
+                        {/* The shelf, beside the price list. Answering "how
+                            many left?" used to mean switching to Stock levels
+                            and back for every product. */}
+                        <TableCell className="text-right" aria-label={`On hand for ${p.name}`}>
+                          {stockCell(stockByProduct.get(p._id))}
                         </TableCell>
                         <TableCell className="text-muted-foreground font-mono text-xs">{p.barcode ?? '—'}</TableCell>
                         <TableCell className="text-muted-foreground">{p.unitsPerPack ? `${p.unitsPerPack} / ${p.packLabel ?? 'pack'}` : '—'}</TableCell>
