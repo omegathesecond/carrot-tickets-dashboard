@@ -32,6 +32,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { CategoryFilterTabs, useCategoryTabs, ALL_CATEGORIES } from '@/components/cashless/CategoryFilterTabs';
 import { StatCard } from '@/components/cashless/StatCard';
 import { EventStockReport } from '@/components/EventStockReport';
 
@@ -66,13 +67,6 @@ const EMPTY_OP: OpForm = {
   merchantId: '', productId: '', fromMerchantId: '', toMerchantId: '',
   quantity: '', unit: 'unit', note: '',
 };
-/**
- * The "no category filter" tab. A sentinel rather than null so the selected
- * tab is always a string and the comparison in [visibleProducts] has no
- * special case.
- */
-const ALL_CATEGORIES = '__all__';
-
 /**
  * On-hand for one product, with low / sold-out called out rather than left as
  * a number to interpret.
@@ -126,6 +120,8 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
   // live catalogue so the dialog follows an edit instead of freezing a copy.
   // Which category tab is selected on the Catalogue view.
   const [category, setCategory] = useState<string>(ALL_CATEGORIES);
+  // ...and on the Stock levels view, deliberately its own.
+  const [levelsCategory, setLevelsCategory] = useState<string>(ALL_CATEGORIES);
   const [detailId, setDetailId] = useState<string | null>(null);
 
   // Which half of the page you're on rides in the URL, same as the ?tab/?sub
@@ -196,13 +192,16 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
   const levelsByStall = useMemo(() => {
     const m = new Map<string, { name: string; rows: NonNullable<typeof board>['perBar'] }>();
     const q = search.trim().toLowerCase();
-    (board?.perBar ?? []).filter((r) => !q || r.productName.toLowerCase().includes(q)).forEach((r) => {
+    (board?.perBar ?? [])
+      .filter((r) => levelsCategory === ALL_CATEGORIES || r.category === levelsCategory)
+      .filter((r) => !q || r.productName.toLowerCase().includes(q))
+      .forEach((r) => {
       const g = m.get(r.merchantId) ?? { name: r.merchantName, rows: [] };
       g.rows.push(r);
       m.set(r.merchantId, g);
     });
     return [...m.entries()];
-  }, [board, search]);
+  }, [board, search, levelsCategory]);
 
   /**
    * Event-wide roll-up for the stock tiles. Summed off byProduct rather than
@@ -237,29 +236,17 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
     return m;
   }, [board]);
 
+  // Shared with the Stock levels view below — same control, same taxonomy.
+  const categoryTabs = useCategoryTabs(useMemo(() => products.map((p) => p.category), [products]));
+
   /**
-   * The categories actually in use, with a count each.
-   *
-   * Derived from the products rather than listing PRODUCT_CATEGORIES whole: a
-   * tab for a category this event sells nothing in is a dead end, and the
-   * counts are what let an organizer see the shape of the catalogue without
-   * tapping through it. Ordered by the canonical PRODUCT_CATEGORIES so the
-   * tabs do not reshuffle as products are added.
+   * Stock levels is filtered by its OWN category tab, kept separate from the
+   * Catalogue's. They are different lists answering different questions, and a
+   * shared selection would silently narrow one when you filtered the other.
    */
-  const categoryTabs = useMemo(() => {
-    const counts = new Map<string, number>();
-    products.forEach((p) => counts.set(p.category, (counts.get(p.category) ?? 0) + 1));
-    const known = PRODUCT_CATEGORIES
-      .filter((c) => counts.has(c.value))
-      .map((c) => ({ value: c.value, label: c.label, count: counts.get(c.value)! }));
-    // A product carrying a category no longer in PRODUCT_CATEGORIES (renamed
-    // since it was created) must still be reachable, so it gets its own tab
-    // under its raw value rather than vanishing from every tab but All.
-    const extra = [...counts.entries()]
-      .filter(([v]) => !PRODUCT_CATEGORIES.some((c) => c.value === v))
-      .map(([value, count]) => ({ value, label: value, count }));
-    return [...known, ...extra];
-  }, [products]);
+  const levelsCategoryTabs = useCategoryTabs(
+    useMemo(() => (board?.perBar ?? []).map((r) => r.category), [board]),
+  );
 
   const visibleProducts = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -596,6 +583,17 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
             <StatCard icon={<AlertTriangle className="h-4 w-4" />} label="Needs attention" value={String(totals.needsAttention)} hint="products low or sold out" tone="orange" />
           </div>
 
+          {/* Same control as the Catalogue's, over the same taxonomy — a shelf
+              runs to a couple of hundred rows across several stalls, and
+              "show me the beers" is the question you arrive with. */}
+          <CategoryFilterTabs
+            tabs={levelsCategoryTabs}
+            selected={levelsCategory}
+            onSelect={setLevelsCategory}
+            totalCount={(board?.perBar ?? []).length}
+            label="Filter stock by category"
+          />
+
           <Card>
             <CardHeader className="flex-row items-center justify-between space-y-0">
               <CardTitle className="text-base">Stock levels</CardTitle>
@@ -607,7 +605,11 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
             </CardHeader>
             <CardContent>
               {levelsByStall.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-2">No stock loaded yet. Use <span className="font-medium">Receive</span> to load a stall.</p>
+                <p className="text-sm text-muted-foreground py-2">
+                  {levelsCategory !== ALL_CATEGORIES || search.trim()
+                    ? 'No stock matches that filter.'
+                    : <>No stock loaded yet. Use <span className="font-medium">Receive</span> to load a stall.</>}
+                </p>
               ) : (
                 <div className="space-y-6">
                   {levelsByStall.map(([merchantId, g]) => (
@@ -719,30 +721,12 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
           {/* Category tabs, the treatment that makes the Menu tab navigable:
               a long price list is unreadable as one flat table, and the
               Category column meant reading every row to find the beers. */}
-          {products.length > 0 && (
-            <div
-              role="group"
-              aria-label="Filter by category"
-              className="flex flex-wrap gap-2"
-            >
-              {[{ value: ALL_CATEGORIES, label: 'All', count: products.length }, ...categoryTabs].map((c) => (
-                <button
-                  key={c.value}
-                  type="button"
-                  aria-pressed={category === c.value}
-                  onClick={() => setCategory(c.value)}
-                  className={
-                    category === c.value
-                      ? 'rounded-full bg-orange-600 px-3 py-1.5 text-sm font-medium text-white'
-                      : 'rounded-full border px-3 py-1.5 text-sm text-muted-foreground hover:bg-slate-50'
-                  }
-                >
-                  {c.label}
-                  <span className="ml-1.5 opacity-70">{c.count}</span>
-                </button>
-              ))}
-            </div>
-          )}
+          <CategoryFilterTabs
+            tabs={categoryTabs}
+            selected={category}
+            onSelect={setCategory}
+            totalCount={products.length}
+          />
 
           {isLoading ? (
             <Card><CardContent className="py-12 text-center text-muted-foreground">Loading products…</CardContent></Card>

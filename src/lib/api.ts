@@ -374,6 +374,14 @@ export class ApiClient {
     },
 
     // ---- Cashless STOCK reporting (Slice 4 endpoints; VIEW_REVENUE, ownership server-side) ----
+    /**
+     * The floor's tables for one event — what each waiter opened, what it is
+     * worth, and where its stalls have got to with handing the stock over.
+     * Read-only; the organizer never opens or settles a table themselves.
+     */
+    getEventTables: async (id: string): Promise<EventTablesReport> =>
+      this.request<EventTablesReport>(`/tickets/events/${id}/tables`),
+
     getEventStockBoard: async (id: string): Promise<StockBoard> =>
       this.request<StockBoard>(`/tickets/events/${id}/stock/board`),
 
@@ -2073,6 +2081,56 @@ export interface IssuedWaiterCredentials {
   waiter: WaiterRow;
   loginCode: string;
   pin: string;
+}
+
+/** One stall's handover on one table — see ITableFulfilment server-side. */
+export interface TableFulfilmentRow {
+  merchantId: string;
+  status: 'paid' | 'handed_out' | 'collected';
+  handedOutAt?: string;
+  handedOutBy?: string;
+  acceptedAt?: string;
+  acceptedBy?: string;
+}
+
+export interface TableLineRow {
+  _id: string;
+  merchantId: string;
+  productId: string;
+  name: string;
+  unitPrice: number;
+  qty: number;
+  addedBy: string;
+  addedAt: string;
+}
+
+export interface EventTableRow {
+  _id: string;
+  label: string;
+  status: 'open' | 'settled' | 'voided';
+  openedBy: string;
+  items: TableLineRow[];
+  subtotal: number;
+  /** Empty until the table is settled — there is no handover before the money. */
+  fulfilment?: TableFulfilmentRow[];
+  settledAt?: string;
+  voidedAt?: string;
+  voidReason?: string;
+  createdAt: string;
+}
+
+/**
+ * Tables split by status, with the money each split is worth.
+ *
+ * Split server-side rather than handed over as one list and grouped here, so
+ * the totals an organizer reads are the API's arithmetic and not the
+ * dashboard's — the two must never be able to disagree about the night's take.
+ */
+export interface EventTablesReport {
+  open: EventTableRow[];
+  settled: EventTableRow[];
+  voided: EventTableRow[];
+  totals: { openValue: number; settledValue: number; voidedValue: number };
 }
 
 // ── Vendors (in-event merchants) ───────────────────────────────────────────

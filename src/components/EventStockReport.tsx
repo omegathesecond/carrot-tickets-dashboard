@@ -4,24 +4,46 @@ import { Loader2, ChevronRight, ChevronDown } from 'lucide-react';
 import { apiClient, type StockStatus, type StockMovementRow } from '@/lib/api';
 import { fmtR } from '@/lib/money';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
 /**
  * The organiser's STOCK report for one cashless event (Slice 6 / parent §9) —
- * live board, event stock dashboard, reconciliation and a movements log. All
+ * the stock dashboard, reconciliation and a movements log, one per tab. All
  * read-only, each section its own query so one failing section never blanks the
  * rest. Money is ZAR cents (fmtR); stock is whole base units.
+ *
+ * Tabbed rather than stacked: these are three different questions (how did it
+ * sell, does the count add up, who moved what), and stacking them put the
+ * reconciliation an organizer came for three scrolls below charts they did
+ * not. Tabs also mean only the visible section's query runs.
+ *
+ * The old "Live stock" card is gone. It was the third place on this page
+ * showing the same board — the Stock levels tab lists Product / Sold /
+ * In stock / Sales / Status per stall, and the Catalogue carries On hand —
+ * so it cost a query to repeat columns rendered twice over already.
  */
 export function EventStockReport({ eventId }: { eventId: string }) {
   return (
-    <div className="space-y-6">
-      <BoardSection eventId={eventId} />
-      <DashboardSection eventId={eventId} />
-      <ReconciliationSection eventId={eventId} />
-      <MovementsSection eventId={eventId} />
-    </div>
+    <Tabs defaultValue="stock" className="space-y-4">
+      <TabsList>
+        <TabsTrigger value="stock">Stock</TabsTrigger>
+        <TabsTrigger value="reconciliation">Reconciliation</TabsTrigger>
+        <TabsTrigger value="movements">Movements</TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="stock">
+        <DashboardSection eventId={eventId} />
+      </TabsContent>
+      <TabsContent value="reconciliation">
+        <ReconciliationSection eventId={eventId} />
+      </TabsContent>
+      <TabsContent value="movements">
+        <MovementsSection eventId={eventId} />
+      </TabsContent>
+    </Tabs>
   );
 }
 
@@ -43,83 +65,6 @@ function SectionState({ loading, error, empty, emptyText, children }: {
   if (error) return <p className="text-sm text-muted-foreground py-6">Could not load this section.</p>;
   if (empty) return <p className="text-sm text-muted-foreground py-6">{emptyText}</p>;
   return <>{children}</>;
-}
-
-// ---------------------------------------------------------------- board
-function BoardSection({ eventId }: { eventId: string }) {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['event-stock-board', eventId],
-    queryFn: () => apiClient.events.getEventStockBoard(eventId),
-    retry: false,
-  });
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const toggle = (id: string) =>
-    setExpanded((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-
-  const stallsByProduct = useMemo(() => {
-    const m = new Map<string, typeof data.perBar>() as Map<string, NonNullable<typeof data>['perBar']>;
-    (data?.perBar ?? []).forEach((r) => { const a = m.get(r.productId) ?? []; a.push(r); m.set(r.productId, a); });
-    return m;
-  }, [data]);
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Live stock</CardTitle>
-        <p className="text-sm text-muted-foreground">
-          What each product sold, what it took, and what is left on the shelf. Only itemised
-          charges carry a product line — see the split below for the rest.
-        </p>
-      </CardHeader>
-      <CardContent>
-        <SectionState loading={isLoading} error={!!error} empty={!data || data.byProduct.length === 0} emptyText="No stock loaded yet.">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-8" />
-                  <TableHead>Product</TableHead>
-                  <TableHead className="text-right">Sold</TableHead>
-                  <TableHead className="text-right">On hand</TableHead>
-                  <TableHead className="text-right">Sales</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {(data?.byProduct ?? []).map((p) => {
-                  const stalls = stallsByProduct.get(p.productId) ?? [];
-                  const expandable = stalls.length > 1;
-                  const open = expandable && expanded.has(p.productId);
-                  return (
-                    <Fragment key={p.productId}>
-                      <TableRow className={expandable ? 'cursor-pointer hover:bg-slate-50' : ''} onClick={expandable ? () => toggle(p.productId) : undefined}>
-                        <TableCell>{expandable ? (open ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />) : null}</TableCell>
-                        <TableCell className="font-medium">{p.productName}</TableCell>
-                        <TableCell className="text-right">{p.unitsSold}</TableCell>
-                        <TableCell className="text-right font-semibold">{p.totalOnHand}</TableCell>
-                        <TableCell className="text-right font-semibold">{fmtR(p.revenue)}</TableCell>
-                        <TableCell><StatusPill status={p.status} /></TableCell>
-                      </TableRow>
-                      {open && stalls.map((b) => (
-                        <TableRow key={`${p.productId}-${b.merchantId}`} className="bg-slate-50/50 text-sm">
-                          <TableCell />
-                          <TableCell className="pl-6 text-muted-foreground">{b.merchantName}</TableCell>
-                          <TableCell className="text-right">{b.unitsSold}</TableCell>
-                          <TableCell className="text-right">{b.onHand}</TableCell>
-                          <TableCell className="text-right">{fmtR(b.revenue)}</TableCell>
-                          <TableCell><StatusPill status={b.status} /></TableCell>
-                        </TableRow>
-                      ))}
-                    </Fragment>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        </SectionState>
-      </CardContent>
-    </Card>
-  );
 }
 
 // ---------------------------------------------------------------- dashboard

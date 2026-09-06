@@ -1,15 +1,19 @@
 // @vitest-environment jsdom
 import { afterEach, describe, it, expect, vi } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { EventStockReport } from '@/components/EventStockReport';
 import type { StockMovementRow } from '@/lib/api';
 
 // MovementsSection isn't exported on its own — only EventStockReport is — so
-// this renders the whole report and mocks all four of its report queries.
-// The board/dashboard/reconciliation queries are given minimal empty-shaped
-// data so those sections settle into their "empty" state and don't interfere
-// with the movements assertions below.
+// this renders the whole report, mocks its queries, and opens the Movements
+// tab (the report is tabbed now; Stock is what opens by default). The
+// dashboard/reconciliation queries are given minimal empty-shaped data so
+// those sections settle rather than interfering.
+//
+// getEventStockBoard is still mocked deliberately: the report no longer calls
+// it, and leaving it here lets the assertion below prove that rather than
+// letting an accidental re-introduction pass unnoticed.
 const getEventStockBoard = vi.fn();
 const getEventStockDashboard = vi.fn();
 const getEventStockReconciliation = vi.fn();
@@ -63,6 +67,12 @@ const renderMovements = async (movements: StockMovementRow[]) => {
       <EventStockReport eventId="e1" />
     </QueryClientProvider>,
   );
+
+  // Radix's TabsTrigger selects on POINTER-DOWN, not click.
+  const el = screen.getByRole('tab', { name: 'Movements' });
+  fireEvent.pointerDown(el, { button: 0, ctrlKey: false, pointerType: 'mouse' });
+  fireEvent.mouseDown(el, { button: 0 });
+  fireEvent.click(el);
 };
 
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
@@ -107,5 +117,14 @@ describe('EventStockReport movements — Who column', () => {
     ]);
     expect(await screen.findByText('spoilage')).toBeTruthy();
     expect(screen.getByText('Nomsa Shongwe')).toBeTruthy();
+  });
+});
+
+describe('EventStockReport no longer reads the stock board', () => {
+  it('never calls getEventStockBoard — Live stock was the only caller', async () => {
+    // The Stock levels tab and the Catalogue's On hand column both render this
+    // board already; the third copy cost a request per page load.
+    await renderMovements([]);
+    expect(getEventStockBoard).not.toHaveBeenCalled();
   });
 });

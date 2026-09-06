@@ -10,6 +10,34 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { OperatorCredentialsDialog } from '@/components/OperatorCredentialsDialog';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { EventTablesPanel } from '@/components/EventTablesPanel';
+
+/**
+ * The Waiters area, in two tabs: the STAFF you hired, and the TABLES they are
+ * running right now.
+ *
+ * They sit together because they are the same job seen twice — you hire a
+ * waiter here, then watch what that waiter is doing here. Tabs rather than one
+ * scroll: the staff list is a management screen you visit once a night, the
+ * tables view is a live one you come back to.
+ */
+export function WaitersPanel({ eventId }: { eventId: string }) {
+  return (
+    <Tabs defaultValue="waiters" className="space-y-4">
+      <TabsList>
+        <TabsTrigger value="waiters">Waiters</TabsTrigger>
+        <TabsTrigger value="tables">Tables</TabsTrigger>
+      </TabsList>
+      <TabsContent value="waiters">
+        <WaiterStaffList eventId={eventId} />
+      </TabsContent>
+      <TabsContent value="tables">
+        <EventTablesPanel eventId={eventId} />
+      </TabsContent>
+    </Tabs>
+  );
+}
 
 const initialsOf = (name: string) =>
   name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
@@ -27,7 +55,7 @@ const DEFAULT_FORM: AddForm = { fullName: '', phoneNumber: '' };
  * hired for exactly one event and the event is immutable at the API, so this
  * panel takes the event it lives under rather than asking which one.
  */
-export function WaitersPanel({ eventId }: { eventId: string }) {
+function WaiterStaffList({ eventId }: { eventId: string }) {
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [form, setForm] = useState<AddForm>(DEFAULT_FORM);
