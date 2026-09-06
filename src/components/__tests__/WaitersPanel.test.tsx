@@ -11,6 +11,13 @@ const create = vi.fn();
 const setGrants = vi.fn();
 const setActive = vi.fn();
 const resetPin = vi.fn();
+// WaitersPanel opens on its Tables tab now, and that panel reads the floor.
+// Stubbed empty so it settles quietly in the background — this suite is about
+// the staff list (see renderPanel, which switches to it).
+const getEventTables = vi.fn(async (..._a: unknown[]) => ({
+  open: [], settled: [], voided: [],
+  totals: { openValue: 0, settledValue: 0, voidedValue: 0 },
+}));
 
 vi.mock('@/lib/api', () => ({
   apiClient: {
@@ -21,6 +28,7 @@ vi.mock('@/lib/api', () => ({
       setActive: (...a: unknown[]) => setActive(...a),
       resetPin: (...a: unknown[]) => resetPin(...a),
     },
+    events: { getEventTables: (...a: unknown[]) => getEventTables(...a) },
   },
 }));
 
@@ -52,6 +60,12 @@ function renderPanel() {
       <WaitersPanel eventId="e1" />
     </QueryClientProvider>,
   );
+  // Tables is the default tab; this suite is about the staff list, so switch
+  // to it. Radix's TabsTrigger selects on POINTER-DOWN, not click.
+  const el = screen.getByRole('tab', { name: 'Waiters' });
+  fireEvent.pointerDown(el, { button: 0, ctrlKey: false, pointerType: 'mouse' });
+  fireEvent.mouseDown(el, { button: 0 });
+  fireEvent.click(el);
 }
 
 afterEach(() => vi.clearAllMocks());

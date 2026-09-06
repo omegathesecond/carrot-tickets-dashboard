@@ -18,22 +18,24 @@ import { EventTablesPanel } from '@/components/EventTablesPanel';
  * running right now.
  *
  * They sit together because they are the same job seen twice — you hire a
- * waiter here, then watch what that waiter is doing here. Tabs rather than one
- * scroll: the staff list is a management screen you visit once a night, the
- * tables view is a live one you come back to.
+ * waiter here, then watch what that waiter is doing here.
+ *
+ * TABLES opens first, deliberately. Hiring is a once-a-night setup task;
+ * watching the floor is why an organizer opens this area during service, and
+ * putting the staff list in front of it meant a click every single time.
  */
 export function WaitersPanel({ eventId }: { eventId: string }) {
   return (
-    <Tabs defaultValue="waiters" className="space-y-4">
+    <Tabs defaultValue="tables" className="space-y-4">
       <TabsList>
-        <TabsTrigger value="waiters">Waiters</TabsTrigger>
         <TabsTrigger value="tables">Tables</TabsTrigger>
+        <TabsTrigger value="waiters">Waiters</TabsTrigger>
       </TabsList>
-      <TabsContent value="waiters">
-        <WaiterStaffList eventId={eventId} />
-      </TabsContent>
       <TabsContent value="tables">
         <EventTablesPanel eventId={eventId} />
+      </TabsContent>
+      <TabsContent value="waiters">
+        <WaiterStaffList eventId={eventId} />
       </TabsContent>
     </Tabs>
   );

@@ -75,32 +75,38 @@ const openTab = (name: string) => {
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe('the Waiters area has two tabs', () => {
-  it('offers Waiters and Tables', () => {
+  it('offers Tables and Waiters', () => {
     renderPanel();
-    expect(screen.getByRole('tab', { name: 'Waiters' })).toBeTruthy();
     expect(screen.getByRole('tab', { name: 'Tables' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Waiters' })).toBeTruthy();
   });
 
-  it('opens on the staff list', async () => {
+  it('opens on TABLES — the floor is what you come here for during service', async () => {
     renderPanel();
-    expect(screen.getByRole('tab', { name: 'Waiters' }).getAttribute('data-state')).toBe('active');
-    expect(await screen.findByText('Marcia Dlamini')).toBeTruthy();
-  });
-
-  it('shows the floor only once Tables is chosen', async () => {
-    renderPanel();
-    expect(screen.queryByText(/Every table your waiters opened/i)).toBeNull();
-
-    openTab('Tables');
-
+    expect(screen.getByRole('tab', { name: 'Tables' }).getAttribute('data-state')).toBe('active');
     expect(await screen.findByText(/Every table your waiters opened/i)).toBeTruthy();
+  });
+
+  it('puts Tables before Waiters in the tab strip', () => {
+    renderPanel();
+    const tabs = screen.getAllByRole('tab').map((t) => t.textContent);
+    expect(tabs).toEqual(['Tables', 'Waiters']);
+  });
+
+  it('shows the staff list only once Waiters is chosen', async () => {
+    renderPanel();
+    expect(screen.queryByText(/Everyone gets their own login/i)).toBeNull();
+
+    openTab('Waiters');
+
+    expect(await screen.findByText(/Everyone gets their own login/i)).toBeTruthy();
   });
 });
 
 describe('the Tables tab reports the floor', () => {
   it('opens on the open tables and counts each status', async () => {
     renderPanel();
-    openTab('Tables');
+    // Tables is the default tab now — nothing to open.
     // Await a ROW, not the panel's static header: the header renders before
     // the query settles, and the counts would read 0.
     await screen.findByText('Marcia Dlamini');
@@ -113,7 +119,6 @@ describe('the Tables tab reports the floor', () => {
 
   it('names the waiter who opened a table, not their id', async () => {
     renderPanel();
-    openTab('Tables');
 
     expect(await screen.findByText('Marcia Dlamini')).toBeTruthy();
     expect(screen.queryByText('w1')).toBeNull();
@@ -121,7 +126,6 @@ describe('the Tables tab reports the floor', () => {
 
   it('shows how far a settled table\'s handover has got', async () => {
     renderPanel();
-    openTab('Tables');
     await screen.findByText('Marcia Dlamini');
 
     const group = screen.getByRole('group', { name: 'Filter tables by status' });
@@ -136,14 +140,12 @@ describe('the Tables tab reports the floor', () => {
 
   it('shows an OPEN table no handover — there is none before the money', async () => {
     renderPanel();
-    openTab('Tables');
     const row = (await screen.findByText('Marcia Dlamini')).closest('tr')!;
     expect(within(row).getByText('—')).toBeTruthy();
   });
 
   it('gives a voided table its reason instead of a handover', async () => {
     renderPanel();
-    openTab('Tables');
     await screen.findByText('Marcia Dlamini');
 
     const group = screen.getByRole('group', { name: 'Filter tables by status' });
@@ -154,7 +156,6 @@ describe('the Tables tab reports the floor', () => {
 
   it('searches by table label or by waiter', async () => {
     renderPanel();
-    openTab('Tables');
     await screen.findByText('Marcia Dlamini');
 
     const box = screen.getByPlaceholderText(/Search table or waiter/i);
