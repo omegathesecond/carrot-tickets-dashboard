@@ -3,14 +3,6 @@ import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { publicEventUrl } from '@/lib/eventUrl';
-import {
-  type Ticketing,
-  DEFAULT_TICKETING,
-  validateTicketingSelection,
-  buildTicketingPayload,
-  buildPricePayload,
-  validateExternalPriceRange,
-} from '@/lib/ticketing';
 import { currencySymbol, formatMoney, type Currency } from '@/lib/currency';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -74,13 +66,7 @@ export function EventDetailsPage() {
   const [editingTicket, setEditingTicket] = useState<TicketType | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [unpublishConfirmOpen, setUnpublishConfirmOpen] = useState(false);
-  const [ticketing, setTicketing] = useState<Ticketing>(DEFAULT_TICKETING);
-  const [externalTicketUrl, setExternalTicketUrl] = useState('');
-  const [ticketUrlError, setTicketUrlError] = useState<string | null>(null);
   const [currency, setCurrency] = useState<Currency>('SZL');
-  const [priceMin, setPriceMin] = useState('');
-  const [priceMax, setPriceMax] = useState('');
-  const [priceError, setPriceError] = useState<string | null>(null);
 
   // Carrot admins approve events (publish them live) and can unpublish/delete
   // even after tickets sell. Organizers instead SUBMIT events for approval.
@@ -126,19 +112,11 @@ export function EventDetailsPage() {
     enabled: !!id,
   });
 
-  // Initialize the "who sells the tickets?" toggle from the loaded event —
-  // absent `ticketing` on legacy events means 'carrot' (backward compatible).
   useEffect(() => {
     if (event) {
-      setTicketing(event.ticketing ?? DEFAULT_TICKETING);
-      setExternalTicketUrl(event.externalTicketUrl ?? '');
-      setTicketUrlError(null);
       setCurrency(event.currency ?? 'SZL');
-      setPriceMin(event.priceMin != null ? String(event.priceMin) : '');
-      setPriceMax(event.priceMax != null ? String(event.priceMax) : '');
-      setPriceError(null);
     }
-  }, [event?._id, event?.ticketing, event?.externalTicketUrl, event?.currency, event?.priceMin, event?.priceMax]);
+  }, [event?._id, event?.currency]);
 
   const publishMutation = useMutation({
     mutationFn: (publish: boolean) =>
@@ -273,37 +251,20 @@ export function EventDetailsPage() {
     });
   };
 
-  const updateTicketingMutation = useMutation({
+  const updateCurrencyMutation = useMutation({
     mutationFn: (payload: Partial<EventFormData>) => apiClient.events.updateEvent(id!, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['event', id] });
       queryClient.invalidateQueries({ queryKey: ['events'] });
-      toast.success('Ticketing settings updated');
+      toast.success('Currency updated');
     },
     // Never swallow a failed save — surface it so the organizer knows the
-    // toggle/link change did not take effect.
-    onError: (error: any) => toast.error(error.message || 'Failed to update ticketing settings'),
+    // change did not take effect.
+    onError: (error: any) => toast.error(error.message || 'Failed to update currency'),
   });
 
-  const handleSaveTicketing = () => {
-    const error = validateTicketingSelection(ticketing, externalTicketUrl);
-    if (error) {
-      setTicketUrlError(error);
-      return;
-    }
-    setTicketUrlError(null);
-
-    const rangeError = ticketing === 'external' ? validateExternalPriceRange(priceMin, priceMax) : null;
-    if (rangeError) {
-      setPriceError(rangeError);
-      return;
-    }
-    setPriceError(null);
-
-    updateTicketingMutation.mutate({
-      ...buildTicketingPayload(ticketing, externalTicketUrl),
-      ...buildPricePayload(ticketing, currency, priceMin, priceMax),
-    });
+  const handleSaveCurrency = () => {
+    updateCurrencyMutation.mutate({ currency });
   };
 
   const addTicketMutation = useMutation({
@@ -805,24 +766,14 @@ export function EventDetailsPage() {
             )}
           </Card>
 
-          {/* Ticketing Card — who sells the tickets: Carrot (existing
-              checkout + tier editor below) or the organizer, on their own
-              site (Carrot won't process the sale; only a link is needed). */}
+          {/* Currency Card — Carrot Tickets is always the seller for every
+              event (organizers are never asked to choose); this only sets
+              the display currency for the ticket tiers below. */}
           <Card>
             <CardHeader>
-              <CardTitle>Ticketing</CardTitle>
+              <CardTitle>Currency</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Who sells the tickets?</Label>
-                <Tabs value={ticketing} onValueChange={(v) => setTicketing(v as Ticketing)}>
-                  <TabsList className="grid w-full max-w-md grid-cols-2">
-                    <TabsTrigger value="carrot">Carrot sells (recommended)</TabsTrigger>
-                    <TabsTrigger value="external">I sell them myself</TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </div>
-
               <div className="space-y-2 max-w-md">
                 <Label htmlFor="edit-currency">Currency</Label>
                 <select
@@ -839,62 +790,20 @@ export function EventDetailsPage() {
                 </p>
               </div>
 
-              {ticketing === 'external' && (
-                <div className="space-y-2 max-w-md">
-                  <Label htmlFor="externalTicketUrl">Ticket link (https://…)</Label>
-                  <Input
-                    id="externalTicketUrl"
-                    type="url"
-                    value={externalTicketUrl}
-                    onChange={(e) => {
-                      setExternalTicketUrl(e.target.value);
-                      setTicketUrlError(null);
-                    }}
-                    placeholder="https://your-site.com/tickets"
-                  />
-                  {ticketUrlError && <p className="text-xs text-red-600">{ticketUrlError}</p>}
-                  <p className="text-xs text-slate-500">
-                    Buyers will be sent to this link. Carrot won't process the sale.
-                  </p>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="edit-priceMin">From</Label>
-                      <Input id="edit-priceMin" type="number" min="0" step="0.01" value={priceMin}
-                        onChange={(e) => setPriceMin(e.target.value)} placeholder="100" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="edit-priceMax">To</Label>
-                      <Input id="edit-priceMax" type="number" min="0" step="0.01" value={priceMax}
-                        onChange={(e) => setPriceMax(e.target.value)} placeholder="250" />
-                    </div>
-                  </div>
-                  {priceError && <p className="text-xs text-red-600">{priceError}</p>}
-                  <p className="text-xs text-slate-500">
-                    Shown on the card as a price range, e.g. {currencySymbol(currency)}100 – {currencySymbol(currency)}250. Optional.
-                  </p>
-                </div>
-              )}
-
               <Button
                 size="sm"
-                onClick={handleSaveTicketing}
-                disabled={updateTicketingMutation.isPending}
+                onClick={handleSaveCurrency}
+                disabled={updateCurrencyMutation.isPending}
               >
-                {updateTicketingMutation.isPending ? 'Saving...' : 'Save Ticketing Settings'}
+                {updateCurrencyMutation.isPending ? 'Saving...' : 'Save Currency'}
               </Button>
             </CardContent>
           </Card>
 
-          {/* Cashless Card — admin-held switch, organizer request path. Sits
-              with Ticketing because it's the other "how does money work at
-              this event" decision. */}
+          {/* Cashless Card — admin-held switch, organizer request path. */}
           {event && <EventCashlessSetting event={event} isAdmin={isAdmin} />}
 
-          {/* Ticket Types Card — Carrot's own tier editor. Not applicable
-              when the organizer sells tickets externally: there's nothing
-              for Carrot to inventory or check out. */}
-          {ticketing === 'carrot' && (
+          {/* Ticket Types Card — Carrot's own tier editor. */}
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -1034,7 +943,6 @@ export function EventDetailsPage() {
               )}
             </CardContent>
           </Card>
-          )}
 
           {/* Media & Images Card */}
           <Card>
