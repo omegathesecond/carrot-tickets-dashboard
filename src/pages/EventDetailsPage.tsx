@@ -41,12 +41,12 @@ import {
   eventToDateTimeInputs,
   type EventDateTimeFormValues,
 } from '@/lib/eventForm';
-import { formatEventDateTimeRange } from '@/lib/eventWhen';
+import { formatEventStartsEnds } from '@/lib/eventWhen';
 import { getSaleTicketType, getSaleTicketCodes } from '@/lib/sales';
 import {
   ArrowLeft, Calendar, MapPin, Users, CheckCircle, Clock,
   Edit, Trash2, Eye, EyeOff, QrCode, Plus, TrendingUp, TrendingDown, Image, BarChart3, UserCircle,
-  Share2, Link as LinkIcon, MessagesSquare, Coins, CreditCard, UtensilsCrossed, Copy
+  Share2, Link as LinkIcon, MessagesSquare, Coins, CreditCard, UtensilsCrossed, Copy, Type, FileText
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -428,6 +428,7 @@ export function EventDetailsPage() {
   // Core "Event Information" is editable only before the event goes live (admins
   // may still fix a live event). Mirrors the server-side guard.
   const canEditInfo = canEditEventInfo(event, user);
+  const { starts: eventStarts, ends: eventEnds } = formatEventStartsEnds(event);
 
   // Public buyer-facing page: slugged URL, resolved by the trailing _id
   // (same URL the QR code encodes).
@@ -659,8 +660,14 @@ export function EventDetailsPage() {
             <CardHeader className="flex flex-row items-center justify-between space-y-0">
               <CardTitle>Event Information</CardTitle>
               {canEditInfo && !isEditingInfo && (
-                <Button variant="ghost" size="sm" onClick={handleStartEditInfo} aria-label="Edit event information">
-                  <Edit className="h-4 w-4 mr-1" /> Edit
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleStartEditInfo}
+                  aria-label="Edit event information"
+                  className="shrink-0"
+                >
+                  <Edit className="h-3.5 w-3.5 mr-1.5" /> Edit
                 </Button>
               )}
             </CardHeader>
@@ -764,41 +771,60 @@ export function EventDetailsPage() {
                 </div>
               </CardContent>
             ) : (
-              <CardContent className="space-y-4">
-                <div>
-                  <div className="text-sm text-slate-600 mb-1">Event Name</div>
-                  <div className="text-slate-900 font-medium break-words">{event.name}</div>
+              <CardContent className="divide-y divide-slate-100">
+                {/* Event Name — full width */}
+                <div className="pb-4 space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-slate-500">
+                    <Type className="h-3.5 w-3.5" />
+                    Event Name
+                  </div>
+                  <div className="text-base font-semibold text-slate-900 break-words">{event.name}</div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <div className="text-sm text-slate-600 mb-1">Venue</div>
-                    <div className="flex items-center text-slate-900">
-                      <MapPin className="h-4 w-4 mr-2 text-slate-400" />
-                      {event.venue}
+                {/* Venue + Capacity — side by side on larger screens, stacked on mobile */}
+                <div className="py-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-slate-500">
+                      <MapPin className="h-3.5 w-3.5" />
+                      Venue
+                    </div>
+                    <div className="text-sm text-slate-900 break-words">{event.venue}</div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-slate-500">
+                      <Users className="h-3.5 w-3.5" />
+                      Capacity
+                    </div>
+                    <div className="text-sm text-slate-900">{totalCapacity.toLocaleString()}</div>
+                  </div>
+                </div>
+
+                {/* Date and Time — spelled-out Starts/Ends pair */}
+                <div className="py-4 space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-slate-500">
+                    <Calendar className="h-3.5 w-3.5" />
+                    Date and Time
+                  </div>
+                  <div className="space-y-0.5 text-sm text-slate-900">
+                    <div className="flex items-start gap-1.5">
+                      <Clock className="h-3.5 w-3.5 mt-0.5 text-slate-400 shrink-0" />
+                      <span><span className="font-medium">Starts:</span> {eventStarts}</span>
+                    </div>
+                    <div className="flex items-start gap-1.5">
+                      <Clock className="h-3.5 w-3.5 mt-0.5 text-slate-400 shrink-0" />
+                      <span><span className="font-medium">Ends:</span> {eventEnds}</span>
                     </div>
                   </div>
-                  <div>
-                    <div className="text-sm text-slate-600 mb-1">Capacity</div>
-                    <div className="flex items-center text-slate-900">
-                      <Users className="h-4 w-4 mr-2 text-slate-400" />
-                      {totalCapacity.toLocaleString()}
-                    </div>
-                  </div>
                 </div>
 
-                <div>
-                  <div className="text-sm text-slate-600 mb-1">Date & Time</div>
-                  <div className="flex items-center text-slate-900">
-                    <Calendar className="h-4 w-4 mr-2 text-slate-400" />
-                    <span>{formatEventDateTimeRange(event)}</span>
-                  </div>
-                </div>
-
+                {/* Description — full width */}
                 {event.description && (
-                  <div>
-                    <div className="text-sm text-slate-600 mb-1">Description</div>
-                    <p className="text-slate-900">{event.description}</p>
+                  <div className="pt-4 space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-slate-500">
+                      <FileText className="h-3.5 w-3.5" />
+                      Description
+                    </div>
+                    <p className="text-sm text-slate-700 whitespace-pre-wrap break-words">{event.description}</p>
                   </div>
                 )}
               </CardContent>
