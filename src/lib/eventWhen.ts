@@ -28,3 +28,13 @@ export function formatEventDateTimeRange(event: EventWhen): string {
   }
   return `${format(start, 'PPP')} • ${format(start, 'p')} – ${format(end, 'p')}`;
 }
+
+/** "Starts: 6 September 2026 at 12:00 PM" / "Ends: 7 September 2026 at 2:00 AM" —
+ *  the spelled-out Starts/Ends pair used by the Event Information card, distinct
+ *  from the compact single-line `formatEventDateTimeRange` used in list views. */
+export function formatEventStartsEnds(event: EventWhen): { starts: string; ends: string } {
+  const start = new Date(event.startTime || event.eventDate);
+  const end = new Date(event.endTime || event.startTime || event.eventDate);
+  const fmt = (d: Date) => `${format(d, 'd MMMM yyyy')} at ${format(d, 'h:mm a')}`;
+  return { starts: fmt(start), ends: fmt(end) };
+}
