@@ -12,6 +12,7 @@ import {
   validateExternalPriceRange,
 } from '@/lib/ticketing';
 import { currencySymbol, formatMoney, type Currency } from '@/lib/currency';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -45,7 +46,7 @@ import { getSaleTicketType, getSaleTicketCodes } from '@/lib/sales';
 import {
   ArrowLeft, Calendar, MapPin, Users, CheckCircle, Clock,
   Edit, Trash2, Eye, EyeOff, QrCode, Plus, TrendingUp, TrendingDown, Image, BarChart3, UserCircle,
-  Share2, Link as LinkIcon, MessagesSquare, Coins, CreditCard, UtensilsCrossed
+  Share2, Link as LinkIcon, MessagesSquare, Coins, CreditCard, UtensilsCrossed, Copy
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -72,6 +73,7 @@ export function EventDetailsPage() {
   const [ticketDialogOpen, setTicketDialogOpen] = useState(false);
   const [editingTicket, setEditingTicket] = useState<TicketType | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [unpublishConfirmOpen, setUnpublishConfirmOpen] = useState(false);
   const [ticketing, setTicketing] = useState<Ticketing>(DEFAULT_TICKETING);
   const [externalTicketUrl, setExternalTicketUrl] = useState('');
   const [ticketUrlError, setTicketUrlError] = useState<string | null>(null);
@@ -440,6 +442,30 @@ export function EventDetailsPage() {
     }
   };
 
+  const handleCopyEventId = async () => {
+    try {
+      await navigator.clipboard.writeText(event.eventId);
+      toast.success('Event ID copied to clipboard');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to copy event ID');
+    }
+  };
+
+  // Drives the nav grid below — a single source of truth for which tabs are
+  // visible, so the two-column layout can center/span the last tile whenever
+  // the visible count is odd, without hardcoding a grid-cols-N per combination.
+  const NAV_TABS = [
+    { key: 'overview', label: 'Overview', icon: Calendar, show: true },
+    { key: 'financials', label: 'Financials', icon: Coins, show: canSeeFinancials },
+    { key: 'analytics', label: 'Analytics', icon: BarChart3, show: true },
+    { key: 'creator', label: 'Creator', icon: UserCircle, show: true },
+    { key: 'cashless', label: 'Cashless', icon: CreditCard, show: !!event.cashless },
+    { key: 'menu', label: 'Menu', icon: UtensilsCrossed, show: showMenuTab },
+    { key: 'community', label: 'Community', icon: MessagesSquare, show: canManageCommunity },
+  ].filter((t) => t.show);
+  const navTabIsOdd = NAV_TABS.length % 2 !== 0;
+  const lastNavTabKey = NAV_TABS[NAV_TABS.length - 1]?.key;
+
   const handleSharePublicLink = async () => {
     const shareText = `Check out ${event.name} at ${event.venue} — get your tickets here:`;
     if (navigator.share) {
@@ -459,13 +485,13 @@ export function EventDetailsPage() {
   return (
     <div className="p-8 space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-4 min-w-0">
-          <Button variant="ghost" onClick={() => navigate('/events')}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-3">
+      <Card>
+        <CardContent className="p-4 sm:p-6">
+          <div className="flex items-start gap-3 sm:gap-4">
+            <Button variant="ghost" size="icon" className="mt-0.5 shrink-0" onClick={() => navigate('/events')}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div className="min-w-0 flex-1 space-y-3">
               {isEditingName ? (
                 <div className="flex flex-wrap items-center gap-2">
                   <Input
@@ -495,132 +521,133 @@ export function EventDetailsPage() {
                 </div>
               ) : (
                 <>
-                  <h1 className="text-xl sm:text-3xl font-bold break-words">{event.name}</h1>
-                  {canRenameEvent && event.status !== 'cancelled' && event.status !== 'completed' && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-slate-500 hover:text-slate-900"
-                      onClick={handleStartRename}
-                      aria-label="Edit event name"
-                      title="Edit event name (admin)"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                  )}
-                  <Badge variant={statusVariant} className="capitalize">
-                    {statusLabel}
-                  </Badge>
+                  {/* Name row */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h1 className="text-xl sm:text-3xl font-bold break-words">{event.name}</h1>
+                    {canRenameEvent && event.status !== 'cancelled' && event.status !== 'completed' && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0 text-slate-500 hover:text-slate-900"
+                        onClick={handleStartRename}
+                        aria-label="Edit event name"
+                        title="Edit event name (admin)"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                  {/* Status + Event ID row, below the name */}
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                    <Badge variant={statusVariant} className="capitalize">
+                      {statusLabel}
+                    </Badge>
+                    <span className="inline-flex items-center gap-1 text-sm text-slate-600">
+                      Event ID: {event.eventId}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-slate-500 hover:text-slate-900"
+                        onClick={handleCopyEventId}
+                        aria-label="Copy event ID"
+                        title="Copy event ID"
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                      </Button>
+                    </span>
+                  </div>
                 </>
               )}
+              {isPending && (
+                <p className="text-sm text-amber-700 flex items-center gap-1.5">
+                  <Clock className="h-4 w-4" />
+                  {isAdmin
+                    ? 'This event is awaiting your approval.'
+                    : 'Submitted — waiting for Carrot to approve it before it goes live.'}
+                </p>
+              )}
+
+              {/* Actions — a separate row from the event info above, with its own spacing */}
+              <div className="flex flex-wrap gap-2 border-t pt-3">
+                {isPublished ? (
+                  // Pull a live event back to draft. Organizers are blocked once
+                  // tickets have sold; admins can override (handled server-side).
+                  <Button
+                    variant="outline"
+                    onClick={() => setUnpublishConfirmOpen(true)}
+                    disabled={publishMutation.isPending}
+                  >
+                    <EyeOff className="h-4 w-4 mr-2" /> Unpublish
+                  </Button>
+                ) : isPending ? (
+                  isAdmin ? (
+                    // Admin approval — takes the event live.
+                    <Button
+                      onClick={() => publishMutation.mutate(true)}
+                      disabled={publishMutation.isPending}
+                    >
+                      <CheckCircle className="h-4 w-4 mr-2" /> Approve &amp; Publish
+                    </Button>
+                  ) : (
+                    // Organizer can withdraw their submission back to draft.
+                    <Button
+                      variant="outline"
+                      onClick={() => setUnpublishConfirmOpen(true)}
+                      disabled={publishMutation.isPending}
+                    >
+                      <EyeOff className="h-4 w-4 mr-2" /> Withdraw
+                    </Button>
+                  )
+                ) : (
+                  // Draft: admin publishes live, organizer submits for approval.
+                  <Button
+                    onClick={() => publishMutation.mutate(true)}
+                    disabled={publishMutation.isPending}
+                  >
+                    <Eye className="h-4 w-4 mr-2" />
+                    {isAdmin ? 'Publish' : 'Submit for Approval'}
+                  </Button>
+                )}
+                <Button
+                  variant="destructive"
+                  onClick={() => setDeleteConfirmOpen(true)}
+                  disabled={deleteMutation.isPending}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" /> Delete
+                </Button>
+              </div>
             </div>
-            <p className="text-slate-600 mt-1">Event ID: {event.eventId}</p>
-            {isPending && (
-              <p className="text-sm text-amber-700 mt-1 flex items-center gap-1.5">
-                <Clock className="h-4 w-4" />
-                {isAdmin
-                  ? 'This event is awaiting your approval.'
-                  : 'Submitted — waiting for Carrot to approve it before it goes live.'}
-              </p>
-            )}
           </div>
-        </div>
-        <div className="flex gap-2">
-          {isPublished ? (
-            // Pull a live event back to draft. Organizers are blocked once
-            // tickets have sold; admins can override (handled server-side).
-            <Button
-              variant="outline"
-              onClick={() => publishMutation.mutate(false)}
-              disabled={publishMutation.isPending}
-            >
-              <EyeOff className="h-4 w-4 mr-2" /> Unpublish
-            </Button>
-          ) : isPending ? (
-            isAdmin ? (
-              // Admin approval — takes the event live.
-              <Button
-                onClick={() => publishMutation.mutate(true)}
-                disabled={publishMutation.isPending}
-              >
-                <CheckCircle className="h-4 w-4 mr-2" /> Approve &amp; Publish
-              </Button>
-            ) : (
-              // Organizer can withdraw their submission back to draft.
-              <Button
-                variant="outline"
-                onClick={() => publishMutation.mutate(false)}
-                disabled={publishMutation.isPending}
-              >
-                <EyeOff className="h-4 w-4 mr-2" /> Withdraw
-              </Button>
-            )
-          ) : (
-            // Draft: admin publishes live, organizer submits for approval.
-            <Button
-              onClick={() => publishMutation.mutate(true)}
-              disabled={publishMutation.isPending}
-            >
-              <Eye className="h-4 w-4 mr-2" />
-              {isAdmin ? 'Publish' : 'Submit for Approval'}
-            </Button>
-          )}
-          <Button
-            variant="destructive"
-            onClick={() => setDeleteConfirmOpen(true)}
-            disabled={deleteMutation.isPending}
-          >
-            <Trash2 className="h-4 w-4 mr-2" /> Delete
-          </Button>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList
-          className={`grid w-full max-w-2xl ${
-            // overview + analytics + creator, plus financials, community, cashless and/or menu when shown
-            { 3: 'grid-cols-3', 4: 'grid-cols-4', 5: 'grid-cols-5', 6: 'grid-cols-6', 7: 'grid-cols-7' }[
-              3 + (canSeeFinancials ? 1 : 0) + (canManageCommunity ? 1 : 0) + (event?.cashless ? 1 : 0) + (showMenuTab ? 1 : 0)
-            ]
-          }`}
+          className={cn(
+            // Mobile: a real two-column button grid, each tab its own equal-size
+            // card so long labels (e.g. "Financials") never get squeezed into a
+            // sliver column. The last tab centers/spans the row when the visible
+            // count is odd, instead of leaving one lonely half-empty cell.
+            'grid h-auto w-full grid-cols-2 gap-2 rounded-lg bg-transparent p-0',
+            // Desktop/tablet: identical to the original single-row segmented control.
+            'sm:flex sm:h-9 sm:w-auto sm:max-w-2xl sm:items-center sm:justify-center sm:gap-0 sm:rounded-lg sm:bg-muted sm:p-1'
+          )}
         >
-          <TabsTrigger value="overview" className="flex items-center gap-2">
-            <Calendar className="h-4 w-4" />
-            Overview
-          </TabsTrigger>
-          {canSeeFinancials && (
-            <TabsTrigger value="financials" className="flex items-center gap-2">
-              <Coins className="h-4 w-4" />
-              Financials
+          {NAV_TABS.map(({ key, label, icon: Icon }) => (
+            <TabsTrigger
+              key={key}
+              value={key}
+              className={cn(
+                'flex h-14 items-center justify-center gap-2 whitespace-normal rounded-lg border border-input bg-background px-3 py-2 text-center text-sm font-medium data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm',
+                'sm:h-9 sm:flex-1 sm:whitespace-nowrap sm:rounded-md sm:border-0 sm:bg-transparent sm:px-3 sm:py-1',
+                navTabIsOdd && key === lastNavTabKey && 'col-span-2 mx-auto w-1/2 sm:col-span-1 sm:mx-0 sm:w-auto'
+              )}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              {label}
             </TabsTrigger>
-          )}
-          <TabsTrigger value="analytics" className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4" />
-            Analytics
-          </TabsTrigger>
-          <TabsTrigger value="creator" className="flex items-center gap-2">
-            <UserCircle className="h-4 w-4" />
-            Creator
-          </TabsTrigger>
-          {event?.cashless && (
-            <TabsTrigger value="cashless" className="flex items-center gap-2">
-              <CreditCard className="h-4 w-4" />
-              Cashless
-            </TabsTrigger>
-          )}
-          {showMenuTab && (
-            <TabsTrigger value="menu" className="flex items-center gap-2">
-              <UtensilsCrossed className="h-4 w-4" />
-              Menu
-            </TabsTrigger>
-          )}
-          {canManageCommunity && (
-            <TabsTrigger value="community" className="flex items-center gap-2">
-              <MessagesSquare className="h-4 w-4" />
-              Community
-            </TabsTrigger>
-          )}
+          ))}
         </TabsList>
 
         <TabsContent value="overview" className="mt-6">
@@ -1307,6 +1334,25 @@ export function EventDetailsPage() {
         onConfirm={() => {
           deleteMutation.mutate();
           setDeleteConfirmOpen(false);
+        }}
+      />
+
+      {/* Unpublish/withdraw confirmation */}
+      <ConfirmDialog
+        open={unpublishConfirmOpen}
+        onOpenChange={setUnpublishConfirmOpen}
+        destructive={false}
+        title={isPending ? 'Withdraw this submission?' : 'Unpublish this event?'}
+        description={
+          isPending
+            ? `"${event.name}" will be withdrawn from approval and returned to draft.`
+            : `"${event.name}" will be taken off public listings and stop selling new tickets. Tickets already sold remain valid.`
+        }
+        confirmLabel={isPending ? 'Withdraw' : 'Unpublish'}
+        isLoading={publishMutation.isPending}
+        onConfirm={() => {
+          publishMutation.mutate(false);
+          setUnpublishConfirmOpen(false);
         }}
       />
     </div>
