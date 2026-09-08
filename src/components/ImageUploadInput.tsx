@@ -2,13 +2,9 @@ import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Upload, X, Image as ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ImageCropperDialog } from '@/components/ImageCropperDialog';
-import type { CropPresetKey } from '@/lib/cropPresets';
 
 interface ImageUploadInputProps {
   label: string;
-  /** Which surface this is — decides the locked crop ratio and output size. */
-  preset: CropPresetKey;
   currentImageUrl?: string;
   onFileSelect: (file: File) => void;
   onRemove?: () => void;
@@ -20,7 +16,6 @@ interface ImageUploadInputProps {
 
 export function ImageUploadInput({
   label,
-  preset,
   currentImageUrl,
   onFileSelect,
   onRemove,
@@ -31,15 +26,12 @@ export function ImageUploadInput({
 }: ImageUploadInputProps) {
   const [preview, setPreview] = useState<string | null>(currentImageUrl || null);
   const [error, setError] = useState<string | null>(null);
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validate BEFORE opening the cropper — no point cropping a file that's
-    // about to be rejected.
     const fileSizeMB = file.size / (1024 * 1024);
     if (fileSizeMB > maxSize) {
       setError(`File size must be less than ${maxSize}MB`);
@@ -53,15 +45,11 @@ export function ImageUploadInput({
     }
 
     setError(null);
-    setPendingFile(file);
-  };
-
-  const handleCropped = (cropped: File) => {
-    setPendingFile(null);
+    // Upload the original file as-is — no cropping, resizing or re-encoding.
     const reader = new FileReader();
     reader.onloadend = () => setPreview(reader.result as string);
-    reader.readAsDataURL(cropped);
-    onFileSelect(cropped);
+    reader.readAsDataURL(file);
+    onFileSelect(file);
   };
 
   const handleRemove = () => {
@@ -87,7 +75,7 @@ export function ImageUploadInput({
             <img
               src={preview}
               alt="Preview"
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain"
             />
             <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all flex items-center justify-center">
               <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
@@ -142,15 +130,6 @@ export function ImageUploadInput({
 
       {error && (
         <p className="text-sm text-red-600">{error}</p>
-      )}
-
-      {pendingFile && (
-        <ImageCropperDialog
-          file={pendingFile}
-          preset={preset}
-          onCancel={() => setPendingFile(null)}
-          onCropped={handleCropped}
-        />
       )}
     </div>
   );

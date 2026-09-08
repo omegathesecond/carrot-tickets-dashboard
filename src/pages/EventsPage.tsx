@@ -385,7 +385,6 @@ export function EventsPage() {
                 </div>
                 <ImageUploadInput
                   label="Event poster"
-                  preset="eventPoster"
                   onFileSelect={setPosterFile}
                   onRemove={() => setPosterFile(null)}
                 />
@@ -445,11 +444,11 @@ export function EventsPage() {
               <Card key={event._id} className="hover:shadow-lg transition-shadow">
                 <Link to={`/events/${event._id}`} className="block">
                   {(event.posterUrl || event.thumbnailUrl) && (
-                    <div className="aspect-video w-full overflow-hidden rounded-t-lg">
+                    <div className="aspect-video w-full overflow-hidden rounded-t-lg bg-slate-100">
                       <img
                         src={event.posterUrl || event.thumbnailUrl}
                         alt={event.name}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain"
                       />
                     </div>
                   )}

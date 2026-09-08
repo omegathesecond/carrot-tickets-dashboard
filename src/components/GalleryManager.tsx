@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Upload, X, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ImageCropperDialog } from '@/components/ImageCropperDialog';
 
 interface GalleryManagerProps {
   label: string;
@@ -35,7 +34,6 @@ export function GalleryManager({
     currentImages.map(url => ({ url, isNew: false }))
   );
   const [error, setError] = useState<string | null>(null);
-  const [cropQueue, setCropQueue] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -78,19 +76,18 @@ export function GalleryManager({
 
     if (validFiles.length > 0) {
       setError(null);
-      setCropQueue(q => [...q, ...validFiles]);
+      // Upload the original files as-is — no cropping, resizing or re-encoding.
+      setPreviews(prev => [
+        ...prev,
+        ...validFiles.map(file => ({ url: URL.createObjectURL(file), isNew: true, file })),
+      ]);
+      onFilesSelect(validFiles);
     }
 
     // Reset file input
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
-  };
-
-  const handleCropped = (cropped: File) => {
-    setCropQueue(q => q.slice(1));
-    setPreviews(prev => [...prev, { url: URL.createObjectURL(cropped), isNew: true, file: cropped }]);
-    onFilesSelect([cropped]);
   };
 
   // Removes by index rather than by url: two distinct picked files can
@@ -128,7 +125,7 @@ export function GalleryManager({
               <img
                 src={preview.url}
                 alt={`Gallery image ${index + 1}`}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-contain"
               />
               <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all flex items-center justify-center">
                 <Button
@@ -179,16 +176,6 @@ export function GalleryManager({
       <p className="text-xs text-slate-500">
         Upload up to {maxImages} images. Max {maxSize}MB each. Supports JPEG, PNG, WEBP.
       </p>
-
-      {cropQueue.length > 0 && (
-        <ImageCropperDialog
-          key={`${cropQueue[0].name}-${cropQueue.length}`}
-          file={cropQueue[0]}
-          preset="eventPhoto"
-          onCancel={() => setCropQueue(q => q.slice(1))}
-          onCropped={handleCropped}
-        />
-      )}
     </div>
   );
 }
