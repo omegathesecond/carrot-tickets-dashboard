@@ -3,19 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { ImageUploadInput } from '@/components/ImageUploadInput';
 
-vi.mock('react-easy-crop', () => ({
-  default: ({ onCropComplete }: { onCropComplete: (a: unknown, px: unknown) => void }) => {
-    queueMicrotask(() => onCropComplete({}, { x: 0, y: 0, width: 100, height: 100 }));
-    return <div data-testid="cropper" />;
-  },
-}));
-
-const cropResize = vi.hoisted(() => vi.fn());
-vi.mock('@/lib/image', () => ({ cropResize }));
-
 beforeEach(() => {
-  cropResize.mockReset();
-  cropResize.mockResolvedValue(new File(['c'], 'poster.jpg', { type: 'image/jpeg' }));
   global.URL.createObjectURL = vi.fn(() => 'blob:preview');
   global.URL.revokeObjectURL = vi.fn();
 });
@@ -27,42 +15,61 @@ function pick(container: HTMLElement, file: File) {
 }
 
 describe('ImageUploadInput', () => {
-  it('opens the cropper on pick instead of emitting the raw file', async () => {
+  it('emits the original file on pick, with no cropping step', async () => {
     const onFileSelect = vi.fn();
     const { container } = render(
-      <ImageUploadInput label="Event Poster" preset="eventPoster" onFileSelect={onFileSelect} />,
+      <ImageUploadInput label="Event Poster" onFileSelect={onFileSelect} />,
     );
 
-    pick(container, new File(['b'], 'raw.png', { type: 'image/png' }));
-
-    expect(await screen.findByTestId('cropper')).toBeTruthy();
-    expect(onFileSelect).not.toHaveBeenCalled();
-  });
-
-  it('emits the cropped file once confirmed', async () => {
-    const onFileSelect = vi.fn();
-    const { container } = render(
-      <ImageUploadInput label="Event Poster" preset="eventPoster" onFileSelect={onFileSelect} />,
-    );
-    pick(container, new File(['b'], 'raw.png', { type: 'image/png' }));
-
-    fireEvent.click(await screen.findByRole('button', { name: /use photo/i }));
+    const raw = new File(['b'], 'raw.png', { type: 'image/png' });
+    pick(container, raw);
 
     await waitFor(() => expect(onFileSelect).toHaveBeenCalledTimes(1));
-    expect(onFileSelect.mock.calls[0][0].name).toBe('poster.jpg');
+    expect(onFileSelect).toHaveBeenCalledWith(raw);
+    expect(screen.queryByRole('button', { name: /use photo/i })).toBeNull();
+    expect(screen.queryByLabelText(/zoom/i)).toBeNull();
   });
 
-  it('rejects an oversized file without opening the cropper', async () => {
+  it('shows a preview of the uploaded image once picked', async () => {
+    const { container } = render(
+      <ImageUploadInput label="Event Poster" onFileSelect={vi.fn()} />,
+    );
+
+    pick(container, new File(['b'], 'raw.png', { type: 'image/png' }));
+
+    expect(await screen.findByAltText('Preview')).toBeTruthy();
+  });
+
+  it('rejects an oversized file without emitting or previewing it', async () => {
     const onFileSelect = vi.fn();
     const big = new File([new Uint8Array(3 * 1024 * 1024)], 'big.png', { type: 'image/png' });
     const { container } = render(
-      <ImageUploadInput label="Event Poster" preset="eventPoster" maxSize={2} onFileSelect={onFileSelect} />,
+      <ImageUploadInput label="Event Poster" maxSize={2} onFileSelect={onFileSelect} />,
     );
 
     pick(container, big);
 
     expect(await screen.findByText(/less than 2MB/i)).toBeTruthy();
-    expect(screen.queryByTestId('cropper')).toBeNull();
+    expect(screen.queryByAltText('Preview')).toBeNull();
     expect(onFileSelect).not.toHaveBeenCalled();
+  });
+
+  it('lets the organizer remove the image and pick a different one', async () => {
+    const onFileSelect = vi.fn();
+    const onRemove = vi.fn();
+    const { container } = render(
+      <ImageUploadInput label="Event Poster" onFileSelect={onFileSelect} onRemove={onRemove} />,
+    );
+
+    pick(container, new File(['b'], 'raw.png', { type: 'image/png' }));
+    await screen.findByAltText('Preview');
+
+    fireEvent.click(screen.getByRole('button', { name: /remove/i }));
+    expect(onRemove).toHaveBeenCalledTimes(1);
+    expect(screen.queryByAltText('Preview')).toBeNull();
+
+    const second = new File(['c'], 'second.png', { type: 'image/png' });
+    pick(container, second);
+    await waitFor(() => expect(onFileSelect).toHaveBeenLastCalledWith(second));
   });
 });

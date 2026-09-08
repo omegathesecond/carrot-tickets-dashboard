@@ -982,7 +982,6 @@ export function EventDetailsPage() {
               {/* Event Poster */}
               <ImageUploadInput
                 label="Event Poster"
-                preset="eventPoster"
                 currentImageUrl={event.posterUrl}
                 onFileSelect={(file) => uploadPosterMutation.mutate(file)}
                 onRemove={() => event.posterUrl && deleteMediaMutation.mutate({ url: event.posterUrl, mediaType: 'poster' })}
@@ -993,7 +992,6 @@ export function EventDetailsPage() {
               {/* Event Thumbnail */}
               <ImageUploadInput
                 label="Event Thumbnail"
-                preset="eventThumbnail"
                 currentImageUrl={event.thumbnailUrl}
                 onFileSelect={(file) => uploadThumbnailMutation.mutate(file)}
                 onRemove={() => event.thumbnailUrl && deleteMediaMutation.mutate({ url: event.thumbnailUrl, mediaType: 'thumbnail' })}
