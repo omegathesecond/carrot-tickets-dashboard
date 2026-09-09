@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Plus, UtensilsCrossed, Pencil, ClipboardList, Trash2, PackagePlus } from 'lucide-react';
+import { Plus, UtensilsCrossed, Pencil, ClipboardList, Trash2, PackagePlus, ScanLine, CheckCircle2 } from 'lucide-react';
 import {
   apiClient,
   MENU_SECTIONS,
@@ -33,6 +33,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ImageUploadField } from '@/components/ImageUploadField';
+import { BarcodeField } from '@/components/BarcodeField';
 
 type ItemForm = {
   section: MenuSection;
@@ -161,6 +162,39 @@ export function EventMenuTab({ eventId }: { eventId: string }) {
     },
     onError: (e: Error) => toast.error(e.message || 'Failed to update order'),
   });
+
+  // Collection scanner (Orders tab): look up by the buyer's QR code
+  // (MenuOrder.orderId), preview it, then confirm collection as a separate
+  // step — mirrors EntryScanPage's validate-then-check-in shape so a
+  // misscan is never silently collected.
+  const [scanCode, setScanCode] = useState('');
+  const [scannedOrder, setScannedOrder] = useState<MenuOrderRow | null>(null);
+
+  const scanM = useMutation({
+    mutationFn: (orderId: string) => apiClient.menu.scanOrder(orderId),
+    onSuccess: (order) => setScannedOrder(order),
+    onError: (e: Error) => { setScannedOrder(null); toast.error(e.message || 'Order not found'); },
+  });
+
+  const collectM = useMutation({
+    mutationFn: (orderId: string) => apiClient.menu.collectOrder(orderId),
+    onSuccess: (order) => {
+      setScannedOrder(order);
+      setScanCode('');
+      queryClient.invalidateQueries({ queryKey: ['menu-orders', eventId] });
+      toast.success('Order collected');
+    },
+    // A 409 (already collected / wrong state) still carries the real order —
+    // re-scan it so the card shows the up-to-date status instead of stale data.
+    onError: (e: Error) => {
+      toast.error(e.message || 'Could not collect order');
+      if (scanCode) scanM.mutate(scanCode);
+    },
+  });
+
+  const handleScan = () => {
+    if (scanCode.trim()) scanM.mutate(scanCode.trim());
+  };
 
   const toggleActiveM = useMutation({
     mutationFn: (p: { id: string; active: boolean }) => apiClient.menu.updateItem(p.id, { active: p.active }),
@@ -402,6 +436,58 @@ export function EventMenuTab({ eventId }: { eventId: string }) {
         </TabsContent>
 
         <TabsContent value="orders" className="space-y-4">
+          <Card>
+            <CardContent className="pt-6 space-y-4">
+              <div className="flex items-center gap-2 font-semibold">
+                <ScanLine className="h-5 w-5" /> Collect an order
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Scan the buyer's QR code (or type/paste the order number) to look it up, then confirm collection.
+              </p>
+              <BarcodeField value={scanCode} onChange={(v) => { setScanCode(v); setScannedOrder(null); }} />
+              <Button onClick={handleScan} disabled={!scanCode.trim() || scanM.isPending} className="gap-2">
+                <ScanLine className="h-4 w-4" /> {scanM.isPending ? 'Looking up…' : 'Look up order'}
+              </Button>
+
+              {scannedOrder && (
+                <div className={`rounded-lg border p-4 space-y-2 ${
+                  scannedOrder.fulfillmentStatus === 'collected' ? 'border-green-200 bg-green-50' : 'border-border bg-muted/40'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-sm">{scannedOrder.orderId}</span>
+                    <Badge variant={scannedOrder.fulfillmentStatus === 'collected' ? 'default' : 'secondary'}>
+                      {MENU_ORDER_FULFILLMENT_LABELS[scannedOrder.fulfillmentStatus]}
+                    </Badge>
+                  </div>
+                  <div className="text-sm"><strong>Buyer:</strong> {scannedOrder.buyerName || 'Guest'}</div>
+                  <div className="text-sm text-muted-foreground">
+                    {scannedOrder.items.map((li) => `${li.quantity}× ${li.name}`).join(', ')}
+                  </div>
+                  <div className="text-sm"><strong>Charged:</strong> {fmtR(scannedOrder.amountCharged)}</div>
+                  {scannedOrder.fulfillmentStatus === 'collected' ? (
+                    <div className="flex items-center gap-1.5 text-sm text-green-700">
+                      <CheckCircle2 className="h-4 w-4" />
+                      Already collected{scannedOrder.collectedAt ? ` at ${new Date(scannedOrder.collectedAt).toLocaleString()}` : ''}
+                    </div>
+                  ) : (
+                    <Button
+                      onClick={() => collectM.mutate(scannedOrder.orderId)}
+                      disabled={collectM.isPending || scannedOrder.fulfillmentStatus !== 'ready' || scannedOrder.paymentStatus !== 'completed'}
+                      className="w-full"
+                    >
+                      {collectM.isPending ? 'Confirming…' : 'Confirm collection'}
+                    </Button>
+                  )}
+                  {scannedOrder.fulfillmentStatus !== 'collected' && scannedOrder.fulfillmentStatus !== 'ready' && (
+                    <p className="text-xs text-muted-foreground">
+                      Order isn't ready for collection yet — mark it Ready in the table below first.
+                    </p>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {ordersLoading ? (
             <Card><CardContent className="py-12 text-center text-muted-foreground">Loading preorders…</CardContent></Card>
           ) : orders.length === 0 ? (
