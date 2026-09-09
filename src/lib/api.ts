@@ -1495,6 +1495,20 @@ export class ApiClient {
         method: 'PATCH',
         body: JSON.stringify({ fulfillmentStatus }),
       }),
+
+    // Collection scanner: `orderId` here is the human/QR-facing code (the
+    // MenuOrder.orderId the buyer's QR encodes), never the Mongo _id.
+    scanOrder: async (orderId: string): Promise<MenuOrderRow> =>
+      this.request<MenuOrderRow>('/tickets/menu-orders/scan', {
+        method: 'POST',
+        body: JSON.stringify({ orderId }),
+      }),
+
+    collectOrder: async (orderId: string): Promise<MenuOrderRow> =>
+      this.request<MenuOrderRow>('/tickets/menu-orders/collect', {
+        method: 'POST',
+        body: JSON.stringify({ orderId }),
+      }),
   };
 
   // Wristband design + batch-issue endpoints
@@ -2304,6 +2318,7 @@ export interface MenuOrderRow {
   fulfillmentStatus: MenuOrderFulfillmentStatus;
   notes?: string;
   paidAt?: string;
+  collectedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
