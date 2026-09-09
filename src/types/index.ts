@@ -302,8 +302,8 @@ export interface Ticket {
 
 export interface SellTicketsRequest {
   eventId: string;
-  ticketTypeId: string;
-  quantity: number;
+  /** One entry per tier. A single-tier sale is a one-element array. */
+  items: Array<{ ticketTypeId: string; quantity: number }>;
   customerName: string;
   customerPhone: string;
   paymentMethod: PaymentMethodValue;

@@ -17,8 +17,10 @@ import { formatMoney } from '@/lib/currency';
 export function TicketSalesPage() {
   const [formData, setFormData] = useState<Partial<SellTicketsRequest>>({
     paymentMethod: 'cash',
-    quantity: 1,
   });
+  // tier id -> quantity. Box-office staff regularly ring up several tiers for
+  // one customer; making that one sale means one payment and one receipt.
+  const [cart, setCart] = useState<Record<string, number>>({});
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
   const [saleData, setSaleData] = useState<any>(null);
   const queryClient = useQueryClient();
@@ -51,9 +53,19 @@ export function TicketSalesPage() {
   }, [paymentSettings]);
 
   const selectedEvent = eventsData?.data?.find(e => e._id === formData.eventId);
-  const selectedTicketType = selectedEvent?.ticketTypes.find(
-    t => t._id === formData.ticketTypeId
-  );
+  const tiers = selectedEvent?.ticketTypes ?? [];
+  const cartLines = tiers
+    .filter((t) => (cart[t._id!] ?? 0) > 0)
+    .map((t) => ({ ticketTypeId: t._id!, quantity: cart[t._id!]!, tier: t }));
+  const cartQuantity = cartLines.reduce((sum, l) => sum + l.quantity, 0);
+  const cartTotal = cartLines.reduce((sum, l) => sum + l.tier.price * l.quantity, 0);
+
+  const setTierQty = (tierId: string, qty: number) =>
+    setCart((c) => {
+      const next = { ...c };
+      if (qty > 0) next[tierId] = qty; else delete next[tierId];
+      return next;
+    });
 
   const sellMutation = useMutation({
     mutationFn: (data: SellTicketsRequest) => apiClient.sales.sellTickets(data),
@@ -63,29 +75,38 @@ export function TicketSalesPage() {
       // Prepare data for the success dialog
       const dialogData = {
         eventName: selectedEvent?.name || '',
-        ticketTypeName: selectedTicketType?.name || '',
+        // A basket has several tiers; name them all rather than just one.
+        ticketTypeName: cartLines.map((l) => `${l.quantity} × ${l.tier.name}`).join(', '),
         customerName: formData.customerName || '',
         customerPhone: formData.customerPhone || '',
-        quantity: formData.quantity || 1,
-        totalAmount: (selectedTicketType?.price || 0) * (formData.quantity || 1),
+        quantity: cartQuantity,
+        totalAmount: cartTotal,
         currency: selectedEvent?.currency ?? 'SZL',
         ticketIds: response.data?.tickets?.map((t: any) => t.ticketId || t._id) || [],
       };
 
       setSaleData(dialogData);
       setSuccessDialogOpen(true);
-      setFormData({ paymentMethod: 'cash', quantity: 1 });
+      setFormData({ paymentMethod: 'cash' });
+      setCart({});
     },
     onError: (error: any) => toast.error(error.message),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.eventId || !formData.ticketTypeId || !formData.customerName || !formData.customerPhone) {
+    if (!formData.eventId || !formData.customerName || !formData.customerPhone) {
       toast.error('Please fill all required fields');
       return;
     }
-    sellMutation.mutate(formData as SellTicketsRequest);
+    if (cartQuantity === 0) {
+      toast.error('Add at least one ticket');
+      return;
+    }
+    sellMutation.mutate({
+      ...formData,
+      items: cartLines.map((l) => ({ ticketTypeId: l.ticketTypeId, quantity: l.quantity })),
+    } as SellTicketsRequest);
   };
 
   return (
@@ -106,7 +127,7 @@ export function TicketSalesPage() {
                 <Label>Select Event</Label>
                 <SearchableSelect
                   value={formData.eventId}
-                  onValueChange={(v) => setFormData({ ...formData, eventId: v, ticketTypeId: undefined })}
+                  onValueChange={(v) => { setFormData({ ...formData, eventId: v }); setCart({}); }}
                   options={(eventsData?.data || []).map((event) => ({
                     value: event._id,
                     label: `${event.name} - ${event.venue}`,
@@ -119,19 +140,43 @@ export function TicketSalesPage() {
 
               {selectedEvent && (
                 <div className="space-y-2">
-                  <Label>Ticket Type</Label>
-                  <Select value={formData.ticketTypeId} onValueChange={(v) => setFormData({ ...formData, ticketTypeId: v })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choose ticket type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {selectedEvent.ticketTypes?.map((tt) => (
-                        <SelectItem key={tt._id} value={tt._id!}>
-                          {tt.name} - {formatMoney(tt.price, selectedEvent.currency ?? 'SZL', { space: true, decimals: 0 })} ({tt.available} left)
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>Tickets</Label>
+                  {/* A quantity per tier, so one customer buying General AND
+                      VIP is one sale — one payment, one receipt — instead of
+                      two transactions. A sold-out tier offers no input. */}
+                  <div className="rounded-md border divide-y">
+                    {tiers.map((tt) => {
+                      const soldOut = tt.isSoldOut || (tt.available ?? 0) <= 0;
+                      const qty = cart[tt._id!] ?? 0;
+                      return (
+                        <div key={tt._id} className="flex items-center gap-3 p-3" data-testid={`sell-tier-${tt._id}`}>
+                          <div className="min-w-0 flex-1">
+                            <div className="font-medium truncate">{tt.name}</div>
+                            <div className="text-sm text-slate-500">
+                              {formatMoney(tt.price, selectedEvent.currency ?? 'SZL', { space: true, decimals: 0 })}
+                              {soldOut ? ' · Sold out' : ` · ${tt.available} left`}
+                            </div>
+                          </div>
+                          {qty > 0 && (
+                            <div className="text-sm text-slate-600 shrink-0" data-testid="sell-tier-subtotal">
+                              {formatMoney(tt.price * qty, selectedEvent.currency ?? 'SZL', { space: true, decimals: 0 })}
+                            </div>
+                          )}
+                          <Input
+                            type="number"
+                            min="0"
+                            max={Math.min(100, tt.available ?? 0)}
+                            disabled={soldOut}
+                            aria-label={`Quantity for ${tt.name}`}
+                            className="w-20 shrink-0"
+                            value={qty || ''}
+                            placeholder="0"
+                            onChange={(e) => setTierQty(tt._id!, Math.max(0, Number(e.target.value) || 0))}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
@@ -150,18 +195,6 @@ export function TicketSalesPage() {
                   value={formData.customerPhone || ''}
                   onChange={(value) => setFormData({ ...formData, customerPhone: value })}
                   placeholder="78422613"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Quantity</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  max="10"
-                  value={formData.quantity}
-                  onChange={(e) => setFormData({ ...formData, quantity: Number(e.target.value) })}
                   required
                 />
               </div>
@@ -210,40 +243,41 @@ export function TicketSalesPage() {
             <CardTitle>Order Summary</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {selectedEvent && formData.ticketTypeId ? (
+            {selectedEvent && cartQuantity > 0 ? (
               <>
                 <div className="space-y-2">
                   <div className="text-sm text-slate-600">Event</div>
                   <div className="font-medium">{selectedEvent.name}</div>
                 </div>
+                {/* A row per tier — a single "Ticket Type" line would show
+                    only one of them once a basket can hold several. */}
                 <div className="space-y-2">
-                  <div className="text-sm text-slate-600">Ticket Type</div>
-                  <div className="font-medium">
-                    {selectedTicketType?.name}
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="text-sm text-slate-600">Price per Ticket</div>
-                  <div className="font-medium">
-                    {formatMoney(selectedTicketType?.price || 0, selectedEvent.currency ?? 'SZL', { space: true, decimals: 0 })}
-                  </div>
+                  <div className="text-sm text-slate-600">Tickets</div>
+                  {cartLines.map((l) => (
+                    <div key={l.ticketTypeId} className="flex justify-between gap-3 text-sm">
+                      <span className="min-w-0 truncate">{l.quantity} × {l.tier.name}</span>
+                      <span className="font-medium shrink-0">
+                        {formatMoney(l.tier.price * l.quantity, selectedEvent.currency ?? 'SZL', { space: true, decimals: 0 })}
+                      </span>
+                    </div>
+                  ))}
                 </div>
                 <div className="space-y-2">
                   <div className="text-sm text-slate-600">Quantity</div>
-                  <div className="font-medium">{formData.quantity}</div>
+                  <div className="font-medium" data-testid="summary-quantity">{cartQuantity}</div>
                 </div>
                 <div className="border-t pt-4">
                   <div className="flex justify-between items-center">
                     <div className="text-lg font-bold">Total</div>
-                    <div className="text-2xl font-bold text-orange-600">
-                      {formatMoney((selectedTicketType?.price || 0) * (formData.quantity || 1), selectedEvent.currency ?? 'SZL', { space: true, decimals: 0 })}
+                    <div className="text-2xl font-bold text-orange-600" data-testid="summary-total">
+                      {formatMoney(cartTotal, selectedEvent.currency ?? 'SZL', { space: true, decimals: 0 })}
                     </div>
                   </div>
                 </div>
               </>
             ) : (
               <div className="text-center text-slate-500 py-8">
-                Select event and ticket type to see summary
+                Select an event and add tickets to see the summary
               </div>
             )}
           </CardContent>
