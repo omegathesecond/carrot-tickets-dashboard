@@ -63,7 +63,30 @@
   * {
     @apply border-border;
   }
+  html, body {
+    @apply overflow-x-hidden;
+    max-width: 100vw;
+  }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* iOS Safari auto-zooms the whole page on focus of any text input/select/
+   textarea whose COMPUTED font-size is under 16px — the "page zooms in
+   after login / tapping a field" report. Login, event forms and the rest of
+   this dashboard render through the shared `Input`/`Textarea`/`Select`
+   primitives (and a few raw <input>s) styled with Tailwind's
+   `text-sm`/`text-xs` (14px/12px), below the threshold. Rather than
+   patching every call site's className (DRY: one fix, not N), floor every
+   form control at 16px on mobile only, leaving desktop density untouched.
+   `!important` is required: a plain element selector has lower specificity
+   than the compiled `.text-sm`/`.text-xs` utility classes those components
+   already carry, so it would otherwise lose regardless of source order. */
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
   }
 }
