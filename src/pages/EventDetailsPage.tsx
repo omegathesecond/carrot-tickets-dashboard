@@ -12,12 +12,14 @@ import { ImageUploadInput } from '@/components/ImageUploadInput';
 import { GalleryManager } from '@/components/GalleryManager';
 import { EventAnalyticsTab } from '@/components/EventAnalyticsTab';
 import { EventCreatorTab } from '@/components/EventCreatorTab';
+import { EventVoteTab } from '@/components/EventVoteTab';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { getSaleTicketType, getSaleTicketCodes } from '@/lib/sales';
 import {
   ArrowLeft, Calendar, MapPin, Users, CheckCircle, Clock,
-  Edit, Trash2, Eye, EyeOff, QrCode, Plus, TrendingUp, TrendingDown, Image, BarChart3, UserCircle
+  Edit, Trash2, Eye, EyeOff, QrCode, Plus, TrendingUp, TrendingDown, Image, BarChart3, UserCircle,
+  Vote as VoteIcon,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -280,7 +282,7 @@ export function EventDetailsPage() {
 
       {/* Tabs */}
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full max-w-lg grid-cols-3">
+        <TabsList className="grid w-full max-w-2xl grid-cols-4">
           <TabsTrigger value="overview" className="flex items-center gap-2">
             <Calendar className="h-4 w-4" />
             Overview
@@ -288,6 +290,10 @@ export function EventDetailsPage() {
           <TabsTrigger value="analytics" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
             Analytics
+          </TabsTrigger>
+          <TabsTrigger value="vote" className="flex items-center gap-2">
+            <VoteIcon className="h-4 w-4" />
+            Vote
           </TabsTrigger>
           <TabsTrigger value="creator" className="flex items-center gap-2">
             <UserCircle className="h-4 w-4" />
@@ -668,6 +674,11 @@ export function EventDetailsPage() {
         {/* Analytics Tab */}
         <TabsContent value="analytics" className="mt-6">
           <EventAnalyticsTab eventId={id!} />
+        </TabsContent>
+
+        {/* Vote Tab */}
+        <TabsContent value="vote" className="mt-6">
+          <EventVoteTab eventId={id!} />
         </TabsContent>
 
         {/* Creator Tab */}

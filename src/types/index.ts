@@ -65,6 +65,12 @@ export interface Event {
   galleryImages?: string[];
   qrCodeUrl?: string;
   status: 'draft' | 'pending_approval' | 'published' | 'cancelled' | 'completed';
+  publishedAt?: string;
+  // Vote feature inputs (see the Vote tab on the event details page). Absent
+  // means the artist/outfit-theme Vote questions they gate are skipped
+  // entirely — nothing is fabricated when an organizer hasn't supplied this.
+  lineup?: string[];
+  outfitThemeOptions?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -97,6 +103,84 @@ export interface EventFormData {
     quantity: number; // Changed from capacity
     description?: string;
   }[];
+  // Vote feature inputs — see Event.lineup / Event.outfitThemeOptions.
+  lineup?: string[];
+  outfitThemeOptions?: string[];
+}
+
+// Vote feature types (organizer dashboard's Vote tab — see EventVoteTab).
+export type VoteQuestionKind = 'artist' | 'song' | 'outfit' | 'attending_with' | 'busy';
+
+export interface VoteWindow {
+  opensAt: string | null;
+  closesAt: string;
+  hasOpened: boolean;
+  hasClosed: boolean;
+}
+
+export interface VoteOption {
+  key: string;
+  label: string;
+}
+
+export interface VotePreview {
+  eventId: string;
+  window: VoteWindow;
+  questions: Array<{ kind: VoteQuestionKind; prompt: string; order: number; options: VoteOption[] }>;
+}
+
+export interface VoteResultOption extends VoteOption {
+  count: number;
+  percent: number;
+}
+
+export interface VoteSongSuggestion {
+  id: string;
+  title: string;
+  artist: string | null;
+  count: number;
+  suggestedAt: string;
+}
+
+export interface VoteSummaryQuestion {
+  id: string;
+  kind: VoteQuestionKind;
+  prompt: string;
+  totalVotes: number;
+  leadingKey: string | null;
+  options: VoteResultOption[];
+  songSuggestions?: VoteSongSuggestion[];
+}
+
+export interface VoteSummary {
+  eventId: string;
+  eventName: string;
+  window: VoteWindow;
+  questions: VoteSummaryQuestion[];
+}
+
+export interface VoteCommentAuthor {
+  type: 'buyer' | 'organizer';
+  id: string;
+  name: string | null;
+  username?: string | null;
+  avatarUrl: string | null;
+}
+
+export interface VoteComment {
+  id: string;
+  eventId: string;
+  questionId: string;
+  parentId: string | null;
+  body: string;
+  likeCount: number;
+  replyCount: number;
+  createdAt: string;
+  author: VoteCommentAuthor;
+  viewerHasLiked: boolean;
+  viewerIsAuthor: boolean;
+  viewerCanModerate: boolean;
+  replies: VoteComment[];
 }
 
 // Event creator (organizer) + their event history — powers the admin

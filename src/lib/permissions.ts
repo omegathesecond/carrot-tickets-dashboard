@@ -14,6 +14,7 @@ export const TicketsPermission = {
   SCAN_TICKETS: 'tickets:scan_tickets',
   VIEW_SCANS: 'tickets:view_scans',
   VIEW_STATS: 'tickets:view_stats',
+  MANAGE_ACCESS: 'tickets:manage_access',
 } as const;
 
 export type TicketsPermissionValue =
