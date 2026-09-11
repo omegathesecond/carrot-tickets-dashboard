@@ -9,16 +9,22 @@ import type { SaleData } from '@/lib/saleData';
 import { printTicket } from '@/lib/printTicket';
 import { getPrintLogoDataUrl } from '@/lib/printAssets';
 import type { ReceiptTicket } from '@/lib/ticketReceipt';
-import { resellerApi } from '@/lib/resellerApi';
 import { formatMoney } from '@/lib/currency';
 
 interface TicketSuccessDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   saleData: SaleData;
+  /**
+   * How to (re)send the ticket SMS for this sale. The organizer and reseller
+   * rails authenticate with different tokens and hit different endpoints, so
+   * the owning page supplies its own — the dialog must not guess from whichever
+   * token happens to be in localStorage.
+   */
+  sendSms: (saleId: string) => Promise<{ sent: boolean }>;
 }
 
-export function TicketSuccessDialog({ open, onOpenChange, saleData }: TicketSuccessDialogProps) {
+export function TicketSuccessDialog({ open, onOpenChange, saleData, sendSms }: TicketSuccessDialogProps) {
   const qrRefs = useRef<Array<HTMLCanvasElement | null>>([]);
   const [printing, setPrinting] = useState(false);
   const [sendingSms, setSendingSms] = useState(false);
@@ -53,7 +59,7 @@ export function TicketSuccessDialog({ open, onOpenChange, saleData }: TicketSucc
     }
     setSendingSms(true);
     try {
-      const { sent } = await resellerApi.sendSaleSms(saleData.saleId);
+      const { sent } = await sendSms(saleData.saleId);
       if (sent) {
         toast.success(`Ticket SMS sent to ${saleData.customerPhone}`);
       } else {

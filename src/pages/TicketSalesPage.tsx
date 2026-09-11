@@ -305,6 +305,7 @@ export function TicketSalesPage() {
           open={successDialogOpen}
           onOpenChange={setSuccessDialogOpen}
           saleData={saleData}
+          sendSms={apiClient.sales.sendSaleSms}
         />
       )}
     </div>

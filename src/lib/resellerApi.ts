@@ -94,9 +94,13 @@ async function request<T>(endpoint: string, options: RequestInit = {}, authentic
 
   if (authenticated) {
     const token = localStorage.getItem(TOKEN_KEY);
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+    // Silently omitting the header sends an anonymous request that comes back
+    // as the server's "No authorization header provided" — which reads like an
+    // API fault rather than "you are not signed in on this rail". Say so here.
+    if (!token) {
+      throw new Error('Not signed in as a reseller operator. Please log in again.');
     }
+    headers['Authorization'] = `Bearer ${token}`;
   }
 
   const response = await fetch(url, { ...options, headers });

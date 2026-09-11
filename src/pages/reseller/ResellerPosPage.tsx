@@ -742,6 +742,7 @@ export function ResellerPosPage() {
             if (!open) setSuccessData(null);
           }}
           saleData={successData}
+          sendSms={resellerApi.sendSaleSms}
         />
       )}
     </div>

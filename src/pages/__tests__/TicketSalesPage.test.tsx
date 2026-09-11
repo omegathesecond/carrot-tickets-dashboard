@@ -46,7 +46,7 @@ vi.mock('@/lib/api', () => ({
   apiClient: {
     events: { getEvents: vi.fn() },
     settings: { getPaymentMethods: vi.fn() },
-    sales: { sellTickets: vi.fn() },
+    sales: { sellTickets: vi.fn(), sendSaleSms: vi.fn() },
   },
 }));
 
@@ -193,6 +193,22 @@ describe('TicketSalesPage — box-office basket', () => {
 
     await waitFor(() => expect(dialogProps.length).toBeGreaterThan(0));
     expect(dialogProps[dialogProps.length - 1]!.saleData.unitPrice).toBe(250);
+  });
+
+  // The dialog is shared with the reseller POS, whose rail authenticates with a
+  // different token against a different endpoint. Wiring the wrong one is how
+  // "Send via SMS" produced "No authorization header provided" for organizers.
+  it('wires the dialog to the organizer SMS rail, not the reseller one', async () => {
+    renderPage();
+    await chooseEvent();
+
+    fireEvent.change(await screen.findByLabelText('Quantity for General'), { target: { value: '1' } });
+    fireEvent.change(screen.getByPlaceholderText(/full name/i), { target: { value: 'Walk-up' } });
+    fireEvent.change(screen.getByPlaceholderText('78422613'), { target: { value: '78422613' } });
+    fireEvent.click(screen.getByRole('button', { name: /complete sale|sell/i }));
+
+    await waitFor(() => expect(dialogProps.length).toBeGreaterThan(0));
+    expect(dialogProps[dialogProps.length - 1]!.sendSms).toBe(apiClient.sales.sendSaleSms);
   });
 
   it('refuses to submit an empty basket', async () => {

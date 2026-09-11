@@ -717,6 +717,15 @@ export class ApiClient {
       });
     },
 
+    /** (Re)send the ticket confirmation SMS for a sale on this vendor's event.
+     *  A box-office sale notifies nobody at sale time, so this is how the
+     *  walk-up buyer gets their ticket. */
+    sendSaleSms: async (saleId: string): Promise<{ sent: boolean }> => {
+      return this.request<{ sent: boolean }>(`/tickets/sales/${saleId}/send-sms`, {
+        method: 'POST',
+      });
+    },
+
     getSales: async (params?: SalesQueryParams): Promise<PaginatedResponse<TicketSale>> => {
       const query = new URLSearchParams();
       if (params?.page) query.append('page', params.page.toString());
