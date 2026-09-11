@@ -11,8 +11,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PhoneInput } from '@/components/PhoneInput';
 import { TicketSuccessDialog } from '@/components/TicketSuccessDialog';
 import { toast } from 'sonner';
-import type { SellTicketsRequest } from '@/types';
+import type { SellTicketsRequest, SellTicketsResponse } from '@/types';
 import { formatMoney } from '@/lib/currency';
+import type { SaleData } from '@/lib/saleData';
+import { paymentLabel } from '@/lib/payment';
+import { userDisplayName } from '@/lib/userName';
+import { useAuth } from '@/contexts/AuthContext';
 
 export function TicketSalesPage() {
   const [formData, setFormData] = useState<Partial<SellTicketsRequest>>({
@@ -22,8 +26,9 @@ export function TicketSalesPage() {
   // one customer; making that one sale means one payment and one receipt.
   const [cart, setCart] = useState<Record<string, number>>({});
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
-  const [saleData, setSaleData] = useState<any>(null);
+  const [saleData, setSaleData] = useState<SaleData | null>(null);
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const { data: eventsData } = useQuery({
     queryKey: ['publishedEvents'],
@@ -69,20 +74,30 @@ export function TicketSalesPage() {
 
   const sellMutation = useMutation({
     mutationFn: (data: SellTicketsRequest) => apiClient.sales.sellTickets(data),
-    onSuccess: (response: any) => {
+    onSuccess: (response: SellTicketsResponse) => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
 
-      // Prepare data for the success dialog
-      const dialogData = {
+      // Everything the success dialog, the printed receipt and the SMS need.
+      const dialogData: SaleData = {
+        saleId: response.sale._id,
         eventName: selectedEvent?.name || '',
+        // startTime is the authoritative instant; eventDate is a date-only
+        // marker at midnight UTC, so a clock read off it prints 2:00 AM.
+        eventDate: selectedEvent?.startTime || selectedEvent?.eventDate,
+        venue: selectedEvent?.venue,
         // A basket has several tiers; name them all rather than just one.
         ticketTypeName: cartLines.map((l) => `${l.quantity} × ${l.tier.name}`).join(', '),
+        // Only a single-tier basket has one unit price — see SaleData.
+        unitPrice: cartLines.length === 1 ? cartLines[0]!.tier.price : undefined,
         customerName: formData.customerName || '',
         customerPhone: formData.customerPhone || '',
         quantity: cartQuantity,
         totalAmount: cartTotal,
+        // How the sale was actually recorded, not what the form last held.
+        paymentMethod: paymentLabel(response.sale.paymentMethod),
+        operatorName: userDisplayName(user),
         currency: selectedEvent?.currency ?? 'SZL',
-        ticketIds: response.data?.tickets?.map((t: any) => t.ticketId || t._id) || [],
+        ticketIds: response.tickets.map((t) => t.ticketId || t._id),
       };
 
       setSaleData(dialogData);

@@ -110,7 +110,9 @@ export function buildTicketReceiptHtml(
   <div class="row"><span class="k">Type</span><span class="v">${esc(sale.ticketTypeName)}</span></div>
   <div class="row"><span class="k">Customer</span><span class="v">${esc(sale.customerName)}</span></div>
   <div class="row"><span class="k">Phone</span><span class="v">${esc(sale.customerPhone)}</span></div>
-  <div class="row"><span class="k">Qty x Price</span><span class="v">${esc(sale.quantity)} x ${esc(formatMoney(sale.unitPrice, cur, { space: true, decimals: 0 }))}</span></div>
+  ${sale.unitPrice != null
+    ? `<div class="row"><span class="k">Qty x Price</span><span class="v">${esc(sale.quantity)} x ${esc(formatMoney(sale.unitPrice, cur, { space: true, decimals: 0 }))}</span></div>`
+    : `<div class="row"><span class="k">Qty</span><span class="v">${esc(sale.quantity)}</span></div>`}
   <div class="row total"><span class="k">TOTAL</span><span class="v">${esc(formatMoney(sale.totalAmount, cur, { space: true, decimals: 0 }))}</span></div>
   <div class="row"><span class="k">Payment</span><span class="v">${esc(sale.paymentMethod)}</span></div>
   ${sale.saleId ? `<div class="row"><span class="k">Ref</span><span class="v">${esc(shortRef(sale.saleId))}</span></div>` : ''}

@@ -13,6 +13,7 @@ import type {
   EventCreatorSummary,
   TicketSale,
   SellTicketsRequest,
+  SellTicketsResponse,
   SalesQueryParams,
   ScanRecord,
   ScanStats,
@@ -709,8 +710,8 @@ export class ApiClient {
 
   // Sales endpoints
   sales = {
-    sellTickets: async (data: SellTicketsRequest): Promise<TicketSale> => {
-      return this.request<TicketSale>(`/tickets/sales/sell`, {
+    sellTickets: async (data: SellTicketsRequest): Promise<SellTicketsResponse> => {
+      return this.request<SellTicketsResponse>(`/tickets/sales/sell`, {
         method: 'POST',
         body: JSON.stringify(data),
       });

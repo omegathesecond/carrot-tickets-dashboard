@@ -31,6 +31,17 @@ vi.mock('@/components/ui/searchable-select', () => {
 
 
 
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => ({ user: { _id: 'u1', businessName: 'Sunbenc Group', role: 'tickets_owner' } }),
+}));
+
+// Capture the SaleData the page builds — the receipt, not the dialog body, is
+// where a missing field surfaces, so assert on the handoff itself.
+const dialogProps: any[] = [];
+vi.mock('@/components/TicketSuccessDialog', () => ({
+  TicketSuccessDialog: (props: any) => { dialogProps.push(props); return null; },
+}));
+
 vi.mock('@/lib/api', () => ({
   apiClient: {
     events: { getEvents: vi.fn() },
@@ -82,9 +93,12 @@ beforeEach(() => {
   vi.mocked(apiClient.settings.getPaymentMethods).mockResolvedValue({
     cashEnabled: true, keshlessWalletEnabled: false,
   } as never);
-  vi.mocked(apiClient.sales.sellTickets).mockResolvedValue({ data: { tickets: [] } } as never);
+  vi.mocked(apiClient.sales.sellTickets).mockResolvedValue({
+    sale: { _id: '66b1f0c2a4d3e5f6a7b8c9d0', paymentMethod: 'cash' },
+    tickets: [{ ticketId: 'TIX-1' }, { ticketId: 'TIX-2' }, { ticketId: 'TIX-3' }],
+  } as never);
 });
-afterEach(() => { cleanup(); vi.clearAllMocks(); });
+afterEach(() => { cleanup(); vi.clearAllMocks(); dialogProps.length = 0; });
 
 describe('TicketSalesPage — box-office basket', () => {
   it('offers a quantity per tier once an event is chosen', async () => {
@@ -136,6 +150,49 @@ describe('TicketSalesPage — box-office basket', () => {
     // The legacy single-tier keys must be gone, not sent alongside.
     expect(body['ticketTypeId']).toBeUndefined();
     expect(body['quantity']).toBeUndefined();
+  });
+
+  // The dialog only renders totalAmount, so a SaleData missing unitPrice /
+  // saleId / paymentMethod / operatorName looked fine and then blew up on
+  // Print with "Cannot read properties of undefined (reading 'toLocaleString')".
+  it('hands the dialog a complete SaleData the receipt can print', async () => {
+    renderPage();
+    await chooseEvent();
+
+    fireEvent.change(await screen.findByLabelText('Quantity for General'), { target: { value: '2' } });
+    fireEvent.change(qtyFor('VIP'), { target: { value: '1' } });
+    fireEvent.change(screen.getByPlaceholderText(/full name/i), { target: { value: 'Walk-up' } });
+    fireEvent.change(screen.getByPlaceholderText('78422613'), { target: { value: '78422613' } });
+    fireEvent.click(screen.getByRole('button', { name: /complete sale|sell/i }));
+
+    await waitFor(() => expect(dialogProps.length).toBeGreaterThan(0));
+    const sale = dialogProps[dialogProps.length - 1]!.saleData;
+
+    // Read straight off the response — the ticket IDs are what become the QR
+    // codes, and the sale id is what the "Send via SMS" button needs.
+    expect(sale.ticketIds).toEqual(['TIX-1', 'TIX-2', 'TIX-3']);
+    expect(sale.saleId).toBe('66b1f0c2a4d3e5f6a7b8c9d0');
+
+    // Printed on the receipt, absent from the dialog body.
+    expect(sale.paymentMethod).toBe('Cash');
+    expect(sale.operatorName).toBe('Sunbenc Group');
+    expect(sale.venue).toBe('Sibanesami Hotel');
+    expect(sale.totalAmount).toBe(450);
+    // A mixed basket has no single unit price — better unset than invented.
+    expect(sale.unitPrice).toBeUndefined();
+  });
+
+  it('carries the unit price for a single-tier basket', async () => {
+    renderPage();
+    await chooseEvent();
+
+    fireEvent.change(await screen.findByLabelText('Quantity for VIP'), { target: { value: '2' } });
+    fireEvent.change(screen.getByPlaceholderText(/full name/i), { target: { value: 'Walk-up' } });
+    fireEvent.change(screen.getByPlaceholderText('78422613'), { target: { value: '78422613' } });
+    fireEvent.click(screen.getByRole('button', { name: /complete sale|sell/i }));
+
+    await waitFor(() => expect(dialogProps.length).toBeGreaterThan(0));
+    expect(dialogProps[dialogProps.length - 1]!.saleData.unitPrice).toBe(250);
   });
 
   it('refuses to submit an empty basket', async () => {

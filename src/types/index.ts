@@ -395,6 +395,13 @@ export interface SellTicketsRequest {
   walletPin?: string;
 }
 
+// POST /tickets/sales/sell responds with the sale AND the minted tickets. The
+// API client unwraps the `data` envelope, so this is the shape callers see.
+export interface SellTicketsResponse {
+  sale: TicketSale;
+  tickets: Ticket[];
+}
+
 // Scan Types
 export interface ScanRecord {
   _id: string;
