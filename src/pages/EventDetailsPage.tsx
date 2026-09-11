@@ -22,6 +22,7 @@ import { EventCreatorTab } from '@/components/EventCreatorTab';
 import { EventCashlessTab } from '@/components/EventCashlessTab';
 import { EventMenuTab } from '@/components/EventMenuTab';
 import { EventCashlessSetting } from '@/components/cashless/EventCashlessSetting';
+import { EventVoteTab } from '@/components/EventVoteTab';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ChannelsManager } from '@/components/community/ChannelsManager';
 import { AnnouncementComposer } from '@/components/community/AnnouncementComposer';
@@ -38,7 +39,8 @@ import { getSaleTicketType, getSaleTicketCodes } from '@/lib/sales';
 import {
   ArrowLeft, Calendar, MapPin, Users, CheckCircle, Clock,
   Edit, Trash2, Eye, EyeOff, QrCode, Plus, TrendingUp, TrendingDown, Image, BarChart3, UserCircle,
-  Share2, Link as LinkIcon, MessagesSquare, Coins, CreditCard, UtensilsCrossed, Copy, Type, FileText
+  Share2, Link as LinkIcon, MessagesSquare, Coins, CreditCard, UtensilsCrossed, Copy, Type, FileText,
+  Vote as VoteIcon,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -420,6 +422,7 @@ export function EventDetailsPage() {
     { key: 'overview', label: 'Overview', icon: Calendar, show: true },
     { key: 'financials', label: 'Financials', icon: Coins, show: canSeeFinancials },
     { key: 'analytics', label: 'Analytics', icon: BarChart3, show: true },
+    { key: 'vote', label: 'Vote', icon: VoteIcon, show: true },
     { key: 'creator', label: 'Creator', icon: UserCircle, show: true },
     { key: 'cashless', label: 'Cashless', icon: CreditCard, show: !!event.cashless },
     { key: 'menu', label: 'Menu', icon: UtensilsCrossed, show: showMenuTab },
@@ -1196,6 +1199,11 @@ export function EventDetailsPage() {
 
         <TabsContent value="analytics" className="mt-6">
           <EventAnalyticsTab eventId={id!} currency={event.currency ?? 'SZL'} />
+        </TabsContent>
+
+        {/* Vote Tab */}
+        <TabsContent value="vote" className="mt-6">
+          <EventVoteTab eventId={id!} />
         </TabsContent>
 
         {/* Creator Tab */}

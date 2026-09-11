@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { TagListInput } from '@/components/TagListInput';
 import {
   Plus, Calendar, MapPin, Trash2, CheckCircle, XCircle, Nfc,
   CalendarDays, Ticket as TicketIcon, DollarSign, Activity,
@@ -63,6 +64,8 @@ export function EventsPage() {
   // organizer who leaves it off the default single start/end time fields
   // often doesn't notice there's a multi-day option at all.
   const [isMultiDay, setIsMultiDay] = useState(true);
+  const [lineup, setLineup] = useState<string[]>([]);
+  const [outfitThemeOptions, setOutfitThemeOptions] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<Bucket>('all');
   const [deleteTarget, setDeleteTarget] = useState<Event | null>(null);
   // Cashless at creation. An admin sets it outright; an organizer can only
@@ -89,6 +92,8 @@ export function EventsPage() {
     setPosterFile(null);
     setGalleryFiles([]);
     setCurrency('SZL');
+    setLineup([]);
+    setOutfitThemeOptions([]);
   };
 
   const createMutation = useMutation({
@@ -223,6 +228,8 @@ export function EventsPage() {
       // Only an admin may create an event already cashless; the API 403s it
       // from anyone else, so an organizer's wish becomes a request instead.
       ...(isAdmin && cashlessWanted ? { cashless: true } : {}),
+      lineup: lineup.length > 0 ? lineup : undefined,
+      outfitThemeOptions: outfitThemeOptions.length > 0 ? outfitThemeOptions : undefined,
     };
 
     createMutation.mutate({
@@ -376,6 +383,37 @@ export function EventsPage() {
                     rows={2}
                   />
                 )}
+              </div>
+
+              {/* Vote feature inputs — optional; each gates the matching
+                  Vote question on the event's Vote tab (only shown if you
+                  fill it in, e.g. no lineup means no "best performer" vote). */}
+              <div className="space-y-2">
+                <Label htmlFor="lineup">Lineup / Performers (Optional)</Label>
+                <TagListInput
+                  id="lineup"
+                  values={lineup}
+                  onChange={setLineup}
+                  placeholder="Type a name, press Enter to add"
+                  maxLength={100}
+                />
+                <p className="text-xs text-slate-500">
+                  Powers the "Which artist will perform best?" Vote question. Leave empty to skip it.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="outfitThemeOptions">Outfit Theme Options (Optional)</Label>
+                <TagListInput
+                  id="outfitThemeOptions"
+                  values={outfitThemeOptions}
+                  onChange={setOutfitThemeOptions}
+                  placeholder="Type a theme, press Enter to add"
+                  maxLength={60}
+                />
+                <p className="text-xs text-slate-500">
+                  Powers the "Which outfit theme should attendees wear?" Vote question. Leave empty to skip it.
+                </p>
               </div>
 
               <div className="space-y-3 rounded-lg border border-slate-200 p-3">

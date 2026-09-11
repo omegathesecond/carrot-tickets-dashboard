@@ -54,6 +54,9 @@ import type {
   TransportBooking,
   CashlessSummary,
   CashlessTxnsResult,
+  VotePreview,
+  VoteSummary,
+  VoteComment,
 } from '@/types';
 import type { WristbandDesignDoc } from '@/lib/wristband/design';
 
@@ -1812,6 +1815,29 @@ export class ApiClient {
 
     listBookings: async (): Promise<TransportBooking[]> =>
       this.request<TransportBooking[]>(`/tickets/transport/bookings`),
+  };
+
+  // Vote endpoints — organizer dashboard's Vote tab (preview before
+  // activation, genuine stats/results/song-suggestions once open, and
+  // discussion moderation). See EventVoteTab.
+  vote = {
+    getPreview: async (eventId: string): Promise<VotePreview> => {
+      return this.request<VotePreview>(`/tickets/events/${eventId}/vote/preview`);
+    },
+
+    getSummary: async (eventId: string): Promise<VoteSummary> => {
+      return this.request<VoteSummary>(`/tickets/events/${eventId}/vote/summary`);
+    },
+
+    getComments: async (questionId: string): Promise<{ comments: VoteComment[] }> => {
+      return this.request<{ comments: VoteComment[] }>(`/tickets/vote-questions/${questionId}/comments`);
+    },
+
+    removeComment: async (commentId: string): Promise<{ removed: boolean }> => {
+      return this.request<{ removed: boolean }>(`/tickets/vote-comments/${commentId}`, {
+        method: 'DELETE',
+      });
+    },
   };
 
   // Export endpoints
