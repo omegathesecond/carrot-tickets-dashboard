@@ -183,6 +183,14 @@ export function ResellerPosPage() {
       toast.error('Please fill all required fields');
       return;
     }
+    // Pin the price before any money moves: once the sale completes the
+    // receipt has to state a real total, and the sale response carries no
+    // amount to fall back to.
+    const tierPrice = selectedTicketType?.price;
+    if (tierPrice == null) {
+      toast.error('That ticket type is no longer available. Please re-select it.');
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -209,11 +217,11 @@ export function ResellerPosPage() {
             eventDate: selectedEvent?.date,
             venue: selectedEvent?.venue,
             ticketTypeName: selectedTicketType?.name ?? ticketTypeId,
-            unitPrice: selectedTicketType?.price ?? 0,
+            unitPrice: tierPrice,
             customerName,
             customerPhone,
             quantity,
-            totalAmount: (selectedTicketType?.price ?? 0) * quantity,
+            totalAmount: tierPrice * quantity,
             currency: selectedEvent?.currency ?? 'SZL',
             paymentMethod: paymentLabel(paymentMethod),
             operatorName: operator?.fullName ?? '',
@@ -268,11 +276,11 @@ export function ResellerPosPage() {
                 eventDate: selectedEvent?.date,
                 venue: selectedEvent?.venue,
                 ticketTypeName: selectedTicketType?.name ?? ticketTypeId,
-                unitPrice: selectedTicketType?.price ?? 0,
+                unitPrice: tierPrice,
                 customerName,
                 customerPhone,
                 quantity,
-                totalAmount: (selectedTicketType?.price ?? 0) * quantity,
+                totalAmount: tierPrice * quantity,
                 currency: selectedEvent?.currency ?? 'SZL',
                 paymentMethod: paymentLabel(paymentMethod),
                 operatorName: operator?.fullName ?? '',
