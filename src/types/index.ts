@@ -289,6 +289,118 @@ export interface VoteComment {
   replies: VoteComment[];
 }
 
+// Share&Earn — organizer dashboard. See api/src/services/shareEarn.service.ts
+// (toOrganizerCampaignView / getDashboard / listPromoters / listFlaggedReferrals)
+// for the exact server-side shapes these mirror.
+export type ShareEarnCampaignStatus = 'draft' | 'active' | 'paused' | 'closed';
+export type ShareEarnRewardType =
+  | 'points' | 'ticket_discount' | 'free_ticket' | 'upgrade' | 'voucher' | 'merchandise' | 'benefit';
+export type ShareEarnRewardProvider = 'carrot' | 'organizer';
+export type ShareEarnRewardTriggerKind = 'per_sale' | 'milestone' | 'top_promoter';
+
+export interface ShareEarnRewardRule {
+  ruleId: string;
+  trigger: ShareEarnRewardTriggerKind;
+  milestoneSalesCount?: number;
+  rewardType: ShareEarnRewardType;
+  provider: ShareEarnRewardProvider;
+  pointsAmount?: number;
+  description?: string;
+  costValue?: number;
+}
+
+export interface ShareEarnCampaign {
+  id: string;
+  eventId: string;
+  status: ShareEarnCampaignStatus;
+  startsAt: string;
+  endsAt: string;
+  eligibleTicketTypeIds: string[];
+  rewardRules: ShareEarnRewardRule[];
+  maxPromoters: number | null;
+  maxRewardBudget: number | null;
+  rewardBudgetSpent: number;
+  allowSelfReferral: boolean;
+  showLeaderboard: boolean;
+  requirePromoterApproval: boolean;
+  registrationsPaused: boolean;
+  terms: string | null;
+  activatedAt: string | null;
+  pausedAt: string | null;
+  closedAt: string | null;
+}
+
+export interface ShareEarnCampaignDraft {
+  startsAt: string;
+  endsAt: string;
+  eligibleTicketTypeIds: string[];
+  rewardRules: Array<Omit<ShareEarnRewardRule, 'ruleId'> & { ruleId?: string }>;
+  maxPromoters?: number | null;
+  maxRewardBudget?: number | null;
+  allowSelfReferral?: boolean;
+  showLeaderboard?: boolean;
+  requirePromoterApproval?: boolean;
+  terms?: string;
+}
+
+export interface ShareEarnTopPromoter {
+  promoterId: string;
+  buyer: { id: string; name: string | null; username: string | null; avatarUrl: string | null } | null;
+  confirmedSalesCount: number;
+  ticketsSoldCount: number;
+}
+
+export interface ShareEarnDashboard {
+  campaign: ShareEarnCampaign;
+  registeredPromoters: number;
+  linkClicks: number;
+  uniqueVisitors: number;
+  ticketSalesGenerated: number;
+  revenueGenerated: number;
+  pendingRewards: number;
+  confirmedRewards: number;
+  redeemedRewards: number;
+  totalCampaignRewardCost: number;
+  conversionRate: number;
+  remainingRewardBudget: number | null;
+  topPromoters: ShareEarnTopPromoter[];
+}
+
+export interface ShareEarnPromoterAdmin {
+  promoterId: string;
+  buyer: { id: string; name: string | null; username: string | null; avatarUrl: string | null; phone?: string | null; email?: string | null } | null;
+  referralCode: string;
+  status: 'pending_approval' | 'active' | 'paused' | 'disqualified';
+  clicks: number;
+  uniqueVisitors: number;
+  checkoutAttempts: number;
+  confirmedSalesCount: number;
+  ticketsSoldCount: number;
+  eligibleSalesValue: number;
+  pendingRewardsCount: number;
+  confirmedRewardsCount: number;
+  redeemedRewardsCount: number;
+  joinedAt: string;
+}
+
+export interface ShareEarnPromotersPage {
+  total: number;
+  page: number;
+  limit: number;
+  promoters: ShareEarnPromoterAdmin[];
+}
+
+export interface ShareEarnFlaggedReferral {
+  id: string;
+  status: 'pending' | 'confirmed' | 'reversed' | 'disqualified';
+  flaggedReason: string | null;
+  eligibleTicketCount: number;
+  eligibleSalesValue: number;
+  createdAt: string;
+  promoter: { id: string; buyerName: string | null; username: string | null } | null;
+  referredBuyer: { id: string; name: string | null; username: string | null } | null;
+}
+
 // Event creator (organizer) + their event history — powers the admin
 // "Creator" panel on the event detail page.
 export interface EventCreator {

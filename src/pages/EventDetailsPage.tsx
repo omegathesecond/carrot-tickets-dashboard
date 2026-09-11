@@ -23,6 +23,7 @@ import { EventCashlessTab } from '@/components/EventCashlessTab';
 import { EventMenuTab } from '@/components/EventMenuTab';
 import { EventCashlessSetting } from '@/components/cashless/EventCashlessSetting';
 import { EventVoteTab } from '@/components/EventVoteTab';
+import { EventShareEarnTab } from '@/components/EventShareEarnTab';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ChannelsManager } from '@/components/community/ChannelsManager';
 import { AnnouncementComposer } from '@/components/community/AnnouncementComposer';
@@ -40,7 +41,7 @@ import {
   ArrowLeft, Calendar, MapPin, Users, CheckCircle, Clock,
   Edit, Trash2, Eye, EyeOff, QrCode, Plus, TrendingUp, TrendingDown, Image, BarChart3, UserCircle,
   Share2, Link as LinkIcon, MessagesSquare, Coins, CreditCard, UtensilsCrossed, Copy, Type, FileText,
-  Vote as VoteIcon,
+  Vote as VoteIcon, Gift,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -423,6 +424,7 @@ export function EventDetailsPage() {
     { key: 'financials', label: 'Financials', icon: Coins, show: canSeeFinancials },
     { key: 'analytics', label: 'Analytics', icon: BarChart3, show: true },
     { key: 'vote', label: 'Vote', icon: VoteIcon, show: true },
+    { key: 'share-earn', label: 'Share&Earn', icon: Gift, show: true },
     { key: 'creator', label: 'Creator', icon: UserCircle, show: true },
     { key: 'cashless', label: 'Cashless', icon: CreditCard, show: !!event.cashless },
     { key: 'menu', label: 'Menu', icon: UtensilsCrossed, show: showMenuTab },
@@ -1204,6 +1206,11 @@ export function EventDetailsPage() {
         {/* Vote Tab */}
         <TabsContent value="vote" className="mt-6">
           <EventVoteTab eventId={id!} />
+        </TabsContent>
+
+        {/* Share&Earn Tab */}
+        <TabsContent value="share-earn" className="mt-6">
+          {event && <EventShareEarnTab eventId={id!} event={event} />}
         </TabsContent>
 
         {/* Creator Tab */}

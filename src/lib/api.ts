@@ -57,6 +57,11 @@ import type {
   VotePreview,
   VoteSummary,
   VoteComment,
+  ShareEarnCampaign,
+  ShareEarnCampaignDraft,
+  ShareEarnDashboard,
+  ShareEarnPromotersPage,
+  ShareEarnFlaggedReferral,
 } from '@/types';
 import type { WristbandDesignDoc } from '@/lib/wristband/design';
 
@@ -1837,6 +1842,82 @@ export class ApiClient {
       return this.request<{ removed: boolean }>(`/tickets/vote-comments/${commentId}`, {
         method: 'DELETE',
       });
+    },
+  };
+
+  // Share&Earn endpoints — organizer dashboard (spec §1/§10). See EventShareEarnTab.
+  shareEarn = {
+    getCampaign: async (eventId: string): Promise<{ campaign: ShareEarnCampaign | null }> => {
+      return this.request<{ campaign: ShareEarnCampaign | null }>(`/tickets/events/${eventId}/share-earn/campaign`);
+    },
+
+    saveCampaign: async (eventId: string, draft: ShareEarnCampaignDraft): Promise<{ campaign: ShareEarnCampaign }> => {
+      return this.request<{ campaign: ShareEarnCampaign }>(`/tickets/events/${eventId}/share-earn/campaign`, {
+        method: 'PUT',
+        body: JSON.stringify(draft),
+      });
+    },
+
+    activate: async (eventId: string): Promise<{ campaign: ShareEarnCampaign }> => {
+      return this.request<{ campaign: ShareEarnCampaign }>(`/tickets/events/${eventId}/share-earn/campaign/activate`, { method: 'POST' });
+    },
+
+    pause: async (eventId: string): Promise<{ campaign: ShareEarnCampaign }> => {
+      return this.request<{ campaign: ShareEarnCampaign }>(`/tickets/events/${eventId}/share-earn/campaign/pause`, { method: 'POST' });
+    },
+
+    close: async (eventId: string): Promise<{ campaign: ShareEarnCampaign }> => {
+      return this.request<{ campaign: ShareEarnCampaign }>(`/tickets/events/${eventId}/share-earn/campaign/close`, { method: 'POST' });
+    },
+
+    setRegistrationsPaused: async (eventId: string, paused: boolean): Promise<{ campaign: ShareEarnCampaign }> => {
+      return this.request<{ campaign: ShareEarnCampaign }>(`/tickets/events/${eventId}/share-earn/campaign/registrations`, {
+        method: 'POST',
+        body: JSON.stringify({ paused }),
+      });
+    },
+
+    getDashboard: async (eventId: string): Promise<ShareEarnDashboard> => {
+      return this.request<ShareEarnDashboard>(`/tickets/events/${eventId}/share-earn/dashboard`);
+    },
+
+    getPromoters: async (eventId: string, page = 1, limit = 50): Promise<ShareEarnPromotersPage> => {
+      return this.request<ShareEarnPromotersPage>(`/tickets/events/${eventId}/share-earn/promoters?page=${page}&limit=${limit}`);
+    },
+
+    getFlaggedReferrals: async (eventId: string): Promise<{ referrals: ShareEarnFlaggedReferral[] }> => {
+      return this.request<{ referrals: ShareEarnFlaggedReferral[] }>(`/tickets/events/${eventId}/share-earn/referrals/flagged`);
+    },
+
+    reviewReferral: async (eventId: string, referralId: string, action: 'approve' | 'disqualify', reason?: string): Promise<void> => {
+      await this.request(`/tickets/events/${eventId}/share-earn/referrals/${referralId}/review`, {
+        method: 'POST',
+        body: JSON.stringify({ action, reason }),
+      });
+    },
+
+    confirmReward: async (eventId: string, rewardId: string): Promise<void> => {
+      await this.request(`/tickets/events/${eventId}/share-earn/rewards/${rewardId}/confirm`, { method: 'POST' });
+    },
+
+    exportCsv: async (eventId: string, eventName: string): Promise<void> => {
+      const url = `${this.baseUrl}/tickets/events/${eventId}/share-earn/export.csv`;
+      const headers: Record<string, string> = {};
+      if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
+      if (APP_API_KEY) headers['x-api-key'] = APP_API_KEY;
+
+      const response = await fetch(url, { headers });
+      if (!response.ok) throw new Error('Failed to export Share&Earn report');
+
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `share-earn-${eventName.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(downloadUrl);
     },
   };
 
