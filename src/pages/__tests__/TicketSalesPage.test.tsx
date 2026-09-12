@@ -46,7 +46,13 @@ vi.mock('@/lib/api', () => ({
   apiClient: {
     events: { getEvents: vi.fn() },
     settings: { getPaymentMethods: vi.fn() },
-    sales: { sellTickets: vi.fn(), sendSaleSms: vi.fn() },
+    sales: {
+      sellTickets: vi.fn(),
+      sendSaleSms: vi.fn(),
+      setTicketRecipient: vi.fn(),
+      sendTicket: vi.fn(),
+    },
+    ticketDocs: { ticketPdfBytes: vi.fn(), ticketBundlePdf: vi.fn() },
   },
 }));
 
@@ -315,5 +321,19 @@ describe('TicketSalesPage — box-office basket', () => {
     const body = vi.mocked(apiClient.sales.sellTickets).mock.calls[0]![0] as any;
     expect(body.items[0].recipients).toEqual([{ name: 'Thandi' }, { name: 'Sipho' }]);
     expect(body.items[0].recipients[0]).not.toHaveProperty('phone');
+  });
+
+  it('gives the dialog the organizer per-ticket rails', async () => {
+    renderPage();
+    await chooseEvent();
+    fireEvent.change(await screen.findByLabelText('Quantity for General'), { target: { value: '1' } });
+    fireEvent.change(screen.getByPlaceholderText(/full name/i), { target: { value: 'Walk-up' } });
+    fireEvent.change(screen.getByPlaceholderText('78422613'), { target: { value: '78422613' } });
+    fireEvent.click(screen.getByRole('button', { name: /complete sale|sell/i }));
+
+    await waitFor(() => expect(dialogProps.length).toBeGreaterThan(0));
+    const p = dialogProps[dialogProps.length - 1]!;
+    expect(p.perTicket.setRecipient).toBe(apiClient.sales.setTicketRecipient);
+    expect(p.perTicket.send).toBe(apiClient.sales.sendTicket);
   });
 });

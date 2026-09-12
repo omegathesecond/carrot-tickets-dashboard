@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import type { SellTicketsRequest, SellTicketsResponse, TicketRecipient } from '@/types';
 import { formatMoney } from '@/lib/currency';
 import type { SaleData } from '@/lib/saleData';
+import { saveBlob } from '@/lib/ticketDownloads';
 import { paymentLabel } from '@/lib/payment';
 import { userDisplayName } from '@/lib/userName';
 import { useAuth } from '@/contexts/AuthContext';
@@ -386,6 +387,14 @@ export function TicketSalesPage() {
           onOpenChange={setSuccessDialogOpen}
           saleData={saleData}
           sendSms={apiClient.sales.sendSaleSms}
+          perTicket={{
+            setRecipient: apiClient.sales.setTicketRecipient,
+            send: apiClient.sales.sendTicket,
+            downloadOne: async (ticketId) =>
+              saveBlob(await apiClient.ticketDocs.ticketPdfBytes(ticketId), `${ticketId}.pdf`),
+            downloadBundle: (ticketIds) => apiClient.ticketDocs.ticketBundlePdf(ticketIds),
+            fetchOneBlob: (ticketId) => apiClient.ticketDocs.ticketPdfBytes(ticketId),
+          }}
         />
       )}
     </div>
