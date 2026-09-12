@@ -1931,7 +1931,21 @@ export class ApiClient {
       }),
   };
 
-  private async fetchPdf(endpoint: string, options: RequestInit): Promise<Blob> {
+  /** Same 401-expired-token detection `request()` uses (around line 144),
+   *  factored out so `fetchPdf` can share the decision without touching
+   *  `request()` itself: expired-token message, not the auth endpoints
+   *  (which would recurse), and a refresh token actually on hand to try. */
+  private isExpiredTokenResponse(endpoint: string, status: number, errorMessage: string): boolean {
+    return (
+      status === 401 &&
+      (errorMessage.includes('Token has expired') || errorMessage.includes('expired')) &&
+      !endpoint.includes('/tickets/auth/refresh') &&
+      !endpoint.includes('/tickets/auth/login') &&
+      !!this.getRefreshToken()
+    );
+  }
+
+  private async fetchPdf(endpoint: string, options: RequestInit, isRetry = false): Promise<Blob> {
     const token = this.getToken();
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       ...options,
@@ -1944,7 +1958,23 @@ export class ApiClient {
     });
     if (!response.ok) {
       const err = await response.json().catch(() => ({ message: `HTTP ${response.status}` }));
-      throw new Error(err.message || `HTTP ${response.status}`);
+      const errorMessage = err.message || `HTTP ${response.status}`;
+
+      // Mirror `request()`'s transparent refresh-and-retry (see around line
+      // 144) so PDF download/bundle doesn't hard-fail just because it's the
+      // one call site that bypasses `request()` to read a Blob instead of
+      // JSON. Retried exactly once — `isRetry` blocks a second attempt even
+      // if the freshly-refreshed token is somehow rejected again.
+      if (!isRetry && this.isExpiredTokenResponse(endpoint, response.status, errorMessage)) {
+        try {
+          await this.handleTokenRefresh();
+          return this.fetchPdf(endpoint, options, true);
+        } catch {
+          throw new Error('Session expired. Please log in again.');
+        }
+      }
+
+      throw new Error(errorMessage);
     }
     return response.blob();
   }

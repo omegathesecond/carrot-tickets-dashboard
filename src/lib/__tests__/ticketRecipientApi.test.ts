@@ -129,6 +129,103 @@ describe('apiClient.ticketDocs.ticketPdfBytes', () => {
   });
 });
 
+describe('apiClient.ticketDocs — expired-token refresh-and-retry', () => {
+  it('refreshes an expired access token and retries the PDF fetch exactly once', async () => {
+    localStorage.setItem('keshless_tickets_token', 'old-token');
+    localStorage.setItem('keshless_tickets_refresh_token', 'refresh-abc');
+
+    const fakeBlob = { type: 'application/pdf' } as Blob;
+    const fetchMock = vi
+      .fn()
+      // 1) initial PDF fetch: expired token
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({ message: 'Token has expired' }),
+      })
+      // 2) POST /tickets/auth/refresh: succeeds with a new token pair
+      .mockResolvedValueOnce(
+        jsonResponse({ data: { accessToken: 'new-token', refreshToken: 'new-refresh' } })
+      )
+      // 3) retried PDF fetch: succeeds
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        blob: async () => fakeBlob,
+      });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await apiClient.ticketDocs.ticketPdfBytes('TKT-1');
+
+    expect(result).toBe(fakeBlob);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    const pdfCalls = fetchMock.mock.calls.filter(([url]) => String(url).includes('/tickets/TKT-1/pdf/download'));
+    expect(pdfCalls).toHaveLength(2);
+
+    const refreshCalls = fetchMock.mock.calls.filter(([url]) => String(url).includes('/tickets/auth/refresh'));
+    expect(refreshCalls).toHaveLength(1);
+
+    // the retried call carries the freshly refreshed token, not the stale one
+    const retryHeaders = pdfCalls[1][1].headers as Record<string, string>;
+    expect(retryHeaders.Authorization).toBe('Bearer new-token');
+  });
+
+  it('does not refresh on a non-expiry 401 — a genuine auth failure surfaces as-is', async () => {
+    localStorage.setItem('keshless_tickets_token', 'old-token');
+    localStorage.setItem('keshless_tickets_refresh_token', 'refresh-abc');
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({ message: 'Invalid credentials' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(apiClient.ticketDocs.ticketPdfBytes('TKT-1')).rejects.toThrow('Invalid credentials');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not refresh on a 403 — the retry cannot mask a real authorization failure', async () => {
+    localStorage.setItem('keshless_tickets_token', 'old-token');
+    localStorage.setItem('keshless_tickets_refresh_token', 'refresh-abc');
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      json: async () => ({ message: 'Forbidden' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(apiClient.ticketDocs.ticketPdfBytes('TKT-1')).rejects.toThrow('Forbidden');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('surfaces "Session expired" when the refresh itself fails, matching request()', async () => {
+    localStorage.setItem('keshless_tickets_token', 'old-token');
+    localStorage.setItem('keshless_tickets_refresh_token', 'refresh-abc');
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({ message: 'Token has expired' }),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({ message: 'Refresh token invalid' }),
+      });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(apiClient.ticketDocs.ticketPdfBytes('TKT-1')).rejects.toThrow(
+      'Session expired. Please log in again.'
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('apiClient.ticketDocs.ticketBundlePdf', () => {
   it('POSTs the ticketIds array to the bundle route and returns a Blob', async () => {
     const fakeBlob = { type: 'application/pdf' } as Blob;
