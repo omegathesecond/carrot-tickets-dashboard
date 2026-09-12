@@ -36,6 +36,17 @@ export function TicketSalesPage() {
   // Keyed by "<ticketTypeId>:<index>" so a cart change cannot shuffle entries
   // onto the wrong ticket.
   const [recipients, setRecipients] = useState<Record<string, TicketRecipient>>({});
+  // Bumped on every completed sale and used as the buyer PhoneInput's `key`.
+  // A new sale is a new customer — PhoneInput deliberately keeps its chosen
+  // country when the number is cleared (so mid-entry backspacing doesn't yank
+  // the country out from under the operator), but that means the country
+  // survives a plain state reset too. Forcing a remount is the only way to
+  // get a clean slate between sales without touching that intentional
+  // behaviour. The per-ticket recipient PhoneInputs don't need this: they
+  // live inside `assigning && cartQuantity > 0`, both of which are reset to
+  // false/0 on success, so that whole subtree unmounts and remounts fresh
+  // next time regardless of key reuse.
+  const [saleNonce, setSaleNonce] = useState(0);
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
@@ -158,6 +169,7 @@ export function TicketSalesPage() {
       setCart({});
       setRecipients({});
       setAssigning(false);
+      setSaleNonce((n) => n + 1);
     },
     onError: (error: any) => toast.error(error.message),
   });
@@ -342,6 +354,7 @@ export function TicketSalesPage() {
                   />
                 </div>
                 <PhoneInput
+                  key={saleNonce}
                   label="Customer Phone"
                   value={formData.customerPhone || ''}
                   onChange={(value) => setFormData({ ...formData, customerPhone: value })}

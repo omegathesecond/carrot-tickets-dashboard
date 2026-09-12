@@ -417,6 +417,45 @@ describe('TicketSalesPage — foreign recipient numbers (C1)', () => {
   });
 });
 
+describe('TicketSalesPage — buyer country does not leak across sales', () => {
+  // The regression: PhoneInput deliberately keeps its picked country when the
+  // number is cleared (see PhoneInput.test.tsx), but onSuccess resets
+  // formData with a plain setState — no remount — so a South African walk-up
+  // followed by a local customer used to ship the SECOND buyer's number as
+  // +27<local digits> instead of +268<local digits>.
+  it('submits the second sale\'s buyer phone in local +268 form, not the first sale\'s +27', async () => {
+    renderPage();
+    await chooseEvent();
+
+    // Sale 1: a South African walk-up picks the ZA country code.
+    fireEvent.change(await screen.findByLabelText('Quantity for General'), { target: { value: '1' } });
+    fireEvent.change(screen.getByPlaceholderText(/full name/i), { target: { value: 'First Customer' } });
+    fireEvent.change(screen.getByPlaceholderText('78422613'), { target: { value: '821234567' } });
+    fireEvent.keyDown(screen.getByLabelText('Customer Phone country code'), { key: 'ArrowDown' });
+    fireEvent.click(await screen.findByRole('option', { name: /South Africa/i }));
+    submit();
+
+    await waitFor(() => expect(apiClient.sales.sellTickets).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(apiClient.sales.sellTickets).mock.calls[0]![0]).toMatchObject({
+      customerPhone: '+27821234567',
+    });
+
+    // Sale 2: a local customer. Re-pick the event (the form reset cleared
+    // formData.eventId along with everything else) and ring up the same
+    // tier, but never touch the country picker this time.
+    await chooseEvent();
+    fireEvent.change(await screen.findByLabelText('Quantity for General'), { target: { value: '1' } });
+    fireEvent.change(screen.getByPlaceholderText(/full name/i), { target: { value: 'Second Customer' } });
+    fireEvent.change(screen.getByPlaceholderText('78422613'), { target: { value: '78422613' } });
+    submit();
+
+    await waitFor(() => expect(apiClient.sales.sellTickets).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(apiClient.sales.sellTickets).mock.calls[1]![0]).toMatchObject({
+      customerPhone: '+26878422613',
+    });
+  });
+});
+
 describe('TicketSalesPage — a cancelled assignment must not ship (I2)', () => {
   // Opening the panel, typing a name, thinking better of it and collapsing the
   // section used to mint that ticket to the abandoned recipient, with nothing
