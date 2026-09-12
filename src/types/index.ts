@@ -386,10 +386,25 @@ export interface Ticket {
   currency?: 'SZL' | 'ZAR';
 }
 
+/** One ticket's own recipient. Every field optional — a partially-filled row
+ *  is valid until the chosen channel needs its contact field. */
+export interface TicketRecipient {
+  name?: string;
+  phone?: string;
+  email?: string;
+}
+
+export type SendChannel = 'sms' | 'email';
+
 export interface SellTicketsRequest {
   eventId: string;
   /** One entry per tier. A single-tier sale is a one-element array. */
-  items: Array<{ ticketTypeId: string; quantity: number }>;
+  items: Array<{
+    ticketTypeId: string;
+    quantity: number;
+    /** Sparse, applied in order. Absent entries fall back to the buyer. */
+    recipients?: TicketRecipient[];
+  }>;
   customerName: string;
   customerPhone: string;
   paymentMethod: PaymentMethodValue;
