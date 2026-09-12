@@ -146,8 +146,8 @@ export interface Event {
   cashlessRequestedAt?: string | null;
   cashlessRequestNote?: string | null;
   publishedAt?: string;
-  // Vote feature inputs (see the Vote tab on the event details page). Absent
-  // means the artist/outfit-theme Vote questions they gate are skipped
+  // Attendance Status feature inputs (see the Attendance tab on the event details page). Absent
+  // means the artist/outfit-theme questions they gate are skipped
   // entirely — nothing is fabricated when an organizer hasn't supplied this.
   lineup?: string[];
   outfitThemeOptions?: string[];
@@ -209,13 +209,15 @@ export interface EventFormData {
   // Admin-only. The API rejects this from a non-super-admin token, so the
   // form only ever sends it when the toggle was rendered for an admin.
   cashless?: boolean;
-  // Vote feature inputs — see Event.lineup / Event.outfitThemeOptions.
+  // Attendance Status feature inputs — see Event.lineup / Event.outfitThemeOptions.
   lineup?: string[];
   outfitThemeOptions?: string[];
 }
 
-// Vote feature types (organizer dashboard's Vote tab — see EventVoteTab).
-export type VoteQuestionKind = 'artist' | 'song' | 'outfit' | 'attending_with' | 'busy';
+// Attendance Status feature types (organizer dashboard's Attendance tab — see
+// EventVoteTab). Display order is fixed server-side: attend, attending_with,
+// busy, bump_into, cup, then the event-conditional artist/song/outfit questions.
+export type VoteQuestionKind = 'artist' | 'song' | 'outfit' | 'attend' | 'attending_with' | 'busy' | 'bump_into' | 'cup';
 
 export interface VoteWindow {
   opensAt: string | null;
