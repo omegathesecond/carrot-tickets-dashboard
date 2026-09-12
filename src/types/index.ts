@@ -378,6 +378,13 @@ export interface Ticket {
   eventId: string;
   ticketTypeId?: string;
   ticketType?: string; // denormalized ticket type name (e.g. "VIP")
+  // Who this INDIVIDUAL ticket is for — the per-ticket recipient captured at
+  // the till, or the sale's buyer when none was given. Returned by
+  // POST /tickets/sales/sell and PATCH /tickets/:ticketId/recipient. Optional
+  // because older endpoints project a narrower ticket.
+  customerName?: string;
+  customerPhone?: string;
+  customerEmail?: string;
   status: 'valid' | 'used' | 'refunded' | 'cancelled';
   scannedAt?: string;
   scannedBy?: string;

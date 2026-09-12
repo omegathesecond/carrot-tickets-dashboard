@@ -13,7 +13,8 @@ import { TicketSuccessDialog } from '@/components/TicketSuccessDialog';
 import { toast } from 'sonner';
 import type { SellTicketsRequest, SellTicketsResponse, TicketRecipient } from '@/types';
 import { formatMoney } from '@/lib/currency';
-import type { SaleData } from '@/lib/saleData';
+import type { SaleData, SaleTicketRecipient } from '@/lib/saleData';
+import { MAX_RECIPIENT_ROWS } from '@/lib/ticketRecipients';
 import { saveBlob } from '@/lib/ticketDownloads';
 import { paymentLabel } from '@/lib/payment';
 import { userDisplayName } from '@/lib/userName';
@@ -111,6 +112,19 @@ export function TicketSalesPage() {
     onSuccess: (response: SellTicketsResponse) => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
 
+      // The API answers with the minted tickets, each carrying its own
+      // recipient (the till's entry, or the buyer when none was given).
+      const minted: Record<string, SaleTicketRecipient> = {};
+      for (const t of response.tickets) {
+        const id = t.ticketId || t._id;
+        const entry: SaleTicketRecipient = {
+          ...(t.customerName ? { name: t.customerName } : {}),
+          ...(t.customerPhone ? { phone: t.customerPhone } : {}),
+          ...(t.customerEmail ? { email: t.customerEmail } : {}),
+        };
+        if (id && Object.keys(entry).length) minted[id] = entry;
+      }
+
       // Everything the success dialog, the printed receipt and the SMS need.
       const dialogData: SaleData = {
         saleId: response.sale._id,
@@ -132,6 +146,10 @@ export function TicketSalesPage() {
         operatorName: userDisplayName(user),
         currency: selectedEvent?.currency ?? 'SZL',
         ticketIds: response.tickets.map((t) => t.ticketId || t._id),
+        // Who each minted ticket actually went to, so the dialog's rows open
+        // pre-filled instead of making the operator retype Thandi/Sipho/Bongi
+        // from memory in the right order.
+        ...(Object.keys(minted).length ? { ticketRecipients: minted } : {}),
       };
 
       setSaleData(dialogData);
@@ -143,6 +161,15 @@ export function TicketSalesPage() {
     },
     onError: (error: any) => toast.error(error.message),
   });
+
+  // Collapsing the panel DISCARDS what was typed into it. Leaving `recipients`
+  // behind meant an operator who opened the section, typed a name, thought
+  // better of it and collapsed the section still minted that ticket to the
+  // abandoned recipient — with nothing on screen showing it.
+  const toggleAssigning = () => {
+    if (assigning) setRecipients({});
+    setAssigning(!assigning);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -185,7 +212,16 @@ export function TicketSalesPage() {
                 <Label>Select Event</Label>
                 <SearchableSelect
                   value={formData.eventId}
-                  onValueChange={(v) => { setFormData({ ...formData, eventId: v }); setCart({}); }}
+                  onValueChange={(v) => {
+                    setFormData({ ...formData, eventId: v });
+                    setCart({});
+                    // The basket is gone, so the people it was being
+                    // assigned to are too — otherwise re-picking an event
+                    // reopens the panel pre-filled with the PREVIOUS
+                    // customer's names and phone numbers.
+                    setRecipients({});
+                    setAssigning(false);
+                  }}
                   options={(eventsData?.data || []).map((event) => ({
                     value: event._id,
                     label: `${event.name} - ${event.venue}`,
@@ -240,37 +276,56 @@ export function TicketSalesPage() {
 
               {cartQuantity > 0 && (
                 <div className="space-y-2">
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setAssigning((v) => !v)}>
+                  <Button type="button" variant="ghost" size="sm" onClick={toggleAssigning}>
                     Assign tickets to individual people (optional)
                   </Button>
                   {assigning && (() => {
-                    // n counts across the WHOLE basket, not per line — a
-                    // mixed basket (General + VIP) must not repeat "Recipient
-                    // 1" for both tiers' first row, which would collide as an
-                    // aria-label. The state key stays per-line ("<id>:<i>")
-                    // so this numbering is display-only.
-                    let n = 0;
-                    return cartLines.flatMap((l) =>
-                      Array.from({ length: l.quantity }, (_, i) => {
-                        const key = `${l.ticketTypeId}:${i}`;
-                        n += 1;
-                        return (
+                    // One row per ticket, capped at the SAME limit the success
+                    // dialog renders rows for — a recipient the till accepts
+                    // but the dialog cannot show has no way to be sent.
+                    const rows = cartLines.flatMap((l) =>
+                      Array.from({ length: l.quantity }, (_, i) => ({ line: l, i, key: `${l.ticketTypeId}:${i}` }))
+                    );
+                    const shown = rows.slice(0, MAX_RECIPIENT_ROWS);
+                    return (
+                      <>
+                        {/* The index counts across the WHOLE basket, not per
+                            line — a mixed basket (General + VIP) must not
+                            repeat "Recipient 1" for both tiers' first row,
+                            which would collide as an aria-label. The state key
+                            stays per-line ("<id>:<i>") so this numbering is
+                            display-only. */}
+                        {shown.map(({ line, i, key }, idx) => (
                           <div key={key} className="flex gap-2">
                             <Input
-                              aria-label={`Recipient ${n} name`}
-                              placeholder={`${l.tier.name} #${i + 1} name`}
+                              aria-label={`Recipient ${idx + 1} name`}
+                              placeholder={`${line.tier.name} #${i + 1} name`}
                               value={recipients[key]?.name ?? ''}
                               onChange={(e) => setRecipients((r) => ({ ...r, [key]: { ...r[key], name: e.target.value } }))}
                             />
-                            <Input
-                              aria-label={`Recipient ${n} phone`}
-                              placeholder="7612 3456"
+                            {/* A bare phone box silently localises a foreign
+                                number — 0821234567 is stored as
+                                +268821234567, routed to the Eswatini gateway,
+                                and still reported as "Sent". Same country
+                                picker as the buyer field below. */}
+                            <PhoneInput
+                              compact
+                              className="flex-1"
                               value={recipients[key]?.phone ?? ''}
-                              onChange={(e) => setRecipients((r) => ({ ...r, [key]: { ...r[key], phone: e.target.value } }))}
+                              onChange={(phone) => setRecipients((r) => ({ ...r, [key]: { ...r[key], phone } }))}
+                              placeholder="7612 3456"
+                              inputAriaLabel={`Recipient ${idx + 1} phone`}
+                              countryAriaLabel={`Recipient ${idx + 1} country code`}
                             />
                           </div>
-                        );
-                      })
+                        ))}
+                        {rows.length > shown.length && (
+                          <p className="text-xs text-slate-500">
+                            Showing the first {MAX_RECIPIENT_ROWS} tickets. The remaining{' '}
+                            {rows.length - shown.length} go to the buyer.
+                          </p>
+                        )}
+                      </>
                     );
                   })()}
                 </div>

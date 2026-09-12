@@ -11,13 +11,9 @@ import { getPrintLogoDataUrl } from '@/lib/printAssets';
 import type { ReceiptTicket } from '@/lib/ticketReceipt';
 import { formatMoney } from '@/lib/currency';
 import { TicketRecipientRow } from '@/components/TicketRecipientRow';
-import { saveBlob, buildTicketsZip } from '@/lib/ticketDownloads';
+import { saveBlob, buildTicketsZip, downloadTicketBundles } from '@/lib/ticketDownloads';
+import { MAX_RECIPIENT_ROWS, SCROLL_RECIPIENT_ROWS_ABOVE } from '@/lib/ticketRecipients';
 import type { SendChannel, TicketRecipient } from '@/types';
-
-// Above this many tickets in one sale, per-row editing would make the dialog
-// unusable — fall back to the plain chip list (plus, from Task 8, bulk
-// download buttons) instead of one row per ticket.
-const MAX_INLINE_RECIPIENT_ROWS = 20;
 
 interface TicketSuccessDialogProps {
   open: boolean;
@@ -97,7 +93,11 @@ export function TicketSuccessDialog({ open, onOpenChange, saleData, sendSms, per
     if (!perTicket) return;
     setBundling(true);
     try {
-      saveBlob(await perTicket.downloadBundle(saleData.ticketIds), 'tickets.pdf');
+      // Split at the API's 100-ticket bundle cap. Posting every id in one
+      // call 400s on a basket the till was allowed to ring up, which left
+      // the button offered for sales it could never serve — and disagreeing
+      // with the ZIP button, which has no such cap.
+      await downloadTicketBundles(saleData.ticketIds, perTicket.downloadBundle);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not build the ticket PDF');
     } finally {
@@ -191,12 +191,24 @@ export function TicketSuccessDialog({ open, onOpenChange, saleData, sendSms, per
                     </Button>
                   </div>
                 )}
-                {perTicket && saleData.ticketIds.length <= MAX_INLINE_RECIPIENT_ROWS ? (
-                  <div>
+                {perTicket && saleData.ticketIds.length <= MAX_RECIPIENT_ROWS ? (
+                  // Long sales SCROLL rather than losing their rows: the till
+                  // panel captures a recipient per ticket with the same cap,
+                  // so dropping to chips above 20 stranded every send and
+                  // download the operator had just been allowed to set up.
+                  <div
+                    data-testid="recipient-rows"
+                    className={
+                      saleData.ticketIds.length > SCROLL_RECIPIENT_ROWS_ABOVE
+                        ? 'max-h-80 overflow-y-auto pr-1'
+                        : undefined
+                    }
+                  >
                     {saleData.ticketIds.map((id) => (
                       <TicketRecipientRow
                         key={id}
                         ticketId={id}
+                        recipient={saleData.ticketRecipients?.[id]}
                         onSetRecipient={perTicket.setRecipient}
                         onSend={perTicket.send}
                         onDownload={perTicket.downloadOne}

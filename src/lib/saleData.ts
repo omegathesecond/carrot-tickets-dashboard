@@ -25,4 +25,18 @@ export interface SaleData {
   // The event's display currency — absent on legacy callers, so consumers
   // fall back to 'SZL'.
   currency?: Currency;
+  // Who each MINTED ticket is actually for, keyed by the same ids as
+  // `ticketIds`. Read straight off the sell response, so the success dialog
+  // can seed its per-ticket rows with the recipients the till already
+  // captured instead of making the operator retype three names from memory
+  // in the right order. Optional and additive — the reseller POS does not
+  // supply it and must keep working untouched.
+  ticketRecipients?: Record<string, SaleTicketRecipient>;
+}
+
+/** One minted ticket's recipient, as the API stored it. */
+export interface SaleTicketRecipient {
+  name?: string;
+  phone?: string;
+  email?: string;
 }
