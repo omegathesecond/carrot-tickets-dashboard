@@ -235,4 +235,36 @@ describe('TicketSalesPage — box-office basket', () => {
     fireEvent.change(option.closest('select')!, { target: { value: 'e1' } });
     await waitFor(() => expect(screen.queryByTestId('summary-quantity')).toBeNull());
   });
+
+  it('sends per-ticket recipients when the optional section is filled', async () => {
+    renderPage();
+    await chooseEvent();
+
+    fireEvent.change(await screen.findByLabelText('Quantity for General'), { target: { value: '2' } });
+    fireEvent.click(screen.getByRole('button', { name: /assign tickets to individual people/i }));
+
+    fireEvent.change(screen.getByLabelText('Recipient 1 name'), { target: { value: 'Thandi' } });
+    fireEvent.change(screen.getByLabelText('Recipient 1 phone'), { target: { value: '76111111' } });
+
+    fireEvent.change(screen.getByPlaceholderText(/full name/i), { target: { value: 'Walk-up' } });
+    fireEvent.change(screen.getByPlaceholderText('78422613'), { target: { value: '78422613' } });
+    fireEvent.click(screen.getByRole('button', { name: /complete sale|sell/i }));
+
+    await waitFor(() => expect(apiClient.sales.sellTickets).toHaveBeenCalled());
+    const body = vi.mocked(apiClient.sales.sellTickets).mock.calls[0]![0] as any;
+    expect(body.items[0].recipients[0]).toMatchObject({ name: 'Thandi' });
+  });
+
+  it('sends no recipients key when the section is untouched', async () => {
+    renderPage();
+    await chooseEvent();
+    fireEvent.change(await screen.findByLabelText('Quantity for General'), { target: { value: '2' } });
+    fireEvent.change(screen.getByPlaceholderText(/full name/i), { target: { value: 'Walk-up' } });
+    fireEvent.change(screen.getByPlaceholderText('78422613'), { target: { value: '78422613' } });
+    fireEvent.click(screen.getByRole('button', { name: /complete sale|sell/i }));
+
+    await waitFor(() => expect(apiClient.sales.sellTickets).toHaveBeenCalled());
+    const body = vi.mocked(apiClient.sales.sellTickets).mock.calls[0]![0] as any;
+    expect(body.items[0].recipients).toBeUndefined();
+  });
 });

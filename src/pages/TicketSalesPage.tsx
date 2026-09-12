@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PhoneInput } from '@/components/PhoneInput';
 import { TicketSuccessDialog } from '@/components/TicketSuccessDialog';
 import { toast } from 'sonner';
-import type { SellTicketsRequest, SellTicketsResponse } from '@/types';
+import type { SellTicketsRequest, SellTicketsResponse, TicketRecipient } from '@/types';
 import { formatMoney } from '@/lib/currency';
 import type { SaleData } from '@/lib/saleData';
 import { paymentLabel } from '@/lib/payment';
@@ -27,6 +27,13 @@ export function TicketSalesPage() {
   const [cart, setCart] = useState<Record<string, number>>({});
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
   const [saleData, setSaleData] = useState<SaleData | null>(null);
+  // Optional: name who each individual ticket is for, before payment. Leaving
+  // this untouched must produce a request byte-identical to today's — see
+  // recipientsForLine.
+  const [assigning, setAssigning] = useState(false);
+  // Keyed by "<ticketTypeId>:<index>" so a cart change cannot shuffle entries
+  // onto the wrong ticket.
+  const [recipients, setRecipients] = useState<Record<string, TicketRecipient>>({});
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
@@ -72,6 +79,15 @@ export function TicketSalesPage() {
       return next;
     });
 
+  // Sparse and trimmed: a ticket with no entry falls back to the buyer, and
+  // trailing blanks carry no meaning, so an untouched or partially-filled
+  // section sends nothing — the request body stays byte-identical to today's.
+  const recipientsForLine = (ticketTypeId: string, quantity: number): TicketRecipient[] | undefined => {
+    const entries = Array.from({ length: quantity }, (_, i) => recipients[`${ticketTypeId}:${i}`] ?? {});
+    while (entries.length && Object.keys(entries[entries.length - 1]!).length === 0) entries.pop();
+    return entries.length ? entries : undefined;
+  };
+
   const sellMutation = useMutation({
     mutationFn: (data: SellTicketsRequest) => apiClient.sales.sellTickets(data),
     onSuccess: (response: SellTicketsResponse) => {
@@ -104,6 +120,8 @@ export function TicketSalesPage() {
       setSuccessDialogOpen(true);
       setFormData({ paymentMethod: 'cash' });
       setCart({});
+      setRecipients({});
+      setAssigning(false);
     },
     onError: (error: any) => toast.error(error.message),
   });
@@ -120,7 +138,13 @@ export function TicketSalesPage() {
     }
     sellMutation.mutate({
       ...formData,
-      items: cartLines.map((l) => ({ ticketTypeId: l.ticketTypeId, quantity: l.quantity })),
+      items: cartLines.map((l) => ({
+        ticketTypeId: l.ticketTypeId,
+        quantity: l.quantity,
+        ...(recipientsForLine(l.ticketTypeId, l.quantity)
+          ? { recipients: recipientsForLine(l.ticketTypeId, l.quantity) }
+          : {}),
+      })),
     } as SellTicketsRequest);
   };
 
@@ -192,6 +216,44 @@ export function TicketSalesPage() {
                       );
                     })}
                   </div>
+                </div>
+              )}
+
+              {cartQuantity > 0 && (
+                <div className="space-y-2">
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setAssigning((v) => !v)}>
+                    Assign tickets to individual people (optional)
+                  </Button>
+                  {assigning && (() => {
+                    // n counts across the WHOLE basket, not per line — a
+                    // mixed basket (General + VIP) must not repeat "Recipient
+                    // 1" for both tiers' first row, which would collide as an
+                    // aria-label. The state key stays per-line ("<id>:<i>")
+                    // so this numbering is display-only.
+                    let n = 0;
+                    return cartLines.flatMap((l) =>
+                      Array.from({ length: l.quantity }, (_, i) => {
+                        const key = `${l.ticketTypeId}:${i}`;
+                        n += 1;
+                        return (
+                          <div key={key} className="flex gap-2">
+                            <Input
+                              aria-label={`Recipient ${n} name`}
+                              placeholder={`${l.tier.name} #${i + 1} name`}
+                              value={recipients[key]?.name ?? ''}
+                              onChange={(e) => setRecipients((r) => ({ ...r, [key]: { ...r[key], name: e.target.value } }))}
+                            />
+                            <Input
+                              aria-label={`Recipient ${n} phone`}
+                              placeholder="7612 3456"
+                              value={recipients[key]?.phone ?? ''}
+                              onChange={(e) => setRecipients((r) => ({ ...r, [key]: { ...r[key], phone: e.target.value } }))}
+                            />
+                          </div>
+                        );
+                      })
+                    );
+                  })()}
                 </div>
               )}
 
