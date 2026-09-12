@@ -40,7 +40,7 @@ import {
   ArrowLeft, Calendar, MapPin, Users, CheckCircle, Clock,
   Edit, Trash2, Eye, EyeOff, QrCode, Plus, TrendingUp, TrendingDown, Image, BarChart3, UserCircle,
   Share2, Link as LinkIcon, MessagesSquare, Coins, CreditCard, UtensilsCrossed, Copy, Type, FileText,
-  Vote as VoteIcon,
+  ClipboardCheck as AttendanceStatusIcon,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -422,7 +422,7 @@ export function EventDetailsPage() {
     { key: 'overview', label: 'Overview', icon: Calendar, show: true },
     { key: 'financials', label: 'Financials', icon: Coins, show: canSeeFinancials },
     { key: 'analytics', label: 'Analytics', icon: BarChart3, show: true },
-    { key: 'vote', label: 'Vote', icon: VoteIcon, show: true },
+    { key: 'vote', label: 'Attendance', icon: AttendanceStatusIcon, show: true },
     { key: 'creator', label: 'Creator', icon: UserCircle, show: true },
     { key: 'cashless', label: 'Cashless', icon: CreditCard, show: !!event.cashless },
     { key: 'menu', label: 'Menu', icon: UtensilsCrossed, show: showMenuTab },
@@ -1201,7 +1201,7 @@ export function EventDetailsPage() {
           <EventAnalyticsTab eventId={id!} currency={event.currency ?? 'SZL'} />
         </TabsContent>
 
-        {/* Vote Tab */}
+        {/* Attendance Status Tab */}
         <TabsContent value="vote" className="mt-6">
           <EventVoteTab eventId={id!} />
         </TabsContent>

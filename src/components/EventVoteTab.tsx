@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { hasPermission, TicketsPermission } from '@/lib/permissions';
-import { Vote as VoteIcon, Clock, CheckCircle2, MessageSquare, Music, Trash2, Crown } from 'lucide-react';
+import { ClipboardCheck as AttendanceStatusIcon, Clock, CheckCircle2, MessageSquare, Music, Trash2, Crown, CupSoda } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import type { VoteQuestionKind, VoteResultOption, VoteComment } from '@/types';
@@ -18,18 +18,26 @@ interface EventVoteTabProps {
 }
 
 const KIND_LABEL: Record<VoteQuestionKind, string> = {
+  attend: 'Attending',
+  attending_with: 'Attending With',
+  busy: 'Crowd',
+  bump_into: 'Bump Into',
+  cup: 'Relationship Status',
   artist: 'Artist',
   song: 'Song',
   outfit: 'Outfit Theme',
-  attending_with: 'Attending With',
-  busy: 'Crowd',
 };
 
-function ResultBar({ option, isLeading }: { option: VoteResultOption; isLeading: boolean }) {
+// "Choose Your Cup" color indicator (spec §1 Q5) — always shown alongside,
+// never instead of, the written relationship status.
+const CUP_COLOR_CLASS: Record<string, string> = { green: 'text-emerald-500', yellow: 'text-amber-500', red: 'text-red-500' };
+
+function ResultBar({ option, isLeading, cupColor }: { option: VoteResultOption; isLeading: boolean; cupColor?: string }) {
   return (
     <div>
       <div className="flex items-center justify-between text-sm mb-1">
         <span className="flex items-center gap-1.5 font-medium text-slate-900">
+          {cupColor && <CupSoda className={`h-3.5 w-3.5 ${CUP_COLOR_CLASS[cupColor] ?? 'text-slate-400'}`} />}
           {option.label}
           {isLeading && option.count > 0 && <Crown className="h-3.5 w-3.5 text-amber-500" />}
         </span>
@@ -90,11 +98,12 @@ function CommentRow({ comment, canModerate, onRemove }: { comment: VoteComment; 
 }
 
 /**
- * Organizer dashboard's Vote area (spec §9): preview the Vote before it
- * activates, genuine participation stats + results + song suggestions once
- * it's live, and discussion moderation — all strictly READ-ONLY against vote
- * totals/selections/questions/options (there is no write endpoint for any of
- * that once voting has started, so there is nothing to accidentally expose).
+ * Organizer dashboard's Attendance Status area (spec §9): preview it before
+ * it activates, genuine participation stats + results + song suggestions
+ * once it's live, and discussion moderation — all strictly READ-ONLY against
+ * response totals/selections/questions/options (there is no write endpoint
+ * for any of that once responses have started, so there is nothing to
+ * accidentally expose).
  */
 export function EventVoteTab({ eventId }: EventVoteTabProps) {
   const { user } = useAuth();
@@ -141,7 +150,7 @@ export function EventVoteTab({ eventId }: EventVoteTabProps) {
   });
 
   if (previewLoading) {
-    return <div className="p-8 text-center text-slate-500">Loading Vote…</div>;
+    return <div className="p-8 text-center text-slate-500">Loading Attendance Status…</div>;
   }
 
   const window_ = summary?.window ?? preview?.window;
@@ -152,14 +161,17 @@ export function EventVoteTab({ eventId }: EventVoteTabProps) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <VoteIcon className="h-5 w-5 text-orange-600" />
-            Vote Status
+            <AttendanceStatusIcon className="h-5 w-5 text-orange-600" />
+            Attendance Status
           </CardTitle>
         </CardHeader>
         <CardContent>
+          <p className="mb-3 text-xs text-slate-500">
+            Attendance Status responses show users’ intentions and preferences only. They do not confirm ticket purchases or event entry.
+          </p>
           {!window_?.opensAt ? (
             <p className="text-sm text-slate-600">
-              Vote activates automatically once this event is published — seven days before it starts,
+              Attendance Status activates automatically once this event is published — seven days before it starts,
               or immediately if you publish inside that final week.
             </p>
           ) : (
@@ -168,7 +180,7 @@ export function EventVoteTab({ eventId }: EventVoteTabProps) {
                 variant={window_.hasClosed ? 'secondary' : window_.hasOpened ? 'default' : 'outline'}
                 className={window_.hasOpened && !window_.hasClosed ? 'bg-gradient-to-r from-orange-600 to-amber-600' : ''}
               >
-                {window_.hasClosed ? 'Closed — Final Results' : window_.hasOpened ? 'Open' : 'Not yet open'}
+                {window_.hasClosed ? 'Closed — Response Results' : window_.hasOpened ? 'Open' : 'Not yet open'}
               </Badge>
               <div className="flex items-center gap-1.5 text-sm text-slate-600">
                 <Clock className="h-4 w-4" />
@@ -192,7 +204,7 @@ export function EventVoteTab({ eventId }: EventVoteTabProps) {
           <CardContent className="space-y-4">
             <p className="text-xs text-slate-500">
               Based on this event's current details — not live yet. Keep refining the lineup / outfit
-              theme options (on the event creation form) up until Vote opens; questions and options are
+              theme options (on the event creation form) up until Attendance Status opens; questions and options are
               frozen the moment they go live and won't update after that.
             </p>
             {preview && preview.questions.length > 0 ? (
@@ -210,13 +222,13 @@ export function EventVoteTab({ eventId }: EventVoteTabProps) {
                     </div>
                   ) : (
                     <p className="text-xs text-slate-500">
-                      {q.kind === 'song' ? 'Attendees suggest songs once Vote opens.' : 'No options yet.'}
+                      {q.kind === 'song' ? 'Attendees suggest songs once Attendance Status opens.' : 'No options yet.'}
                     </p>
                   )}
                 </div>
               ))
             ) : (
-              <p className="text-sm text-slate-500">No Vote questions apply to this event yet.</p>
+              <p className="text-sm text-slate-500">No Attendance Status questions apply to this event yet.</p>
             )}
           </CardContent>
         </Card>
@@ -237,18 +249,18 @@ export function EventVoteTab({ eventId }: EventVoteTabProps) {
                         <Badge variant="outline">{KIND_LABEL[q.kind]}</Badge>
                         {q.prompt}
                       </CardTitle>
-                      <span className="text-sm text-slate-600">{q.totalVotes} vote{q.totalVotes === 1 ? '' : 's'}</span>
+                      <span className="text-sm text-slate-600">{q.totalVotes} response{q.totalVotes === 1 ? '' : 's'}</span>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {q.options.length > 0 ? (
                       <div className="space-y-3">
                         {q.options.map((o) => (
-                          <ResultBar key={o.key} option={o} isLeading={o.key === q.leadingKey} />
+                          <ResultBar key={o.key} option={o} isLeading={o.key === q.leadingKey} cupColor={q.kind === 'cup' ? o.key : undefined} />
                         ))}
                       </div>
                     ) : (
-                      <p className="text-sm text-slate-500">No votes yet.</p>
+                      <p className="text-sm text-slate-500">No responses yet.</p>
                     )}
 
                     {q.kind === 'song' && q.songSuggestions && q.songSuggestions.length > 0 && (
@@ -275,7 +287,7 @@ export function EventVoteTab({ eventId }: EventVoteTabProps) {
           ) : (
             <Card>
               <CardContent className="py-8 text-center text-slate-500">
-                No Vote questions apply to this event.
+                No Attendance Status questions apply to this event.
               </CardContent>
             </Card>
           )}
@@ -323,7 +335,7 @@ export function EventVoteTab({ eventId }: EventVoteTabProps) {
         open={!!removeTarget}
         onOpenChange={(open) => !open && setRemoveTarget(null)}
         title="Remove this comment?"
-        description="It will be hidden from the Vote discussion. This cannot be undone."
+        description="It will be hidden from the Attendance Status discussion. This cannot be undone."
         confirmLabel="Remove"
         isLoading={removeCommentMutation.isPending}
         onConfirm={() => removeTarget && removeCommentMutation.mutate(removeTarget)}
