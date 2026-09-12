@@ -10,6 +10,13 @@ import { printTicket } from '@/lib/printTicket';
 import { getPrintLogoDataUrl } from '@/lib/printAssets';
 import type { ReceiptTicket } from '@/lib/ticketReceipt';
 import { formatMoney } from '@/lib/currency';
+import { TicketRecipientRow } from '@/components/TicketRecipientRow';
+import type { SendChannel, TicketRecipient } from '@/types';
+
+// Above this many tickets in one sale, per-row editing would make the dialog
+// unusable — fall back to the plain chip list (plus, from Task 8, bulk
+// download buttons) instead of one row per ticket.
+const MAX_INLINE_RECIPIENT_ROWS = 20;
 
 interface TicketSuccessDialogProps {
   open: boolean;
@@ -22,9 +29,20 @@ interface TicketSuccessDialogProps {
    * token happens to be in localStorage.
    */
   sendSms: (saleId: string) => Promise<{ sent: boolean }>;
+  /** Supplied only by surfaces that support per-ticket recipients (the organizer
+   *  portal). Omitted by the reseller POS, which then renders today's dialog. */
+  perTicket?: {
+    setRecipient: (ticketId: string, r: TicketRecipient) => Promise<unknown>;
+    send: (ticketId: string, channel: SendChannel) => Promise<{ sent: boolean }>;
+    downloadOne: (ticketId: string) => Promise<void>;
+    // Declared here, consumed in Task 8 — defining the full shape up front keeps
+    // Task 7's tests valid once the bulk-download buttons land.
+    downloadBundle: (ticketIds: string[]) => Promise<Blob>;
+    fetchOneBlob: (ticketId: string) => Promise<Blob>;
+  };
 }
 
-export function TicketSuccessDialog({ open, onOpenChange, saleData, sendSms }: TicketSuccessDialogProps) {
+export function TicketSuccessDialog({ open, onOpenChange, saleData, sendSms, perTicket }: TicketSuccessDialogProps) {
   const qrRefs = useRef<Array<HTMLCanvasElement | null>>([]);
   const [printing, setPrinting] = useState(false);
   const [sendingSms, setSendingSms] = useState(false);
@@ -133,16 +151,30 @@ export function TicketSuccessDialog({ open, onOpenChange, saleData, sendSms }: T
 
               <div className="border-t border-orange-200 pt-4">
                 <p className="text-sm text-slate-600 font-medium mb-2">Ticket ID(s)</p>
-                <div className="flex flex-wrap gap-2">
-                  {saleData.ticketIds.map((id) => (
-                    <span
-                      key={id}
-                      className="px-3 py-1 bg-white border border-orange-300 rounded-md text-sm font-mono"
-                    >
-                      {id}
-                    </span>
-                  ))}
-                </div>
+                {perTicket && saleData.ticketIds.length <= MAX_INLINE_RECIPIENT_ROWS ? (
+                  <div>
+                    {saleData.ticketIds.map((id) => (
+                      <TicketRecipientRow
+                        key={id}
+                        ticketId={id}
+                        onSetRecipient={perTicket.setRecipient}
+                        onSend={perTicket.send}
+                        onDownload={perTicket.downloadOne}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {saleData.ticketIds.map((id) => (
+                      <span
+                        key={id}
+                        className="px-3 py-1 bg-white border border-orange-300 rounded-md text-sm font-mono"
+                      >
+                        {id}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
