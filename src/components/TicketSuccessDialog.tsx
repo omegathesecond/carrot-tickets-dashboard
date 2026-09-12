@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { CheckCircle, Printer, MessageSquare, MessageCircle, Loader2 } from 'lucide-react';
+import { CheckCircle, Printer, MessageSquare, MessageCircle, Loader2, Download } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { toast } from 'sonner';
 import type { SaleData } from '@/lib/saleData';
@@ -11,6 +11,7 @@ import { getPrintLogoDataUrl } from '@/lib/printAssets';
 import type { ReceiptTicket } from '@/lib/ticketReceipt';
 import { formatMoney } from '@/lib/currency';
 import { TicketRecipientRow } from '@/components/TicketRecipientRow';
+import { saveBlob, buildTicketsZip } from '@/lib/ticketDownloads';
 import type { SendChannel, TicketRecipient } from '@/types';
 
 // Above this many tickets in one sale, per-row editing would make the dialog
@@ -46,6 +47,8 @@ export function TicketSuccessDialog({ open, onOpenChange, saleData, sendSms, per
   const qrRefs = useRef<Array<HTMLCanvasElement | null>>([]);
   const [printing, setPrinting] = useState(false);
   const [sendingSms, setSendingSms] = useState(false);
+  const [bundling, setBundling] = useState(false);
+  const [zipping, setZipping] = useState(false);
 
   const handlePrint = async () => {
     setPrinting(true);
@@ -87,6 +90,31 @@ export function TicketSuccessDialog({ open, onOpenChange, saleData, sendSms, per
       toast.error(err instanceof Error ? err.message : 'Failed to send SMS');
     } finally {
       setSendingSms(false);
+    }
+  };
+
+  const handleDownloadAllPdf = async () => {
+    if (!perTicket) return;
+    setBundling(true);
+    try {
+      saveBlob(await perTicket.downloadBundle(saleData.ticketIds), 'tickets.pdf');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not build the ticket PDF');
+    } finally {
+      setBundling(false);
+    }
+  };
+
+  const handleDownloadAllZip = async () => {
+    if (!perTicket) return;
+    setZipping(true);
+    try {
+      const zip = await buildTicketsZip(saleData.ticketIds, perTicket.fetchOneBlob);
+      saveBlob(zip, 'tickets.zip');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not build the ZIP');
+    } finally {
+      setZipping(false);
     }
   };
 
@@ -151,6 +179,18 @@ export function TicketSuccessDialog({ open, onOpenChange, saleData, sendSms, per
 
               <div className="border-t border-orange-200 pt-4">
                 <p className="text-sm text-slate-600 font-medium mb-2">Ticket ID(s)</p>
+                {perTicket && (
+                  <div className="flex flex-wrap gap-2 pb-2">
+                    <Button size="sm" variant="outline" disabled={bundling} onClick={handleDownloadAllPdf}>
+                      {bundling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                      <span className="ml-1">Download all (PDF)</span>
+                    </Button>
+                    <Button size="sm" variant="outline" disabled={zipping} onClick={handleDownloadAllZip}>
+                      {zipping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                      <span className="ml-1">Download all (ZIP)</span>
+                    </Button>
+                  </div>
+                )}
                 {perTicket && saleData.ticketIds.length <= MAX_INLINE_RECIPIENT_ROWS ? (
                   <div>
                     {saleData.ticketIds.map((id) => (
