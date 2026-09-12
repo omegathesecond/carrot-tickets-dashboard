@@ -79,11 +79,28 @@ export function TicketSalesPage() {
       return next;
     });
 
+  // A box-office operator typing into a field then backspacing it clear
+  // (ordinary typo correction) leaves the key set to '' rather than removing
+  // it. Drop empty-after-trim fields entirely: the API applies
+  // `entry.recipient?.name ?? customerName`, and '' is not nullish, so a
+  // surviving empty string would blank the ticket instead of falling back to
+  // the buyer. An entry with nothing left becomes `{}` so the trailing-trim
+  // below still recognizes it as blank.
+  const normalizeRecipient = (entry: TicketRecipient): TicketRecipient => {
+    const out: TicketRecipient = {};
+    if (entry.name?.trim()) out.name = entry.name.trim();
+    if (entry.phone?.trim()) out.phone = entry.phone.trim();
+    if (entry.email?.trim()) out.email = entry.email.trim();
+    return out;
+  };
+
   // Sparse and trimmed: a ticket with no entry falls back to the buyer, and
   // trailing blanks carry no meaning, so an untouched or partially-filled
   // section sends nothing — the request body stays byte-identical to today's.
   const recipientsForLine = (ticketTypeId: string, quantity: number): TicketRecipient[] | undefined => {
-    const entries = Array.from({ length: quantity }, (_, i) => recipients[`${ticketTypeId}:${i}`] ?? {});
+    const entries = Array.from({ length: quantity }, (_, i) =>
+      normalizeRecipient(recipients[`${ticketTypeId}:${i}`] ?? {})
+    );
     while (entries.length && Object.keys(entries[entries.length - 1]!).length === 0) entries.pop();
     return entries.length ? entries : undefined;
   };
@@ -138,13 +155,14 @@ export function TicketSalesPage() {
     }
     sellMutation.mutate({
       ...formData,
-      items: cartLines.map((l) => ({
-        ticketTypeId: l.ticketTypeId,
-        quantity: l.quantity,
-        ...(recipientsForLine(l.ticketTypeId, l.quantity)
-          ? { recipients: recipientsForLine(l.ticketTypeId, l.quantity) }
-          : {}),
-      })),
+      items: cartLines.map((l) => {
+        const lineRecipients = recipientsForLine(l.ticketTypeId, l.quantity);
+        return {
+          ticketTypeId: l.ticketTypeId,
+          quantity: l.quantity,
+          ...(lineRecipients ? { recipients: lineRecipients } : {}),
+        };
+      }),
     } as SellTicketsRequest);
   };
 

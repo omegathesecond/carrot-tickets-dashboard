@@ -267,4 +267,53 @@ describe('TicketSalesPage — box-office basket', () => {
     const body = vi.mocked(apiClient.sales.sellTickets).mock.calls[0]![0] as any;
     expect(body.items[0].recipients).toBeUndefined();
   });
+
+  it('drops a typed-then-cleared trailing recipient instead of shipping a blank name', async () => {
+    renderPage();
+    await chooseEvent();
+
+    fireEvent.change(await screen.findByLabelText('Quantity for General'), { target: { value: '2' } });
+    fireEvent.click(screen.getByRole('button', { name: /assign tickets to individual people/i }));
+
+    // Ordinary typo correction: type into recipient 1's name, then backspace
+    // it clear. Recipient 2 is never touched. Naively this leaves
+    // `{ name: '' }` in state for index 0 — one key, so a check for
+    // `Object.keys(entry).length === 0` would (wrongly) treat it as non-blank
+    // and ship a real recipient with a blank name.
+    fireEvent.change(screen.getByLabelText('Recipient 1 name'), { target: { value: 'Thandi' } });
+    fireEvent.change(screen.getByLabelText('Recipient 1 name'), { target: { value: '' } });
+
+    fireEvent.change(screen.getByPlaceholderText(/full name/i), { target: { value: 'Walk-up' } });
+    fireEvent.change(screen.getByPlaceholderText('78422613'), { target: { value: '78422613' } });
+    fireEvent.click(screen.getByRole('button', { name: /complete sale|sell/i }));
+
+    await waitFor(() => expect(apiClient.sales.sellTickets).toHaveBeenCalled());
+    const body = vi.mocked(apiClient.sales.sellTickets).mock.calls[0]![0] as any;
+    expect(body.items[0].recipients).toBeUndefined();
+  });
+
+  it('strips an interior recipient\'s typed-then-cleared field instead of shipping it empty', async () => {
+    renderPage();
+    await chooseEvent();
+
+    fireEvent.change(await screen.findByLabelText('Quantity for General'), { target: { value: '2' } });
+    fireEvent.click(screen.getByRole('button', { name: /assign tickets to individual people/i }));
+
+    fireEvent.change(screen.getByLabelText('Recipient 1 name'), { target: { value: 'Thandi' } });
+    // Typo correction on recipient 1's phone: typed, then cleared. Recipient
+    // 1 is interior (recipient 2 has real content), so the trailing-trim
+    // never runs on it — normalization must strip the empty field itself.
+    fireEvent.change(screen.getByLabelText('Recipient 1 phone'), { target: { value: '76111111' } });
+    fireEvent.change(screen.getByLabelText('Recipient 1 phone'), { target: { value: '' } });
+    fireEvent.change(screen.getByLabelText('Recipient 2 name'), { target: { value: 'Sipho' } });
+
+    fireEvent.change(screen.getByPlaceholderText(/full name/i), { target: { value: 'Walk-up' } });
+    fireEvent.change(screen.getByPlaceholderText('78422613'), { target: { value: '78422613' } });
+    fireEvent.click(screen.getByRole('button', { name: /complete sale|sell/i }));
+
+    await waitFor(() => expect(apiClient.sales.sellTickets).toHaveBeenCalled());
+    const body = vi.mocked(apiClient.sales.sellTickets).mock.calls[0]![0] as any;
+    expect(body.items[0].recipients).toEqual([{ name: 'Thandi' }, { name: 'Sipho' }]);
+    expect(body.items[0].recipients[0]).not.toHaveProperty('phone');
+  });
 });
