@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TicketSalesPage } from '@/pages/TicketSalesPage';
 import { apiClient } from '@/lib/api';
+import { MAX_RECIPIENT_ROWS } from '@/lib/ticketRecipients';
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -93,6 +94,15 @@ async function chooseEvent() {
 }
 
 const qtyFor = (tierName: string) => screen.getByLabelText(`Quantity for ${tierName}`);
+
+// Radix's Select needs pointer APIs jsdom does not implement.
+beforeAll(() => {
+  const proto = window.HTMLElement.prototype as unknown as Record<string, unknown>;
+  proto['scrollIntoView'] = vi.fn();
+  proto['hasPointerCapture'] = vi.fn();
+  proto['releasePointerCapture'] = vi.fn();
+  proto['setPointerCapture'] = vi.fn();
+});
 
 beforeEach(() => {
   vi.mocked(apiClient.events.getEvents).mockResolvedValue({ data: [EVENT] } as never);
@@ -335,5 +345,189 @@ describe('TicketSalesPage — box-office basket', () => {
     const p = dialogProps[dialogProps.length - 1]!;
     expect(p.perTicket.setRecipient).toBe(apiClient.sales.setTicketRecipient);
     expect(p.perTicket.send).toBe(apiClient.sales.sendTicket);
+  });
+});
+
+const fillBuyer = () => {
+  fireEvent.change(screen.getByPlaceholderText(/full name/i), { target: { value: 'Walk-up' } });
+  fireEvent.change(screen.getByPlaceholderText('78422613'), { target: { value: '78422613' } });
+};
+const submit = () => fireEvent.click(screen.getByRole('button', { name: /complete sale|sell/i }));
+const openAssign = () =>
+  fireEvent.click(screen.getByRole('button', { name: /assign tickets to individual people/i }));
+const lastBody = () => vi.mocked(apiClient.sales.sellTickets).mock.calls[0]![0] as any;
+
+describe('TicketSalesPage — foreign recipient numbers (C1)', () => {
+  // The buyer field one row below has had a SADC picker all along. The
+  // recipient field was a bare box, so 0821234567 was stored as
+  // +268821234567, sent to the Eswatini gateway, and reported as delivered.
+  it('offers a country picker on every recipient row', async () => {
+    renderPage();
+    await chooseEvent();
+    fireEvent.change(await screen.findByLabelText('Quantity for General'), { target: { value: '1' } });
+    openAssign();
+    expect(screen.getByLabelText('Recipient 1 country code')).toBeTruthy();
+  });
+
+  // THE regression: the operator types the LOCAL number and picks ZA. Without
+  // a picker those bare digits reached the API, which prefixed +268.
+  it('submits to the country the operator picked, not Eswatini', async () => {
+    renderPage();
+    await chooseEvent();
+    fireEvent.change(await screen.findByLabelText('Quantity for General'), { target: { value: '1' } });
+    openAssign();
+
+    fireEvent.change(screen.getByLabelText('Recipient 1 phone'), { target: { value: '821234567' } });
+    fireEvent.keyDown(screen.getByLabelText('Recipient 1 country code'), { key: 'ArrowDown' });
+    fireEvent.click(await screen.findByRole('option', { name: /South Africa/i }));
+
+    fillBuyer();
+    submit();
+    await waitFor(() => expect(apiClient.sales.sellTickets).toHaveBeenCalled());
+    expect(lastBody().items[0].recipients[0].phone).toBe('+27821234567');
+  });
+
+  it('submits a South African recipient number in full international form', async () => {
+    renderPage();
+    await chooseEvent();
+    fireEvent.change(await screen.findByLabelText('Quantity for General'), { target: { value: '1' } });
+    openAssign();
+
+    fireEvent.change(screen.getByLabelText('Recipient 1 name'), { target: { value: 'Sipho' } });
+    fireEvent.change(screen.getByLabelText('Recipient 1 phone'), { target: { value: '+27821234567' } });
+    fillBuyer();
+    submit();
+
+    await waitFor(() => expect(apiClient.sales.sellTickets).toHaveBeenCalled());
+    expect(lastBody().items[0].recipients[0]).toEqual({ name: 'Sipho', phone: '+27821234567' });
+    expect(lastBody().items[0].recipients[0].phone).not.toMatch(/^\+268/);
+  });
+
+  it('prefixes a local number with the selected dial code, not raw digits', async () => {
+    renderPage();
+    await chooseEvent();
+    fireEvent.change(await screen.findByLabelText('Quantity for General'), { target: { value: '1' } });
+    openAssign();
+    fireEvent.change(screen.getByLabelText('Recipient 1 phone'), { target: { value: '76111111' } });
+    fillBuyer();
+    submit();
+
+    await waitFor(() => expect(apiClient.sales.sellTickets).toHaveBeenCalled());
+    expect(lastBody().items[0].recipients[0].phone).toBe('+26876111111');
+  });
+});
+
+describe('TicketSalesPage — a cancelled assignment must not ship (I2)', () => {
+  // Opening the panel, typing a name, thinking better of it and collapsing the
+  // section used to mint that ticket to the abandoned recipient, with nothing
+  // on screen showing it.
+  it('clears recipients when the panel is collapsed', async () => {
+    renderPage();
+    await chooseEvent();
+    fireEvent.change(await screen.findByLabelText('Quantity for General'), { target: { value: '2' } });
+
+    openAssign();
+    fireEvent.change(screen.getByLabelText('Recipient 1 name'), { target: { value: 'Thandi' } });
+    openAssign(); // thought better of it
+
+    expect(screen.queryByLabelText('Recipient 1 name')).toBeNull();
+    fillBuyer();
+    submit();
+
+    await waitFor(() => expect(apiClient.sales.sellTickets).toHaveBeenCalled());
+    expect(lastBody().items[0]).not.toHaveProperty('recipients');
+  });
+
+  it('does not resurrect the abandoned name if the panel is reopened', async () => {
+    renderPage();
+    await chooseEvent();
+    fireEvent.change(await screen.findByLabelText('Quantity for General'), { target: { value: '2' } });
+
+    openAssign();
+    fireEvent.change(screen.getByLabelText('Recipient 1 name'), { target: { value: 'Thandi' } });
+    openAssign();
+    openAssign();
+
+    expect((screen.getByLabelText('Recipient 1 name') as HTMLInputElement).value).toBe('');
+  });
+
+  // Switching events cleared the cart but not the recipients, so re-selecting
+  // an event reopened the panel holding the PREVIOUS customer's data.
+  it('clears recipients and closes the panel when the event changes', async () => {
+    renderPage();
+    await chooseEvent();
+    fireEvent.change(await screen.findByLabelText('Quantity for General'), { target: { value: '2' } });
+    openAssign();
+    fireEvent.change(screen.getByLabelText('Recipient 1 name'), { target: { value: 'Thandi' } });
+
+    const option = screen.getByRole('option', { name: /piano republic/i });
+    fireEvent.change(option.closest('select')!, { target: { value: 'e1' } });
+
+    fireEvent.change(await screen.findByLabelText('Quantity for General'), { target: { value: '2' } });
+    // Panel starts closed again...
+    expect(screen.queryByLabelText('Recipient 1 name')).toBeNull();
+    // ...and empty when reopened.
+    openAssign();
+    expect((screen.getByLabelText('Recipient 1 name') as HTMLInputElement).value).toBe('');
+
+    fillBuyer();
+    submit();
+    await waitFor(() => expect(apiClient.sales.sellTickets).toHaveBeenCalled());
+    expect(lastBody().items[0]).not.toHaveProperty('recipients');
+  });
+});
+
+describe('TicketSalesPage — minted recipients reach the dialog (I1)', () => {
+  // Without these, the dialog showed three identical blank rows and the
+  // operator had to retype Thandi/Sipho/Bongi from memory, in order.
+  it('hands the dialog each minted ticket\'s own recipient', async () => {
+    vi.mocked(apiClient.sales.sellTickets).mockResolvedValue({
+      sale: { _id: 'sale1', paymentMethod: 'cash' },
+      tickets: [
+        { ticketId: 'TIX-1', customerName: 'Thandi', customerPhone: '+26876111111' },
+        { ticketId: 'TIX-2', customerName: 'Sipho', customerPhone: '+27821234567' },
+      ],
+    } as never);
+
+    renderPage();
+    await chooseEvent();
+    fireEvent.change(await screen.findByLabelText('Quantity for General'), { target: { value: '2' } });
+    fillBuyer();
+    submit();
+
+    await waitFor(() => expect(dialogProps.length).toBeGreaterThan(0));
+    expect(dialogProps[dialogProps.length - 1]!.saleData.ticketRecipients).toEqual({
+      'TIX-1': { name: 'Thandi', phone: '+26876111111' },
+      'TIX-2': { name: 'Sipho', phone: '+27821234567' },
+    });
+  });
+
+  it('omits the field entirely when the API returns no per-ticket contacts', async () => {
+    renderPage();
+    await chooseEvent();
+    fireEvent.change(await screen.findByLabelText('Quantity for General'), { target: { value: '1' } });
+    fillBuyer();
+    submit();
+
+    await waitFor(() => expect(dialogProps.length).toBeGreaterThan(0));
+    expect(dialogProps[dialogProps.length - 1]!.saleData.ticketRecipients).toBeUndefined();
+  });
+});
+
+describe('TicketSalesPage — row cap agrees with the dialog (I5)', () => {
+  it('caps the assign panel at the shared limit', async () => {
+    // A tier with more headroom than the cap.
+    vi.mocked(apiClient.events.getEvents).mockResolvedValue({
+      data: [{ ...EVENT, ticketTypes: [{ _id: 't1', name: 'General', price: 100, available: 500, isSoldOut: false }] }],
+    } as never);
+    renderPage();
+    await chooseEvent();
+
+    fireEvent.change(await screen.findByLabelText('Quantity for General'), { target: { value: '120' } });
+    openAssign();
+
+    expect(screen.getByLabelText(`Recipient ${MAX_RECIPIENT_ROWS} name`)).toBeTruthy();
+    expect(screen.queryByLabelText(`Recipient ${MAX_RECIPIENT_ROWS + 1} name`)).toBeNull();
+    expect(screen.getByText(/showing the first 100 tickets/i)).toBeTruthy();
   });
 });
