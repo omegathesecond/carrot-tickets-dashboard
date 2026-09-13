@@ -18,7 +18,6 @@ interface EventVoteTabProps {
 }
 
 const KIND_LABEL: Record<VoteQuestionKind, string> = {
-  attend: 'Attending',
   attending_with: 'Attending With',
   busy: 'Crowd',
   bump_into: 'Bump Into',

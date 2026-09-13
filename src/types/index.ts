@@ -215,9 +215,12 @@ export interface EventFormData {
 }
 
 // Attendance Status feature types (organizer dashboard's Attendance tab — see
-// EventVoteTab). Display order is fixed server-side: attend, attending_with,
-// busy, bump_into, cup, then the event-conditional artist/song/outfit questions.
-export type VoteQuestionKind = 'artist' | 'song' | 'outfit' | 'attend' | 'attending_with' | 'busy' | 'bump_into' | 'cup';
+// EventVoteTab). Display order is fixed server-side: attending_with, busy,
+// bump_into, cup, then the event-conditional artist/song/outfit questions.
+// The client removed the standalone "Are you planning to attend?" question
+// entirely — the api no longer materializes or returns it — so 'attend' is
+// not a member of this union.
+export type VoteQuestionKind = 'artist' | 'song' | 'outfit' | 'attending_with' | 'busy' | 'bump_into' | 'cup';
 
 export interface VoteWindow {
   opensAt: string | null;
