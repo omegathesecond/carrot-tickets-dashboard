@@ -146,8 +146,8 @@ export interface Event {
   cashlessRequestedAt?: string | null;
   cashlessRequestNote?: string | null;
   publishedAt?: string;
-  // Vote feature inputs (see the Vote tab on the event details page). Absent
-  // means the artist/outfit-theme Vote questions they gate are skipped
+  // Attendance Status feature inputs (see the Attendance tab on the event details page). Absent
+  // means the artist/outfit-theme questions they gate are skipped
   // entirely — nothing is fabricated when an organizer hasn't supplied this.
   lineup?: string[];
   outfitThemeOptions?: string[];
@@ -209,13 +209,18 @@ export interface EventFormData {
   // Admin-only. The API rejects this from a non-super-admin token, so the
   // form only ever sends it when the toggle was rendered for an admin.
   cashless?: boolean;
-  // Vote feature inputs — see Event.lineup / Event.outfitThemeOptions.
+  // Attendance Status feature inputs — see Event.lineup / Event.outfitThemeOptions.
   lineup?: string[];
   outfitThemeOptions?: string[];
 }
 
-// Vote feature types (organizer dashboard's Vote tab — see EventVoteTab).
-export type VoteQuestionKind = 'artist' | 'song' | 'outfit' | 'attending_with' | 'busy';
+// Attendance Status feature types (organizer dashboard's Attendance tab — see
+// EventVoteTab). Display order is fixed server-side: attending_with, busy,
+// bump_into, cup, then the event-conditional artist/song/outfit questions.
+// The client removed the standalone "Are you planning to attend?" question
+// entirely — the api no longer materializes or returns it — so 'attend' is
+// not a member of this union.
+export type VoteQuestionKind = 'artist' | 'song' | 'outfit' | 'attending_with' | 'busy' | 'bump_into' | 'cup';
 
 export interface VoteWindow {
   opensAt: string | null;
@@ -488,6 +493,13 @@ export interface Ticket {
   eventId: string;
   ticketTypeId?: string;
   ticketType?: string; // denormalized ticket type name (e.g. "VIP")
+  // Who this INDIVIDUAL ticket is for — the per-ticket recipient captured at
+  // the till, or the sale's buyer when none was given. Returned by
+  // POST /tickets/sales/sell and PATCH /tickets/:ticketId/recipient. Optional
+  // because older endpoints project a narrower ticket.
+  customerName?: string;
+  customerPhone?: string;
+  customerEmail?: string;
   status: 'valid' | 'used' | 'refunded' | 'cancelled';
   scannedAt?: string;
   scannedBy?: string;
@@ -496,15 +508,37 @@ export interface Ticket {
   currency?: 'SZL' | 'ZAR';
 }
 
+/** One ticket's own recipient. Every field optional — a partially-filled row
+ *  is valid until the chosen channel needs its contact field. */
+export interface TicketRecipient {
+  name?: string;
+  phone?: string;
+  email?: string;
+}
+
+export type SendChannel = 'sms' | 'email';
+
 export interface SellTicketsRequest {
   eventId: string;
   /** One entry per tier. A single-tier sale is a one-element array. */
-  items: Array<{ ticketTypeId: string; quantity: number }>;
+  items: Array<{
+    ticketTypeId: string;
+    quantity: number;
+    /** Sparse, applied in order. Absent entries fall back to the buyer. */
+    recipients?: TicketRecipient[];
+  }>;
   customerName: string;
   customerPhone: string;
   paymentMethod: PaymentMethodValue;
   walletCardNumber?: string;
   walletPin?: string;
+}
+
+// POST /tickets/sales/sell responds with the sale AND the minted tickets. The
+// API client unwraps the `data` envelope, so this is the shape callers see.
+export interface SellTicketsResponse {
+  sale: TicketSale;
+  tickets: Ticket[];
 }
 
 // Scan Types

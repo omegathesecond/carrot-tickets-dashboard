@@ -12,7 +12,10 @@ import type {
   EventQueryParams,
   EventCreatorSummary,
   TicketSale,
+  TicketRecipient,
+  SendChannel,
   SellTicketsRequest,
+  SellTicketsResponse,
   SalesQueryParams,
   ScanRecord,
   ScanStats,
@@ -714,10 +717,19 @@ export class ApiClient {
 
   // Sales endpoints
   sales = {
-    sellTickets: async (data: SellTicketsRequest): Promise<TicketSale> => {
-      return this.request<TicketSale>(`/tickets/sales/sell`, {
+    sellTickets: async (data: SellTicketsRequest): Promise<SellTicketsResponse> => {
+      return this.request<SellTicketsResponse>(`/tickets/sales/sell`, {
         method: 'POST',
         body: JSON.stringify(data),
+      });
+    },
+
+    /** (Re)send the ticket confirmation SMS for a sale on this vendor's event.
+     *  A box-office sale notifies nobody at sale time, so this is how the
+     *  walk-up buyer gets their ticket. */
+    sendSaleSms: async (saleId: string): Promise<{ sent: boolean }> => {
+      return this.request<{ sent: boolean }>(`/tickets/sales/${saleId}/send-sms`, {
+        method: 'POST',
       });
     },
 
@@ -749,6 +761,28 @@ export class ApiClient {
       return this.request<TicketSale>(`/tickets/sales/${ticketId}/refund`, {
         method: 'POST',
         body: JSON.stringify({ reason }),
+      });
+    },
+
+    /** Patch this ticket's own recipient (name/phone/email) — at least one
+     *  field required. The ticket is the single source of truth for who it
+     *  gets sent to; `sendTicket` reads whatever was last set here. */
+    setTicketRecipient: async (
+      ticketId: string,
+      recipient: TicketRecipient,
+    ): Promise<{ ticket: { ticketId: string; customerName?: string; customerPhone?: string; customerEmail?: string } }> => {
+      return this.request(`/tickets/${ticketId}/recipient`, {
+        method: 'PATCH',
+        body: JSON.stringify(recipient),
+      });
+    },
+
+    /** Send (or re-send) this ticket via the given channel. No recipient
+     *  payload here — PATCH the recipient first via `setTicketRecipient`. */
+    sendTicket: async (ticketId: string, channel: SendChannel): Promise<{ sent: boolean }> => {
+      return this.request(`/tickets/${ticketId}/send`, {
+        method: 'POST',
+        body: JSON.stringify({ channel }),
       });
     },
   };
@@ -1963,6 +1997,68 @@ export class ApiClient {
       window.URL.revokeObjectURL(downloadUrl);
     },
   };
+
+  // PDF endpoints return bytes, not JSON, so they bypass `request` (which
+  // parses JSON and unwraps the `{success, message, data}` envelope) and
+  // read the body as a Blob via `fetchPdf` instead.
+  ticketDocs = {
+    ticketPdfBytes: async (ticketId: string): Promise<Blob> =>
+      this.fetchPdf(`/tickets/${ticketId}/pdf/download`, { method: 'GET' }),
+
+    ticketBundlePdf: async (ticketIds: string[]): Promise<Blob> =>
+      this.fetchPdf('/tickets/pdf-bundle', {
+        method: 'POST',
+        body: JSON.stringify({ ticketIds }),
+      }),
+  };
+
+  /** Same 401-expired-token detection `request()` uses (around line 144),
+   *  factored out so `fetchPdf` can share the decision without touching
+   *  `request()` itself: expired-token message, not the auth endpoints
+   *  (which would recurse), and a refresh token actually on hand to try. */
+  private isExpiredTokenResponse(endpoint: string, status: number, errorMessage: string): boolean {
+    return (
+      status === 401 &&
+      (errorMessage.includes('Token has expired') || errorMessage.includes('expired')) &&
+      !endpoint.includes('/tickets/auth/refresh') &&
+      !endpoint.includes('/tickets/auth/login') &&
+      !!this.getRefreshToken()
+    );
+  }
+
+  private async fetchPdf(endpoint: string, options: RequestInit, isRetry = false): Promise<Blob> {
+    const token = this.getToken();
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(APP_API_KEY ? { 'x-api-key': APP_API_KEY } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.headers as Record<string, string>),
+      },
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ message: `HTTP ${response.status}` }));
+      const errorMessage = err.message || `HTTP ${response.status}`;
+
+      // Mirror `request()`'s transparent refresh-and-retry (see around line
+      // 144) so PDF download/bundle doesn't hard-fail just because it's the
+      // one call site that bypasses `request()` to read a Blob instead of
+      // JSON. Retried exactly once — `isRetry` blocks a second attempt even
+      // if the freshly-refreshed token is somehow rejected again.
+      if (!isRetry && this.isExpiredTokenResponse(endpoint, response.status, errorMessage)) {
+        try {
+          await this.handleTokenRefresh();
+          return this.fetchPdf(endpoint, options, true);
+        } catch {
+          throw new Error('Session expired. Please log in again.');
+        }
+      }
+
+      throw new Error(errorMessage);
+    }
+    return response.blob();
+  }
 }
 
 export interface ResellerWithdrawal {

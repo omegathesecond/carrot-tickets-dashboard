@@ -2,26 +2,49 @@ import { useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { CheckCircle, Printer, MessageSquare, MessageCircle, Loader2 } from 'lucide-react';
+import { CheckCircle, Printer, MessageSquare, MessageCircle, Loader2, Download } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { toast } from 'sonner';
 import type { SaleData } from '@/lib/saleData';
 import { printTicket } from '@/lib/printTicket';
 import { getPrintLogoDataUrl } from '@/lib/printAssets';
 import type { ReceiptTicket } from '@/lib/ticketReceipt';
-import { resellerApi } from '@/lib/resellerApi';
 import { formatMoney } from '@/lib/currency';
+import { TicketRecipientRow } from '@/components/TicketRecipientRow';
+import { saveBlob, buildTicketsZip, downloadTicketBundles } from '@/lib/ticketDownloads';
+import { MAX_RECIPIENT_ROWS, SCROLL_RECIPIENT_ROWS_ABOVE } from '@/lib/ticketRecipients';
+import type { SendChannel, TicketRecipient } from '@/types';
 
 interface TicketSuccessDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   saleData: SaleData;
+  /**
+   * How to (re)send the ticket SMS for this sale. The organizer and reseller
+   * rails authenticate with different tokens and hit different endpoints, so
+   * the owning page supplies its own — the dialog must not guess from whichever
+   * token happens to be in localStorage.
+   */
+  sendSms: (saleId: string) => Promise<{ sent: boolean }>;
+  /** Supplied only by surfaces that support per-ticket recipients (the organizer
+   *  portal). Omitted by the reseller POS, which then renders today's dialog. */
+  perTicket?: {
+    setRecipient: (ticketId: string, r: TicketRecipient) => Promise<unknown>;
+    send: (ticketId: string, channel: SendChannel) => Promise<{ sent: boolean }>;
+    downloadOne: (ticketId: string) => Promise<void>;
+    // Declared here, consumed in Task 8 — defining the full shape up front keeps
+    // Task 7's tests valid once the bulk-download buttons land.
+    downloadBundle: (ticketIds: string[]) => Promise<Blob>;
+    fetchOneBlob: (ticketId: string) => Promise<Blob>;
+  };
 }
 
-export function TicketSuccessDialog({ open, onOpenChange, saleData }: TicketSuccessDialogProps) {
+export function TicketSuccessDialog({ open, onOpenChange, saleData, sendSms, perTicket }: TicketSuccessDialogProps) {
   const qrRefs = useRef<Array<HTMLCanvasElement | null>>([]);
   const [printing, setPrinting] = useState(false);
   const [sendingSms, setSendingSms] = useState(false);
+  const [bundling, setBundling] = useState(false);
+  const [zipping, setZipping] = useState(false);
 
   const handlePrint = async () => {
     setPrinting(true);
@@ -53,7 +76,7 @@ export function TicketSuccessDialog({ open, onOpenChange, saleData }: TicketSucc
     }
     setSendingSms(true);
     try {
-      const { sent } = await resellerApi.sendSaleSms(saleData.saleId);
+      const { sent } = await sendSms(saleData.saleId);
       if (sent) {
         toast.success(`Ticket SMS sent to ${saleData.customerPhone}`);
       } else {
@@ -63,6 +86,35 @@ export function TicketSuccessDialog({ open, onOpenChange, saleData }: TicketSucc
       toast.error(err instanceof Error ? err.message : 'Failed to send SMS');
     } finally {
       setSendingSms(false);
+    }
+  };
+
+  const handleDownloadAllPdf = async () => {
+    if (!perTicket) return;
+    setBundling(true);
+    try {
+      // Split at the API's 100-ticket bundle cap. Posting every id in one
+      // call 400s on a basket the till was allowed to ring up, which left
+      // the button offered for sales it could never serve — and disagreeing
+      // with the ZIP button, which has no such cap.
+      await downloadTicketBundles(saleData.ticketIds, perTicket.downloadBundle);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not build the ticket PDF');
+    } finally {
+      setBundling(false);
+    }
+  };
+
+  const handleDownloadAllZip = async () => {
+    if (!perTicket) return;
+    setZipping(true);
+    try {
+      const zip = await buildTicketsZip(saleData.ticketIds, perTicket.fetchOneBlob);
+      saveBlob(zip, 'tickets.zip');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not build the ZIP');
+    } finally {
+      setZipping(false);
     }
   };
 
@@ -127,16 +179,54 @@ export function TicketSuccessDialog({ open, onOpenChange, saleData }: TicketSucc
 
               <div className="border-t border-orange-200 pt-4">
                 <p className="text-sm text-slate-600 font-medium mb-2">Ticket ID(s)</p>
-                <div className="flex flex-wrap gap-2">
-                  {saleData.ticketIds.map((id) => (
-                    <span
-                      key={id}
-                      className="px-3 py-1 bg-white border border-orange-300 rounded-md text-sm font-mono"
-                    >
-                      {id}
-                    </span>
-                  ))}
-                </div>
+                {perTicket && (
+                  <div className="flex flex-wrap gap-2 pb-2">
+                    <Button size="sm" variant="outline" disabled={bundling} onClick={handleDownloadAllPdf}>
+                      {bundling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                      <span className="ml-1">Download all (PDF)</span>
+                    </Button>
+                    <Button size="sm" variant="outline" disabled={zipping} onClick={handleDownloadAllZip}>
+                      {zipping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                      <span className="ml-1">Download all (ZIP)</span>
+                    </Button>
+                  </div>
+                )}
+                {perTicket && saleData.ticketIds.length <= MAX_RECIPIENT_ROWS ? (
+                  // Long sales SCROLL rather than losing their rows: the till
+                  // panel captures a recipient per ticket with the same cap,
+                  // so dropping to chips above 20 stranded every send and
+                  // download the operator had just been allowed to set up.
+                  <div
+                    data-testid="recipient-rows"
+                    className={
+                      saleData.ticketIds.length > SCROLL_RECIPIENT_ROWS_ABOVE
+                        ? 'max-h-80 overflow-y-auto pr-1'
+                        : undefined
+                    }
+                  >
+                    {saleData.ticketIds.map((id) => (
+                      <TicketRecipientRow
+                        key={id}
+                        ticketId={id}
+                        recipient={saleData.ticketRecipients?.[id]}
+                        onSetRecipient={perTicket.setRecipient}
+                        onSend={perTicket.send}
+                        onDownload={perTicket.downloadOne}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {saleData.ticketIds.map((id) => (
+                      <span
+                        key={id}
+                        className="px-3 py-1 bg-white border border-orange-300 rounded-md text-sm font-mono"
+                      >
+                        {id}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

@@ -1,5 +1,6 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { getOperatorContext, operatorLabel } from '@/lib/operatorContext';
+import { userDisplayName } from '@/lib/userName';
 import { LogOut, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -33,15 +34,7 @@ export function Header({ onMenuClick }: HeaderProps) {
     return 'KT';
   };
 
-  const getDisplayName = () => {
-    if (user?.firstName && user?.lastName) {
-      return `${user.firstName} ${user.lastName}`;
-    }
-    if (user?.businessName) {
-      return user.businessName;
-    }
-    return 'User';
-  };
+  const getDisplayName = () => userDisplayName(user);
 
   return (
     <header className="h-16 border-b border-slate-200 bg-white flex items-center justify-between gap-2 px-4 sm:px-6">

@@ -11,8 +11,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PhoneInput } from '@/components/PhoneInput';
 import { TicketSuccessDialog } from '@/components/TicketSuccessDialog';
 import { toast } from 'sonner';
-import type { SellTicketsRequest } from '@/types';
+import type { SellTicketsRequest, SellTicketsResponse, TicketRecipient } from '@/types';
 import { formatMoney } from '@/lib/currency';
+import type { SaleData, SaleTicketRecipient } from '@/lib/saleData';
+import { MAX_RECIPIENT_ROWS } from '@/lib/ticketRecipients';
+import { saveBlob } from '@/lib/ticketDownloads';
+import { paymentLabel } from '@/lib/payment';
+import { userDisplayName } from '@/lib/userName';
+import { useAuth } from '@/contexts/AuthContext';
 
 export function TicketSalesPage() {
   const [formData, setFormData] = useState<Partial<SellTicketsRequest>>({
@@ -22,8 +28,27 @@ export function TicketSalesPage() {
   // one customer; making that one sale means one payment and one receipt.
   const [cart, setCart] = useState<Record<string, number>>({});
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
-  const [saleData, setSaleData] = useState<any>(null);
+  const [saleData, setSaleData] = useState<SaleData | null>(null);
+  // Optional: name who each individual ticket is for, before payment. Leaving
+  // this untouched must produce a request byte-identical to today's — see
+  // recipientsForLine.
+  const [assigning, setAssigning] = useState(false);
+  // Keyed by "<ticketTypeId>:<index>" so a cart change cannot shuffle entries
+  // onto the wrong ticket.
+  const [recipients, setRecipients] = useState<Record<string, TicketRecipient>>({});
+  // Bumped on every completed sale and used as the buyer PhoneInput's `key`.
+  // A new sale is a new customer — PhoneInput deliberately keeps its chosen
+  // country when the number is cleared (so mid-entry backspacing doesn't yank
+  // the country out from under the operator), but that means the country
+  // survives a plain state reset too. Forcing a remount is the only way to
+  // get a clean slate between sales without touching that intentional
+  // behaviour. The per-ticket recipient PhoneInputs don't need this: they
+  // live inside `assigning && cartQuantity > 0`, both of which are reset to
+  // false/0 on success, so that whole subtree unmounts and remounts fresh
+  // next time regardless of key reuse.
+  const [saleNonce, setSaleNonce] = useState(0);
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const { data: eventsData } = useQuery({
     queryKey: ['publishedEvents'],
@@ -67,31 +92,96 @@ export function TicketSalesPage() {
       return next;
     });
 
+  // A box-office operator typing into a field then backspacing it clear
+  // (ordinary typo correction) leaves the key set to '' rather than removing
+  // it. Drop empty-after-trim fields entirely: the API applies
+  // `entry.recipient?.name ?? customerName`, and '' is not nullish, so a
+  // surviving empty string would blank the ticket instead of falling back to
+  // the buyer. An entry with nothing left becomes `{}` so the trailing-trim
+  // below still recognizes it as blank.
+  const normalizeRecipient = (entry: TicketRecipient): TicketRecipient => {
+    const out: TicketRecipient = {};
+    if (entry.name?.trim()) out.name = entry.name.trim();
+    if (entry.phone?.trim()) out.phone = entry.phone.trim();
+    if (entry.email?.trim()) out.email = entry.email.trim();
+    return out;
+  };
+
+  // Sparse and trimmed: a ticket with no entry falls back to the buyer, and
+  // trailing blanks carry no meaning, so an untouched or partially-filled
+  // section sends nothing — the request body stays byte-identical to today's.
+  const recipientsForLine = (ticketTypeId: string, quantity: number): TicketRecipient[] | undefined => {
+    const entries = Array.from({ length: quantity }, (_, i) =>
+      normalizeRecipient(recipients[`${ticketTypeId}:${i}`] ?? {})
+    );
+    while (entries.length && Object.keys(entries[entries.length - 1]!).length === 0) entries.pop();
+    return entries.length ? entries : undefined;
+  };
+
   const sellMutation = useMutation({
     mutationFn: (data: SellTicketsRequest) => apiClient.sales.sellTickets(data),
-    onSuccess: (response: any) => {
+    onSuccess: (response: SellTicketsResponse) => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
 
-      // Prepare data for the success dialog
-      const dialogData = {
+      // The API answers with the minted tickets, each carrying its own
+      // recipient (the till's entry, or the buyer when none was given).
+      const minted: Record<string, SaleTicketRecipient> = {};
+      for (const t of response.tickets) {
+        const id = t.ticketId || t._id;
+        const entry: SaleTicketRecipient = {
+          ...(t.customerName ? { name: t.customerName } : {}),
+          ...(t.customerPhone ? { phone: t.customerPhone } : {}),
+          ...(t.customerEmail ? { email: t.customerEmail } : {}),
+        };
+        if (id && Object.keys(entry).length) minted[id] = entry;
+      }
+
+      // Everything the success dialog, the printed receipt and the SMS need.
+      const dialogData: SaleData = {
+        saleId: response.sale._id,
         eventName: selectedEvent?.name || '',
+        // startTime is the authoritative instant; eventDate is a date-only
+        // marker at midnight UTC, so a clock read off it prints 2:00 AM.
+        eventDate: selectedEvent?.startTime || selectedEvent?.eventDate,
+        venue: selectedEvent?.venue,
         // A basket has several tiers; name them all rather than just one.
         ticketTypeName: cartLines.map((l) => `${l.quantity} × ${l.tier.name}`).join(', '),
+        // Only a single-tier basket has one unit price — see SaleData.
+        unitPrice: cartLines.length === 1 ? cartLines[0]!.tier.price : undefined,
         customerName: formData.customerName || '',
         customerPhone: formData.customerPhone || '',
         quantity: cartQuantity,
         totalAmount: cartTotal,
+        // How the sale was actually recorded, not what the form last held.
+        paymentMethod: paymentLabel(response.sale.paymentMethod),
+        operatorName: userDisplayName(user),
         currency: selectedEvent?.currency ?? 'SZL',
-        ticketIds: response.data?.tickets?.map((t: any) => t.ticketId || t._id) || [],
+        ticketIds: response.tickets.map((t) => t.ticketId || t._id),
+        // Who each minted ticket actually went to, so the dialog's rows open
+        // pre-filled instead of making the operator retype Thandi/Sipho/Bongi
+        // from memory in the right order.
+        ...(Object.keys(minted).length ? { ticketRecipients: minted } : {}),
       };
 
       setSaleData(dialogData);
       setSuccessDialogOpen(true);
       setFormData({ paymentMethod: 'cash' });
       setCart({});
+      setRecipients({});
+      setAssigning(false);
+      setSaleNonce((n) => n + 1);
     },
     onError: (error: any) => toast.error(error.message),
   });
+
+  // Collapsing the panel DISCARDS what was typed into it. Leaving `recipients`
+  // behind meant an operator who opened the section, typed a name, thought
+  // better of it and collapsed the section still minted that ticket to the
+  // abandoned recipient — with nothing on screen showing it.
+  const toggleAssigning = () => {
+    if (assigning) setRecipients({});
+    setAssigning(!assigning);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,7 +195,14 @@ export function TicketSalesPage() {
     }
     sellMutation.mutate({
       ...formData,
-      items: cartLines.map((l) => ({ ticketTypeId: l.ticketTypeId, quantity: l.quantity })),
+      items: cartLines.map((l) => {
+        const lineRecipients = recipientsForLine(l.ticketTypeId, l.quantity);
+        return {
+          ticketTypeId: l.ticketTypeId,
+          quantity: l.quantity,
+          ...(lineRecipients ? { recipients: lineRecipients } : {}),
+        };
+      }),
     } as SellTicketsRequest);
   };
 
@@ -127,7 +224,16 @@ export function TicketSalesPage() {
                 <Label>Select Event</Label>
                 <SearchableSelect
                   value={formData.eventId}
-                  onValueChange={(v) => { setFormData({ ...formData, eventId: v }); setCart({}); }}
+                  onValueChange={(v) => {
+                    setFormData({ ...formData, eventId: v });
+                    setCart({});
+                    // The basket is gone, so the people it was being
+                    // assigned to are too — otherwise re-picking an event
+                    // reopens the panel pre-filled with the PREVIOUS
+                    // customer's names and phone numbers.
+                    setRecipients({});
+                    setAssigning(false);
+                  }}
                   options={(eventsData?.data || []).map((event) => ({
                     value: event._id,
                     label: `${event.name} - ${event.venue}`,
@@ -180,6 +286,63 @@ export function TicketSalesPage() {
                 </div>
               )}
 
+              {cartQuantity > 0 && (
+                <div className="space-y-2">
+                  <Button type="button" variant="ghost" size="sm" onClick={toggleAssigning}>
+                    Assign tickets to individual people (optional)
+                  </Button>
+                  {assigning && (() => {
+                    // One row per ticket, capped at the SAME limit the success
+                    // dialog renders rows for — a recipient the till accepts
+                    // but the dialog cannot show has no way to be sent.
+                    const rows = cartLines.flatMap((l) =>
+                      Array.from({ length: l.quantity }, (_, i) => ({ line: l, i, key: `${l.ticketTypeId}:${i}` }))
+                    );
+                    const shown = rows.slice(0, MAX_RECIPIENT_ROWS);
+                    return (
+                      <>
+                        {/* The index counts across the WHOLE basket, not per
+                            line — a mixed basket (General + VIP) must not
+                            repeat "Recipient 1" for both tiers' first row,
+                            which would collide as an aria-label. The state key
+                            stays per-line ("<id>:<i>") so this numbering is
+                            display-only. */}
+                        {shown.map(({ line, i, key }, idx) => (
+                          <div key={key} className="flex gap-2">
+                            <Input
+                              aria-label={`Recipient ${idx + 1} name`}
+                              placeholder={`${line.tier.name} #${i + 1} name`}
+                              value={recipients[key]?.name ?? ''}
+                              onChange={(e) => setRecipients((r) => ({ ...r, [key]: { ...r[key], name: e.target.value } }))}
+                            />
+                            {/* A bare phone box silently localises a foreign
+                                number — 0821234567 is stored as
+                                +268821234567, routed to the Eswatini gateway,
+                                and still reported as "Sent". Same country
+                                picker as the buyer field below. */}
+                            <PhoneInput
+                              compact
+                              className="flex-1"
+                              value={recipients[key]?.phone ?? ''}
+                              onChange={(phone) => setRecipients((r) => ({ ...r, [key]: { ...r[key], phone } }))}
+                              placeholder="7612 3456"
+                              inputAriaLabel={`Recipient ${idx + 1} phone`}
+                              countryAriaLabel={`Recipient ${idx + 1} country code`}
+                            />
+                          </div>
+                        ))}
+                        {rows.length > shown.length && (
+                          <p className="text-xs text-slate-500">
+                            Showing the first {MAX_RECIPIENT_ROWS} tickets. The remaining{' '}
+                            {rows.length - shown.length} go to the buyer.
+                          </p>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2 min-w-0">
                   <Label>Customer Name</Label>
@@ -191,6 +354,7 @@ export function TicketSalesPage() {
                   />
                 </div>
                 <PhoneInput
+                  key={saleNonce}
                   label="Customer Phone"
                   value={formData.customerPhone || ''}
                   onChange={(value) => setFormData({ ...formData, customerPhone: value })}
@@ -290,6 +454,15 @@ export function TicketSalesPage() {
           open={successDialogOpen}
           onOpenChange={setSuccessDialogOpen}
           saleData={saleData}
+          sendSms={apiClient.sales.sendSaleSms}
+          perTicket={{
+            setRecipient: apiClient.sales.setTicketRecipient,
+            send: apiClient.sales.sendTicket,
+            downloadOne: async (ticketId) =>
+              saveBlob(await apiClient.ticketDocs.ticketPdfBytes(ticketId), `${ticketId}.pdf`),
+            downloadBundle: (ticketIds) => apiClient.ticketDocs.ticketBundlePdf(ticketIds),
+            fetchOneBlob: (ticketId) => apiClient.ticketDocs.ticketPdfBytes(ticketId),
+          }}
         />
       )}
     </div>

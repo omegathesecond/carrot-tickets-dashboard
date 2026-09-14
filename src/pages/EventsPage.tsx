@@ -385,9 +385,10 @@ export function EventsPage() {
                 )}
               </div>
 
-              {/* Vote feature inputs — optional; each gates the matching
-                  Vote question on the event's Vote tab (only shown if you
-                  fill it in, e.g. no lineup means no "best performer" vote). */}
+              {/* Attendance Status feature inputs — optional; each gates the
+                  matching question on the event's Attendance Status tab (only
+                  shown if you fill it in, e.g. no lineup means no "best
+                  performer" question). */}
               <div className="space-y-2">
                 <Label htmlFor="lineup">Lineup / Performers (Optional)</Label>
                 <TagListInput
@@ -398,7 +399,7 @@ export function EventsPage() {
                   maxLength={100}
                 />
                 <p className="text-xs text-slate-500">
-                  Powers the "Which artist will perform best?" Vote question. Leave empty to skip it.
+                  Powers the "Which artist will perform best?" Attendance Status question. Leave empty to skip it.
                 </p>
               </div>
 
@@ -412,7 +413,7 @@ export function EventsPage() {
                   maxLength={60}
                 />
                 <p className="text-xs text-slate-500">
-                  Powers the "Which outfit theme should attendees wear?" Vote question. Leave empty to skip it.
+                  Powers the "Which outfit theme should attendees wear?" Attendance Status question. Leave empty to skip it.
                 </p>
               </div>
 
