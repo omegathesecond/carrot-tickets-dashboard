@@ -603,13 +603,15 @@ export function EventDetailsPage() {
               // count is odd, instead of leaving one lonely half-empty cell.
               'grid h-auto w-full grid-cols-2 gap-2 rounded-lg bg-transparent p-0',
               // Desktop/tablet: a single-row segmented control sized to its
-              // content (not stretched), so `justify-center` above actually
-              // centers the whole group instead of a fixed-width box sitting
-              // at the left edge. `min-w-0` lets it shrink below its content
-              // width when space is tight, so `overflow-x-auto` scrolls the
-              // bar itself on narrower desktop screens instead of squeezing
-              // tab labels or overflowing the page.
-              'sm:flex sm:h-9 sm:min-w-0 sm:max-w-full sm:items-center sm:justify-start sm:gap-1 sm:overflow-x-auto sm:rounded-lg sm:bg-muted sm:p-1'
+              // content (not stretched) — `sm:w-fit` overrides the mobile
+              // `w-full` above (which has no breakpoint of its own, so it
+              // would otherwise keep stretching the bar to the full content
+              // width forever and make `justify-center` on the wrapper a
+              // no-op). `min-w-0` lets it shrink below its content width
+              // when space is tight, so `overflow-x-auto` scrolls the bar
+              // itself on narrower desktop screens instead of squeezing tab
+              // labels or overflowing the page.
+              'sm:flex sm:h-9 sm:w-fit sm:min-w-0 sm:max-w-full sm:items-center sm:justify-start sm:gap-1 sm:overflow-x-auto sm:rounded-lg sm:bg-muted sm:p-1'
             )}
           >
             {NAV_TABS.map(({ key, label, icon: Icon }) => (
