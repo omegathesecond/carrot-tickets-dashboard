@@ -590,32 +590,44 @@ export function EventDetailsPage() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList
-          className={cn(
-            // Mobile: a real two-column button grid, each tab its own equal-size
-            // card so long labels (e.g. "Financials") never get squeezed into a
-            // sliver column. The last tab centers/spans the row when the visible
-            // count is odd, instead of leaving one lonely half-empty cell.
-            'grid h-auto w-full grid-cols-2 gap-2 rounded-lg bg-transparent p-0',
-            // Desktop/tablet: identical to the original single-row segmented control.
-            'sm:flex sm:h-9 sm:w-auto sm:max-w-2xl sm:items-center sm:justify-center sm:gap-0 sm:rounded-lg sm:bg-muted sm:p-1'
-          )}
-        >
-          {NAV_TABS.map(({ key, label, icon: Icon }) => (
-            <TabsTrigger
-              key={key}
-              value={key}
-              className={cn(
-                'flex h-14 items-center justify-center gap-2 whitespace-normal rounded-lg border border-input bg-background px-3 py-2 text-center text-sm font-medium data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm',
-                'sm:h-9 sm:flex-1 sm:whitespace-nowrap sm:rounded-md sm:border-0 sm:bg-transparent sm:px-3 sm:py-1',
-                navTabIsOdd && key === lastNavTabKey && 'col-span-2 mx-auto w-1/2 sm:col-span-1 sm:mx-0 sm:w-auto'
-              )}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              {label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+        {/* Desktop: centers the tab group within the content area (not the
+            full window — this wrapper never extends past <main>'s width,
+            which already excludes the sidebar). Mobile is unaffected since
+            this div has no styling below the `sm:` breakpoint. */}
+        <div className="sm:flex sm:w-full sm:justify-center">
+          <TabsList
+            className={cn(
+              // Mobile: a real two-column button grid, each tab its own equal-size
+              // card so long labels (e.g. "Financials") never get squeezed into a
+              // sliver column. The last tab centers/spans the row when the visible
+              // count is odd, instead of leaving one lonely half-empty cell.
+              'grid h-auto w-full grid-cols-2 gap-2 rounded-lg bg-transparent p-0',
+              // Desktop/tablet: a single-row segmented control sized to its
+              // content (not stretched), so `justify-center` above actually
+              // centers the whole group instead of a fixed-width box sitting
+              // at the left edge. `min-w-0` lets it shrink below its content
+              // width when space is tight, so `overflow-x-auto` scrolls the
+              // bar itself on narrower desktop screens instead of squeezing
+              // tab labels or overflowing the page.
+              'sm:flex sm:h-9 sm:min-w-0 sm:max-w-full sm:items-center sm:justify-start sm:gap-1 sm:overflow-x-auto sm:rounded-lg sm:bg-muted sm:p-1'
+            )}
+          >
+            {NAV_TABS.map(({ key, label, icon: Icon }) => (
+              <TabsTrigger
+                key={key}
+                value={key}
+                className={cn(
+                  'flex h-14 items-center justify-center gap-2 whitespace-normal rounded-lg border border-input bg-background px-3 py-2 text-center text-sm font-medium data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm',
+                  'sm:h-9 sm:flex-none sm:shrink-0 sm:whitespace-nowrap sm:rounded-md sm:border-0 sm:bg-transparent sm:px-3 sm:py-1',
+                  navTabIsOdd && key === lastNavTabKey && 'col-span-2 mx-auto w-1/2 sm:col-span-1 sm:mx-0 sm:w-auto'
+                )}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                {label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
 
         <TabsContent value="overview" className="mt-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
