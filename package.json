@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "verify:shipped": "bash scripts/verify-shipped.sh",
     "test": "vitest run"
   },
   "dependencies": {
