@@ -15,7 +15,7 @@ export function Layout() {
       <div className="flex-1 flex flex-col min-w-0">
         <Header onMenuClick={() => setSidebarOpen(true)} />
         <VerificationBanner />
-        <main className="flex-1 overflow-auto bg-gradient-to-br from-amber-50 to-orange-50">
+        <main className="flex-1 overflow-auto [scrollbar-gutter:stable] bg-gradient-to-br from-amber-50 to-orange-50">
           <Outlet />
         </main>
       </div>
