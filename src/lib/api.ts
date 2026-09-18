@@ -2084,7 +2084,11 @@ export type OperatorPopulation = 'gate' | 'cashier' | 'merchant' | 'waiter';
  * whatever their role already carries. Mirrors OperatorGrant in the API; the
  * server drops any value it doesn't recognise.
  */
-export type OperatorGrant = 'issue_tags' | 'manage_stock' | 'settle_tables';
+export type OperatorGrant =
+  | 'issue_tags'
+  | 'manage_stock'
+  | 'settle_tables'
+  | 'manage_all_tables';
 
 export const OPERATOR_GRANT_LABELS: Record<
   OperatorGrant,
@@ -2106,6 +2110,15 @@ export const OPERATOR_GRANT_LABELS: Record<
     // table out — the API refuses a settle attempt without it.
     label: 'Can settle tables',
     hint: 'Take final payment and close out a table at the end of service',
+    appliesTo: ['waiter'],
+  },
+  manage_all_tables: {
+    // The shift lead. A waiter is otherwise scoped to the tables they opened
+    // — nobody settles a tab they never served, and the takings stay
+    // attributable — but somebody has to be able to close a table whose
+    // waiter has gone off shift, and that somebody holds this.
+    label: 'Works the whole floor',
+    hint: 'See and close any table at this event, not only their own — for a shift lead',
     appliesTo: ['waiter'],
   },
 };
