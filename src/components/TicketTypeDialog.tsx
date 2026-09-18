@@ -10,9 +10,14 @@ import { apiClient } from '@/lib/api';
 import { currencySymbol, type Currency } from '@/lib/currency';
 
 export interface TicketTypeSubmitData {
-  name: string;
+  // Absent when the tier already has sales and the actor is not an admin: the
+  // dialog locks those two fields, and the API judges a rename/reprice on what
+  // the payload CARRIES — so resending a locked field's unchanged value made
+  // every quantity bump on a sold tier fail. A new tier is never locked, so
+  // the add path always receives both (EventDetailsPage checks, and says so).
+  name?: string;
   description?: string;
-  price: number;
+  price?: number;
   quantity: number;
   isAllocation?: boolean;
   resellerId?: string;
@@ -68,6 +73,11 @@ export function TicketTypeDialog({
 
   const isEdit = !!ticketType;
   const hasSold = ticketType && ticketType.sold > 0;
+  // Name and price are a bait-and-switch on people already holding the ticket,
+  // so they close once a tier has sales — but an administrator may still
+  // correct them, the same carve-out the API makes for deleteEvent and
+  // unpublishEvent. Quantity is never locked: raising it only adds stock.
+  const locked = Boolean(hasSold) && !isAdmin;
   const showAllocation = isAdmin && !isEdit;
 
   const { data: resellers = [] } = useQuery({
@@ -94,9 +104,9 @@ export function TicketTypeDialog({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit({
-      name: formData.name,
+      // Omitted, not just disabled, when locked — see TicketTypeSubmitData.
+      ...(locked ? {} : { name: formData.name, price: formData.price }),
       description: formData.description || undefined,
-      price: formData.price,
       quantity: formData.quantity,
       ...(showAllocation && isAllocation
         ? {
@@ -127,11 +137,16 @@ export function TicketTypeDialog({
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               placeholder="e.g., General, VIP, Early Bird"
               required
-              disabled={hasSold}
+              disabled={locked}
             />
-            {hasSold && (
+            {locked && (
               <p className="text-xs text-amber-600">
                 Cannot change name after tickets have been sold
+              </p>
+            )}
+            {hasSold && isAdmin && (
+              <p className="text-xs text-amber-600">
+                Admin override — {ticketType!.sold} ticket{ticketType!.sold === 1 ? ' has' : 's have'} already sold under this name
               </p>
             )}
           </div>
@@ -158,9 +173,9 @@ export function TicketTypeDialog({
                 min="0"
                 step="0.01"
                 required
-                disabled={hasSold}
+                disabled={locked}
               />
-              {hasSold && (
+              {locked && (
                 <p className="text-xs text-amber-600">
                   Cannot change price after tickets sold
                 </p>

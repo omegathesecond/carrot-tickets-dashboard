@@ -270,8 +270,11 @@ export function EventDetailsPage() {
     updateCurrencyMutation.mutate({ currency });
   };
 
+  // A new tier always carries a name and a price — only an EDIT of a sold tier
+  // omits them (see TicketTypeSubmitData). Say that in the type so the add path
+  // keeps the guarantee addTicketType needs, and the caller has to prove it.
   const addTicketMutation = useMutation({
-    mutationFn: (ticketData: TicketTypeSubmitData) =>
+    mutationFn: (ticketData: TicketTypeSubmitData & { name: string; price: number }) =>
       apiClient.events.addTicketType(id!, ticketData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['event', id] });
@@ -1274,8 +1277,16 @@ export function EventDetailsPage() {
               updates: data,
             });
           } else {
-            // Add new ticket
-            addTicketMutation.mutate(data);
+            // Add new ticket. name/price are optional on the submit type only
+            // because an EDIT of a sold tier omits them (see
+            // TicketTypeSubmitData); a brand-new tier is never locked, so both
+            // are always here. Check rather than cast — if that ever stops
+            // holding, say so instead of POSTing a nameless tier.
+            if (data.name === undefined || data.price === undefined) {
+              toast.error('A new ticket type needs a name and a price');
+              return;
+            }
+            addTicketMutation.mutate({ ...data, name: data.name, price: data.price });
           }
         }}
         ticketType={editingTicket}
