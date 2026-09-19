@@ -83,7 +83,10 @@ export function EventTagsPanel({ eventId }: { eventId: string }) {
   const [q, setQ] = useState('');
   const [status, setStatus] = useState<TagStatus | 'all'>('all');
   const [openTag, setOpenTag] = useState<string | null>(null);
-  const [fundedOnly, setFundedOnly] = useState(false);
+  // Defaults ON: the screen exists to answer "who is holding my money", and
+  // the raw newest-registered order answers it badly at any event that
+  // bulk-registers plastic (496 tags, 11 funded, one of them on page 1).
+  const [fundedOnly, setFundedOnly] = useState(true);
 
   const { data: summary } = useQuery({
     queryKey: ['tag-summary', eventId],
@@ -148,7 +151,14 @@ export function EventTagsPanel({ eventId }: { eventId: string }) {
             </p>
           ) : !page?.tags.length ? (
             <p className="py-8 text-center text-muted-foreground">
-              {fundedOnly ? 'No tags are holding a balance.' : 'No tags issued yet.'}
+              {!fundedOnly
+                ? 'No tags issued yet.'
+                : q.trim()
+                  // With the filter on by default, searching the UID of an
+                  // empty tag otherwise looks like "tag not found" — which at
+                  // a cash-out desk is the wrong thing to conclude.
+                  ? `No funded tag matches “${q.trim()}”. Switch off Funded only to include tags with no balance.`
+                  : 'No tags are holding a balance.'}
             </p>
           ) : (
             <Table>

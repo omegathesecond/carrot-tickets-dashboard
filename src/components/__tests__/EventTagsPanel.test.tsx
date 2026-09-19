@@ -71,6 +71,8 @@ describe('EventTagsPanel', () => {
     list.mockResolvedValue({ tags: [], hasMore: false, nextCursor: null });
 
     renderPanel();
+    // Funded-only is the default now, so its own empty copy would win here.
+    fireEvent.click(screen.getByRole('switch'));
 
     await waitFor(() => expect(screen.getByText(/no tags issued yet/i)).toBeDefined());
   });
@@ -96,17 +98,20 @@ describe('EventTagsPanel', () => {
     );
 
     renderPanel();
-    await waitFor(() => expect(screen.getByText('AAA')).toBeDefined());
 
-    fireEvent.click(screen.getByRole('switch'));
-
-    // Wait for the scan to RESOLVE, not merely for the old rows to clear —
-    // mid-scan the table is empty and every assertion below would pass vacuously.
+    // No click: funded-only is the default. Wait for the scan to RESOLVE, not
+    // merely for rows to appear — mid-scan the table is empty and every
+    // assertion below would pass vacuously.
     await waitFor(() => expect(screen.getByText('DDD')).toBeDefined());
     expect(screen.queryByText('AAA')).toBeNull();
     expect(screen.queryByText('CCC')).toBeNull();
     const uids = screen.getAllByText(/^(AAA|BBB|CCC|DDD)$/).map((n) => n.textContent);
     expect(uids).toEqual(['DDD', 'BBB']);
+
+    // ...and switching it off brings the empty tags back, newest-first.
+    fireEvent.click(screen.getByRole('switch'));
+    await waitFor(() => expect(screen.getByText('AAA')).toBeDefined());
+    expect(screen.getByText('BBB')).toBeDefined();
   });
 
   it('funded only: says so when nothing is holding a balance', async () => {
@@ -123,8 +128,6 @@ describe('EventTagsPanel', () => {
     });
 
     renderPanel();
-    await waitFor(() => expect(screen.getByText('AAA')).toBeDefined());
-    fireEvent.click(screen.getByRole('switch'));
 
     await waitFor(() => expect(screen.getByText('No tags are holding a balance.')).toBeDefined());
   });
@@ -146,8 +149,28 @@ describe('EventTagsPanel', () => {
     }));
 
     renderPanel();
-    fireEvent.click(screen.getByRole('switch'));
 
     await waitFor(() => expect(screen.getByText(/did not reach/i)).toBeDefined());
+  });
+
+  // With the filter on by default, searching an empty tag's UID must not read
+  // as "no such tag" — at a cash-out desk that is the wrong conclusion.
+  it('funded only: a search that matches nothing funded points at the toggle', async () => {
+    summary.mockResolvedValue({
+      tagsInUse: 1, activeTags: 1, unboundTags: 0,
+      balanceOutstanding: 0, cashFundedOutstanding: 0, averageBalance: 0,
+    });
+    list.mockResolvedValue({
+      tags: [{
+        walletId: 'w1', bandUid: 'EMPTYTAG', status: 'active', balance: 0, cashFundedBalance: 0,
+        holder: { name: null, phone: null, ticketCode: null },
+      }],
+      hasMore: false, nextCursor: null,
+    });
+
+    renderPanel();
+    fireEvent.change(screen.getByPlaceholderText(/search tag uid/i), { target: { value: 'EMPTYTAG' } });
+
+    await waitFor(() => expect(screen.getByText(/switch off funded only/i)).toBeDefined());
   });
 });
