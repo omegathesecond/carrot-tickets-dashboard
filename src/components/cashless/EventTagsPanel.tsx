@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Nfc, Search } from 'lucide-react';
 import { apiClient, type TagRow, type TagStatus } from '@/lib/api';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { fmtR } from '@/lib/money';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -17,6 +19,61 @@ const STATUS_META: Record<TagStatus, { label: string; className: string }> = {
   closed: { label: 'Closed', className: 'bg-slate-100 text-slate-700' },
 };
 
+type TagListParams = { status?: TagStatus; q?: string };
+type TagPage = {
+  tags: TagRow[];
+  hasMore: boolean;
+  nextCursor: string | null;
+  /** Funded-only scan bookkeeping; absent on a plain server page. */
+  scanned?: number;
+  truncated?: boolean;
+};
+
+/** The tags endpoint clamps limit to 200, so asking for more just wastes a round trip. */
+const SCAN_PAGE_SIZE = 200;
+/** 25 x 200 = 5,000 tags. Past that we say the list is partial rather than imply it is whole. */
+const SCAN_MAX_PAGES = 25;
+
+/**
+ * "Funded only" has no server-side equivalent. The tags endpoint sorts by _id —
+ * newest tag registered first — and offers no balance filter and no balance
+ * sort, so at an event that pre-registers plastic in bulk the handful of tags
+ * actually holding money end up scattered across every page (at the Bikers
+ * Rally: 11 funded tags among 496, spread over 10 pages, with exactly one on
+ * page 1). Walk the cursor ourselves, keep what has a balance, sort by it.
+ *
+ * The scan is capped, and hitting the cap is REPORTED rather than quietly
+ * dropping the rest: a partial "who is holding your money" list that looks
+ * complete is worse than no list at all.
+ */
+async function fetchFundedTags(eventId: string, params: TagListParams): Promise<TagPage> {
+  const funded: TagRow[] = [];
+  let cursor: string | undefined;
+  let scanned = 0;
+
+  for (let page = 0; page < SCAN_MAX_PAGES; page++) {
+    const res = await apiClient.tags.list(eventId, {
+      ...params,
+      limit: SCAN_PAGE_SIZE,
+      ...(cursor ? { cursor } : {}),
+    });
+    scanned += res.tags.length;
+    for (const t of res.tags) if (t.balance > 0) funded.push(t);
+
+    if (!res.hasMore || !res.nextCursor) {
+      return { tags: byBalanceDesc(funded), hasMore: false, nextCursor: null, scanned, truncated: false };
+    }
+    cursor = res.nextCursor;
+  }
+
+  return { tags: byBalanceDesc(funded), hasMore: false, nextCursor: null, scanned, truncated: true };
+}
+
+/** Biggest balance first — the cash-out queue reads top-down. */
+function byBalanceDesc(rows: TagRow[]): TagRow[] {
+  return [...rows].sort((a, b) => b.balance - a.balance);
+}
+
 /**
  * The tags issued at one cashless event. A "tag" is really the wallet behind
  * it — the plastic carries only a UID, and the wallet is what survives a lost
@@ -26,18 +83,22 @@ export function EventTagsPanel({ eventId }: { eventId: string }) {
   const [q, setQ] = useState('');
   const [status, setStatus] = useState<TagStatus | 'all'>('all');
   const [openTag, setOpenTag] = useState<string | null>(null);
+  const [fundedOnly, setFundedOnly] = useState(false);
 
   const { data: summary } = useQuery({
     queryKey: ['tag-summary', eventId],
     queryFn: () => apiClient.tags.summary(eventId),
   });
 
-  const { data: page, isLoading } = useQuery({
-    queryKey: ['tags', eventId, status, q],
-    queryFn: () => apiClient.tags.list(eventId, {
-      ...(status !== 'all' ? { status } : {}),
-      ...(q.trim() ? { q: q.trim() } : {}),
-    }),
+  const { data: page, isLoading } = useQuery<TagPage>({
+    queryKey: ['tags', eventId, status, q, fundedOnly],
+    queryFn: () => {
+      const params: TagListParams = {
+        ...(status !== 'all' ? { status } : {}),
+        ...(q.trim() ? { q: q.trim() } : {}),
+      };
+      return fundedOnly ? fetchFundedTags(eventId, params) : apiClient.tags.list(eventId, params);
+    },
   });
 
   return (
@@ -64,14 +125,31 @@ export function EventTagsPanel({ eventId }: { eventId: string }) {
             <SelectItem value="closed">Closed</SelectItem>
           </SelectContent>
         </Select>
+        <div className="flex items-center gap-2 rounded-md border px-3 py-2">
+          <Switch id="funded-only" checked={fundedOnly} onCheckedChange={setFundedOnly} />
+          <Label htmlFor="funded-only" className="cursor-pointer whitespace-nowrap text-sm font-medium">
+            Funded only
+          </Label>
+        </div>
       </div>
+
+      {fundedOnly && page?.truncated && (
+        <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          Showing funded tags from the {(page.scanned ?? 0).toLocaleString()} most recently registered only —
+          there are older tags this scan did not reach. Search a tag UID to look one up directly.
+        </p>
+      )}
 
       <Card>
         <CardContent className="pt-6 overflow-x-auto">
           {isLoading ? (
-            <p className="py-8 text-center text-muted-foreground">Loading tags…</p>
+            <p className="py-8 text-center text-muted-foreground">
+              {fundedOnly ? 'Scanning every tag…' : 'Loading tags…'}
+            </p>
           ) : !page?.tags.length ? (
-            <p className="py-8 text-center text-muted-foreground">No tags issued yet.</p>
+            <p className="py-8 text-center text-muted-foreground">
+              {fundedOnly ? 'No tags are holding a balance.' : 'No tags issued yet.'}
+            </p>
           ) : (
             <Table>
               <TableHeader>
