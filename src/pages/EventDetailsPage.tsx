@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { publicEventUrl } from '@/lib/eventUrl';
@@ -54,6 +54,11 @@ type InfoDraft = { name: string; description: string; venue: string } & EventDat
 export function EventDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  // The Events list passes back its own URL (search term + tab included) via
+  // link state, so leaving here and returning lands back on the same
+  // filtered view instead of a reset list.
+  const backToEvents = (location.state as { from?: string } | null)?.from ?? '/events';
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -373,7 +378,7 @@ export function EventDetailsPage() {
         <div className="text-center">
           <h2 className="text-2xl font-bold text-slate-900 mb-2">Event Not Found</h2>
           <p className="text-slate-600 mb-4">The event you're looking for doesn't exist.</p>
-          <Button onClick={() => navigate('/events')}>
+          <Button onClick={() => navigate(backToEvents)}>
             <ArrowLeft className="h-4 w-4 mr-2" /> Back to Events
           </Button>
         </div>
@@ -458,7 +463,7 @@ export function EventDetailsPage() {
       <Card>
         <CardContent className="p-4 sm:p-6">
           <div className="flex items-start gap-3 sm:gap-4">
-            <Button variant="ghost" size="icon" className="mt-0.5 shrink-0" onClick={() => navigate('/events')}>
+            <Button variant="ghost" size="icon" className="mt-0.5 shrink-0" onClick={() => navigate(backToEvents)}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div className="min-w-0 flex-1 space-y-3">
