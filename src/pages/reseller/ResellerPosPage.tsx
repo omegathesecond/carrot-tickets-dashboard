@@ -347,7 +347,7 @@ export function ResellerPosPage() {
           </button>
         )}
         <div className="min-w-0">
-          <h1 className="text-lg font-bold leading-tight text-slate-900">Sell Tickets</h1>
+          <h1 className="text-lg font-bold leading-tight text-slate-900">Complimentary / Sell Tickets</h1>
           {operator?.fullName && (
             <p className="truncate text-xs text-slate-500">{operator.fullName}</p>
           )}
