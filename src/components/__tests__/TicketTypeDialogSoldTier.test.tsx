@@ -44,7 +44,7 @@ const renderDialog = (props: Partial<React.ComponentProps<typeof TicketTypeDialo
 };
 
 const setQuantity = (value: string) =>
-  fireEvent.change(screen.getByLabelText('Quantity'), { target: { value } });
+  fireEvent.change(screen.getByLabelText('Quantity (Available)'), { target: { value } });
 
 const save = () => fireEvent.click(screen.getByRole('button', { name: /update ticket type/i }));
 
