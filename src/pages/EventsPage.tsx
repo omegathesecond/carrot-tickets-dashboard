@@ -189,10 +189,21 @@ export function EventsPage() {
   // filtered grid are both derived from this one result, so they can never
   // disagree (previously each called Date.now() separately and a boundary event
   // could be counted "approved" yet hidden from the list).
+  //
+  // Admins never classify 'draft' events into a tab: a draft is either an
+  // organizer's unsubmitted work-in-progress or a withdrawn submission (see
+  // EventService.withdrawEvent), neither of which is actionable by an admin.
+  // Only the organizer's own "Pending" tab treats draft as pending — that's
+  // what classifyEvent still does for them. Filtering here (rather than in
+  // classifyEvent) keeps drafts out of every admin tab, not just "Pending":
+  // they'd otherwise fall through to a time-based approved/ongoing/past bucket
+  // they were never actually approved into. They remain visible under "All".
   const classified = useMemo(() => {
     const now = Date.now();
-    return allEvents.map((e) => ({ event: e, bucket: classifyEvent(e, now) }));
-  }, [allEvents]);
+    return allEvents
+      .filter((e) => isAdmin ? e.status !== 'draft' : true)
+      .map((e) => ({ event: e, bucket: classifyEvent(e, now) }));
+  }, [allEvents, isAdmin]);
 
   // Analytics roll-up across every event (shown for admins & organizers alike).
   const analytics = useMemo(() => {
