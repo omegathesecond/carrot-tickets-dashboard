@@ -142,6 +142,7 @@ export function LoginPage() {
               <Input
                 id="password"
                 type="password"
+                placeholder="Enter password"
                 value={credentials.password}
                 onChange={(e) =>
                   setCredentials({ ...credentials, password: e.target.value })

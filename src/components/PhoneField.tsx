@@ -91,7 +91,7 @@ export function PhoneField({ id, value, onChange, required, placeholder = '7612 
           value={local}
           onChange={(e) => onLocalChange(e.target.value)}
           required={required}
-          className="flex-1 font-mono"
+          className="flex-1 font-mono placeholder:text-xs placeholder:font-sans"
         />
       </div>
 
