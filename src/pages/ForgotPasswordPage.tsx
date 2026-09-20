@@ -25,6 +25,7 @@ export function ForgotPasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [reset, setReset] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const { resetPassword, user } = useAuth();
   const navigate = useNavigate();
@@ -32,6 +33,7 @@ export function ForgotPasswordPage() {
   const switchMode = (next: 'email' | 'phone') => {
     setMode(next);
     setIdentifier('');
+    setError(null);
   };
 
   // resetPassword() signs the organizer in via AuthContext; wait for the context
@@ -45,8 +47,9 @@ export function ForgotPasswordPage() {
 
   const handleRequest = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     if (!identifier) {
-      toast.error(mode === 'email' ? 'Enter your email' : 'Enter your phone number');
+      setError(mode === 'email' ? 'Enter your email' : 'Enter your phone number');
       return;
     }
     setIsLoading(true);
@@ -55,8 +58,8 @@ export function ForgotPasswordPage() {
       setChannel(res.channel);
       setStep('verify');
       toast.success(res.channel === 'sms' ? 'We texted you a reset code' : 'We emailed you a reset code');
-    } catch (error: any) {
-      toast.error(error.message || 'Could not send reset code');
+    } catch (err: any) {
+      setError(err.message || 'Could not send reset code');
     } finally {
       setIsLoading(false);
     }
@@ -64,8 +67,9 @@ export function ForgotPasswordPage() {
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     if (newPassword !== confirmPassword) {
-      toast.error('Passwords do not match');
+      setError('Passwords do not match');
       return;
     }
     setIsLoading(true);
@@ -74,8 +78,8 @@ export function ForgotPasswordPage() {
       toast.success('Password updated. You are signed in.');
       await new Promise((resolve) => setTimeout(resolve, 250));
       setReset(true);
-    } catch (error: any) {
-      toast.error(error.message || 'Could not reset password');
+    } catch (err: any) {
+      setError(err.message || 'Could not reset password');
     } finally {
       setIsLoading(false);
     }
@@ -141,6 +145,11 @@ export function ForgotPasswordPage() {
                   />
                 )}
               </div>
+              {error && (
+                <p role="alert" className="text-sm text-destructive">
+                  {error}
+                </p>
+              )}
               <Button
                 type="submit"
                 className="w-full bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700"
@@ -188,6 +197,11 @@ export function ForgotPasswordPage() {
                   required
                 />
               </div>
+              {error && (
+                <p role="alert" className="text-sm text-destructive">
+                  {error}
+                </p>
+              )}
               <Button
                 type="submit"
                 className="w-full bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700"
@@ -197,7 +211,7 @@ export function ForgotPasswordPage() {
               </Button>
               <button
                 type="button"
-                onClick={() => { setStep('request'); setCode(''); }}
+                onClick={() => { setStep('request'); setCode(''); setError(null); }}
                 className="w-full text-center text-sm text-muted-foreground hover:text-foreground"
               >
                 Use a different email or phone

@@ -20,12 +20,14 @@ export function LoginPage() {
   // email can't leak through as a phone identifier (or vice-versa).
   const [mode, setMode] = useState<'email' | 'phone'>('email');
   const [isLoading, setIsLoading] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const switchMode = (next: 'email' | 'phone') => {
     setMode(next);
     setCredentials((c) => ({ ...c, identifier: '' }));
+    setError(null);
   };
-  const [loggedIn, setLoggedIn] = useState(false);
   const { login, user } = useAuth();
   const navigate = useNavigate();
   // Land-once guard: the effect below may re-run as `user` settles, but a
@@ -60,6 +62,7 @@ export function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     setIsLoading(true);
 
     try {
@@ -67,8 +70,8 @@ export function LoginPage() {
       toast.success('Login successful');
       await new Promise(resolve => setTimeout(resolve, 250));
       setLoggedIn(true);
-    } catch (error: any) {
-      toast.error(error.message || 'Login failed');
+    } catch (err: any) {
+      setError(err.message || 'Login failed');
     } finally {
       setIsLoading(false);
     }
@@ -139,7 +142,6 @@ export function LoginPage() {
               <Input
                 id="password"
                 type="password"
-                placeholder="Enter your password"
                 value={credentials.password}
                 onChange={(e) =>
                   setCredentials({ ...credentials, password: e.target.value })
@@ -147,6 +149,11 @@ export function LoginPage() {
                 required
               />
             </div>
+            {error && (
+              <p role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
+            )}
             <Button
               type="submit"
               className="w-full bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700"
