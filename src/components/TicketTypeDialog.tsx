@@ -183,7 +183,7 @@ export function TicketTypeDialog({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="quantity">Quantity</Label>
+              <Label htmlFor="quantity">Quantity (Available)</Label>
               <Input
                 id="quantity"
                 type="number"

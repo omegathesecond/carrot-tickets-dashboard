@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation, Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
@@ -72,6 +72,10 @@ export function EventDetailsPage() {
   };
   const [ticketDialogOpen, setTicketDialogOpen] = useState(false);
   const [editingTicket, setEditingTicket] = useState<TicketType | null>(null);
+  // Scroll target for the "Create Tickets" nudge next to the disabled publish
+  // button — lets an organizer jump straight to the ticket-creation section
+  // instead of hunting for it.
+  const ticketTypesCardRef = useRef<HTMLDivElement | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [unpublishConfirmOpen, setUnpublishConfirmOpen] = useState(false);
   const [currency, setCurrency] = useState<Currency>('SZL');
@@ -368,6 +372,26 @@ export function EventDetailsPage() {
     onError: (error: any) => toast.error(error.message),
   });
 
+  // The Events list's "Create Tickets" nudge (shown next to a draft event with
+  // no ticket types) links here with this flag so the organizer lands
+  // straight in ticket creation instead of having to find the card
+  // themselves. Cleared via `replace` so a refresh or back-navigation doesn't
+  // reopen the dialog. Kept above the loading/not-found returns below so this
+  // hook always runs in the same order (Rules of Hooks).
+  useEffect(() => {
+    const state = location.state as { openTicketDialog?: boolean; from?: string } | null;
+    if (state?.openTicketDialog && event) {
+      if (activeTab !== 'overview') setActiveTab('overview');
+      setEditingTicket(null);
+      setTicketDialogOpen(true);
+      requestAnimationFrame(() => {
+        ticketTypesCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+      navigate(location.pathname + location.search, { replace: true, state: { from: state.from } });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [event, location.state]);
+
   if (isLoading) {
     return <div className="p-8">Loading event details...</div>;
   }
@@ -388,6 +412,9 @@ export function EventDetailsPage() {
 
   const isPublished = event.status === 'published';
   const isPending = event.status === 'pending_approval';
+  // Mirrors the server-side guard in EventService.publishEvent — an event
+  // can't be submitted for approval (or published) with zero ticket types.
+  const hasTicketTypes = (event.ticketTypes?.length ?? 0) > 0;
   const statusLabel =
     event.status === 'pending_approval' ? 'Waiting for Approval' : event.status;
   const statusVariant: 'default' | 'secondary' | 'destructive' =
@@ -440,6 +467,19 @@ export function EventDetailsPage() {
   ].filter((t) => t.show);
   const navTabIsOdd = NAV_TABS.length % 2 !== 0;
   const lastNavTabKey = NAV_TABS[NAV_TABS.length - 1]?.key;
+
+  // "Create Tickets" nudge next to the disabled publish button — switches to
+  // the tab the Ticket Configurations card lives on (in case the organizer is
+  // elsewhere), opens the Add Ticket Type dialog, and scrolls the card into
+  // view once the tab switch settles.
+  const handleGoToTicketCreation = () => {
+    if (activeTab !== 'overview') setActiveTab('overview');
+    setEditingTicket(null);
+    setTicketDialogOpen(true);
+    requestAnimationFrame(() => {
+      ticketTypesCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
 
   const handleSharePublicLink = async () => {
     const shareText = `Check out ${event.name} at ${event.venue} — get your tickets here:`;
@@ -575,13 +615,36 @@ export function EventDetailsPage() {
                   )
                 ) : (
                   // Draft: admin publishes live, organizer submits for approval.
-                  <Button
-                    onClick={() => publishMutation.mutate(true)}
-                    disabled={publishMutation.isPending}
-                  >
-                    <Eye className="h-4 w-4 mr-2" />
-                    {isAdmin ? 'Publish' : 'Submit for Approval'}
-                  </Button>
+                  // Both are blocked with zero ticket types — mirrors the
+                  // server-side guard in EventService.publishEvent.
+                  <div className="flex flex-col gap-1.5">
+                    <Button
+                      onClick={() => publishMutation.mutate(true)}
+                      disabled={publishMutation.isPending || !hasTicketTypes}
+                      title={
+                        !hasTicketTypes
+                          ? 'Create at least one ticket type before requesting to publish this event.'
+                          : undefined
+                      }
+                    >
+                      <Eye className="h-4 w-4 mr-2" />
+                      {isAdmin ? 'Publish' : 'Submit for Approval'}
+                    </Button>
+                    {!hasTicketTypes && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-xs text-amber-700">
+                          Create at least one ticket type before requesting to publish this event.
+                        </p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={handleGoToTicketCreation}
+                        >
+                          <Plus className="h-3.5 w-3.5 mr-1" /> Create Tickets
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 )}
                 <Button
                   variant="destructive"
@@ -857,7 +920,7 @@ export function EventDetailsPage() {
           {event && <EventCashlessSetting event={event} isAdmin={isAdmin} />}
 
           {/* Ticket Types Card — Carrot's own tier editor. */}
-          <Card>
+          <Card ref={ticketTypesCardRef}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>Ticket Configurations</CardTitle>
@@ -881,7 +944,7 @@ export function EventDetailsPage() {
                     <TableRow>
                       <TableHead>Type</TableHead>
                       <TableHead>Price</TableHead>
-                      <TableHead className="text-right">Quantity</TableHead>
+                      <TableHead className="text-right">Quantity (Available)</TableHead>
                       <TableHead className="text-right">Sold</TableHead>
                       <TableHead className="text-right">Available</TableHead>
                       <TableHead className="text-right">Actions</TableHead>

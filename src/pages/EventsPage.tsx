@@ -517,11 +517,16 @@ export function EventsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredEvents.map((event) => {
             const isPublished = event.status === 'published';
+            // Mirrors the server-side guard in EventService.publishEvent — an
+            // event can't be submitted for approval (or published) with zero
+            // ticket types.
+            const hasTicketTypes = (event.ticketTypes?.length ?? 0) > 0;
+            const eventFrom = searchParams.toString() ? `/events?${searchParams.toString()}` : '/events';
             return (
               <Card key={event._id} className="hover:shadow-lg transition-shadow">
                 <Link
                   to={`/events/${event._id}`}
-                  state={{ from: searchParams.toString() ? `/events?${searchParams.toString()}` : '/events' }}
+                  state={{ from: eventFrom }}
                   className="block"
                 >
                   {(event.posterUrl || event.thumbnailUrl) && (
@@ -595,11 +600,18 @@ export function EventsPage() {
                           </Button>
                         );
                       }
+                      const draftBlocked = !isPublished && !hasTicketTypes;
                       return (
                         <Button
                           size="sm"
                           variant={isPublished ? 'outline' : 'default'}
                           className="flex-1"
+                          disabled={draftBlocked}
+                          title={
+                            draftBlocked
+                              ? 'Create at least one ticket type before requesting to publish this event.'
+                              : undefined
+                          }
                           onClick={() => publishMutation.mutate({ id: event._id, publish: !isPublished })}
                         >
                           {isPublished ? 'Unpublish' : isAdmin ? 'Publish' : 'Submit for Approval'}
@@ -614,6 +626,20 @@ export function EventsPage() {
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
+                  {event.status !== 'published' && event.status !== 'pending_approval' && !hasTicketTypes && (
+                    <div className="mt-2 space-y-1.5">
+                      <p className="text-xs text-amber-700">
+                        Create at least one ticket type before requesting to publish this event.
+                      </p>
+                      <Link
+                        to={`/events/${event._id}`}
+                        state={{ from: eventFrom, openTicketDialog: true }}
+                        className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                      >
+                        <Plus className="h-3.5 w-3.5" /> Create Tickets
+                      </Link>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             );
