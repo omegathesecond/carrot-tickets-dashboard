@@ -39,14 +39,16 @@ export function SignupPage() {
   const [sentTo, setSentTo] = useState('');
   const [code, setCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { register } = useAuth();
   const navigate = useNavigate();
 
   const handleSendCode = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
 
     if (!form.email && !form.phoneNumber) {
-      toast.error('Enter an email address or phone number');
+      setError('Enter an email address or phone number');
       return;
     }
 
@@ -61,8 +63,8 @@ export function SignupPage() {
       setSentTo(res.identifier);
       setStep('verify');
       toast.success(res.channel === 'sms' ? 'We texted you a verification code' : 'We emailed you a verification code');
-    } catch (error: any) {
-      toast.error(error.message || 'Could not send verification code');
+    } catch (err: any) {
+      setError(err.message || 'Could not send verification code');
     } finally {
       setIsLoading(false);
     }
@@ -70,6 +72,7 @@ export function SignupPage() {
 
   const handleVerifyAndCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
 
     setIsLoading(true);
     try {
@@ -85,8 +88,8 @@ export function SignupPage() {
       toast.success('Account created! You can start building events now.');
       await new Promise((resolve) => setTimeout(resolve, 250));
       navigate('/', { replace: true });
-    } catch (error: any) {
-      toast.error(error.message || 'Sign up failed');
+    } catch (err: any) {
+      setError(err.message || 'Sign up failed');
     } finally {
       setIsLoading(false);
     }
@@ -175,6 +178,11 @@ export function SignupPage() {
                   required
                 />
               </div>
+              {error && (
+                <p role="alert" className="text-sm text-destructive">
+                  {error}
+                </p>
+              )}
               <Button
                 type="submit"
                 className="w-full bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700"
@@ -204,6 +212,11 @@ export function SignupPage() {
                   required
                 />
               </div>
+              {error && (
+                <p role="alert" className="text-sm text-destructive">
+                  {error}
+                </p>
+              )}
               <Button
                 type="submit"
                 className="w-full bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700"
@@ -213,7 +226,7 @@ export function SignupPage() {
               </Button>
               <button
                 type="button"
-                onClick={() => { setStep('details'); setCode(''); }}
+                onClick={() => { setStep('details'); setCode(''); setError(null); }}
                 className="w-full text-center text-sm text-muted-foreground hover:text-foreground"
               >
                 Edit your details or use a different email / phone

@@ -19,7 +19,7 @@ import {
 import { toast } from 'sonner';
 import { type Event, EventFormData } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
-import { currencySymbol, type Currency } from '@/lib/currency';
+import { type Currency } from '@/lib/currency';
 import { formatCurrency } from '@/lib/chartColors';
 import { ImageUploadInput } from '@/components/ImageUploadInput';
 import { GalleryManager } from '@/components/GalleryManager';
@@ -293,9 +293,6 @@ export function EventsPage() {
                   <option value="SZL">E (SZL) — Eswatini Lilangeni</option>
                   <option value="ZAR">R (ZAR) — South African Rand</option>
                 </select>
-                <p className="text-xs text-slate-500">
-                  Prices for this event are shown with this currency's symbol ({currencySymbol(currency)}).
-                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -362,7 +359,7 @@ export function EventsPage() {
               )}
 
               <p className="text-xs text-slate-500">
-                You'll set how many tickets are available when you add ticket types to this event.
+                Ticket quantities are set later, when you add ticket types.
               </p>
 
               {/* Cashless. Asymmetric because the API is: an admin may create
@@ -381,9 +378,8 @@ export function EventsPage() {
                       {isAdmin ? 'Enable cashless for this event' : 'Request cashless for this event'}
                     </Label>
                     <p className="text-xs text-slate-500">
-                      Attendees carry funded NFC wristbands, stalls charge them, and cashiers top
-                      up and cash out at the desk.
-                      {!isAdmin && ' Carrot reviews the request and switches it on.'}
+                      Attendees pay with funded NFC wristbands at stalls.
+                      {!isAdmin && ' Carrot reviews the request before switching it on.'}
                     </p>
                   </div>
                 </div>
@@ -412,7 +408,7 @@ export function EventsPage() {
                   maxLength={100}
                 />
                 <p className="text-xs text-slate-500">
-                  Powers the "Which artist will perform best?" Attendance Status question. Leave empty to skip it.
+                  Adds a "best performer" question to Attendance Status.
                 </p>
               </div>
 
@@ -426,15 +422,12 @@ export function EventsPage() {
                   maxLength={60}
                 />
                 <p className="text-xs text-slate-500">
-                  Powers the "Which outfit theme should attendees wear?" Attendance Status question. Leave empty to skip it.
+                  Adds an outfit-theme question to Attendance Status.
                 </p>
               </div>
 
               <div className="space-y-3 rounded-lg border border-slate-200 p-3">
-                <div>
-                  <p className="text-sm font-medium text-slate-900">Poster & photos</p>
-                  <p className="text-xs text-slate-500">Add a poster and a few event photos — events with images get far more views, and multiple photos animate on the card.</p>
-                </div>
+                <Label className="text-sm font-medium text-slate-900">Poster & photos (Optional)</Label>
                 <ImageUploadInput
                   label="Event poster"
                   onFileSelect={setPosterFile}
