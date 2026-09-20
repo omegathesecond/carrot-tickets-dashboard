@@ -454,14 +454,24 @@ export class ApiClient {
       });
     },
 
-    publishEvent: async (id: string): Promise<Event> => {
+    publishEvent: async (id: string, opts?: { expectedStatus?: string }): Promise<Event> => {
       return this.request<Event>(`/tickets/events/${id}/publish`, {
         method: 'PUT',
+        body: opts?.expectedStatus ? JSON.stringify({ expectedStatus: opts.expectedStatus }) : undefined,
       });
     },
 
     unpublishEvent: async (id: string): Promise<Event> => {
       return this.request<Event>(`/tickets/events/${id}/unpublish`, {
+        method: 'PUT',
+      });
+    },
+
+    // Organizer withdraws a pending_approval submission back to draft — a
+    // distinct action from unpublishEvent (which also covers an admin
+    // pulling a live event offline and allows overriding sold tickets).
+    withdrawEvent: async (id: string): Promise<Event> => {
+      return this.request<Event>(`/tickets/events/${id}/withdraw`, {
         method: 'PUT',
       });
     },

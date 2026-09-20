@@ -131,8 +131,10 @@ export function EventDetailsPage() {
   }, [event?._id, event?.currency]);
 
   const publishMutation = useMutation({
-    mutationFn: (publish: boolean) =>
-      publish ? apiClient.events.publishEvent(id!) : apiClient.events.unpublishEvent(id!),
+    mutationFn: ({ publish, expectedStatus }: { publish: boolean; expectedStatus?: string }) =>
+      publish
+        ? apiClient.events.publishEvent(id!, { expectedStatus })
+        : apiClient.events.unpublishEvent(id!),
     onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: ['event', id] });
       queryClient.invalidateQueries({ queryKey: ['events'] });
@@ -149,6 +151,25 @@ export function EventDetailsPage() {
     },
     // Never swallow a failed publish/unpublish — surface it.
     onError: (error: any) => toast.error(error.message || 'Failed to update event'),
+  });
+
+  // Organizer withdraws a pending_approval submission back to draft. Kept
+  // separate from publishMutation: different endpoint, different guard
+  // (blocked outright on any ticket sales, no admin override), and a
+  // dedicated retry action on failure since this one must leave the event
+  // sitting in Pending until it actually succeeds.
+  const withdrawMutation = useMutation({
+    mutationFn: () => apiClient.events.withdrawEvent(id!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['event', id] });
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+      toast.success('Submission withdrawn — you can edit and resubmit it any time.');
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to withdraw submission', {
+        action: { label: 'Retry', onClick: () => withdrawMutation.mutate() },
+      });
+    },
   });
 
   const deleteMutation = useMutation({
@@ -596,9 +617,12 @@ export function EventDetailsPage() {
                   </Button>
                 ) : isPending ? (
                   isAdmin ? (
-                    // Admin approval — takes the event live.
+                    // Admin approval — takes the event live. Sends the status
+                    // this button was rendered for so a stale click (the
+                    // organizer withdrew after this page loaded) is rejected
+                    // instead of silently publishing anyway.
                     <Button
-                      onClick={() => publishMutation.mutate(true)}
+                      onClick={() => publishMutation.mutate({ publish: true, expectedStatus: 'pending_approval' })}
                       disabled={publishMutation.isPending}
                     >
                       <CheckCircle className="h-4 w-4 mr-2" /> Approve &amp; Publish
@@ -608,7 +632,7 @@ export function EventDetailsPage() {
                     <Button
                       variant="outline"
                       onClick={() => setUnpublishConfirmOpen(true)}
-                      disabled={publishMutation.isPending}
+                      disabled={withdrawMutation.isPending}
                     >
                       <EyeOff className="h-4 w-4 mr-2" /> Withdraw
                     </Button>
@@ -619,7 +643,7 @@ export function EventDetailsPage() {
                   // server-side guard in EventService.publishEvent.
                   <div className="flex flex-col gap-1.5">
                     <Button
-                      onClick={() => publishMutation.mutate(true)}
+                      onClick={() => publishMutation.mutate({ publish: true })}
                       disabled={publishMutation.isPending || !hasTicketTypes}
                       title={
                         !hasTicketTypes
@@ -1377,7 +1401,9 @@ export function EventDetailsPage() {
         }}
       />
 
-      {/* Unpublish/withdraw confirmation */}
+      {/* Unpublish/withdraw confirmation. isPending only reaches here via the
+          organizer's Withdraw button (admin sees "Approve & Publish" instead
+          while pending) — so this branch is always the withdraw flow. */}
       <ConfirmDialog
         open={unpublishConfirmOpen}
         onOpenChange={setUnpublishConfirmOpen}
@@ -1385,13 +1411,17 @@ export function EventDetailsPage() {
         title={isPending ? 'Withdraw this submission?' : 'Unpublish this event?'}
         description={
           isPending
-            ? `"${event.name}" will be withdrawn from approval and returned to draft.`
+            ? `"${event.name}" will be withdrawn from approval and returned to draft. You can edit it and submit it again any time.`
             : `"${event.name}" will be taken off public listings and stop selling new tickets. Tickets already sold remain valid.`
         }
         confirmLabel={isPending ? 'Withdraw' : 'Unpublish'}
-        isLoading={publishMutation.isPending}
+        isLoading={isPending ? withdrawMutation.isPending : publishMutation.isPending}
         onConfirm={() => {
-          publishMutation.mutate(false);
+          if (isPending) {
+            withdrawMutation.mutate();
+          } else {
+            publishMutation.mutate({ publish: false });
+          }
           setUnpublishConfirmOpen(false);
         }}
       />

@@ -79,6 +79,7 @@ export function EventsPage() {
   const [outfitThemeOptions, setOutfitThemeOptions] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<Bucket>('all');
   const [deleteTarget, setDeleteTarget] = useState<Event | null>(null);
+  const [withdrawTarget, setWithdrawTarget] = useState<Event | null>(null);
   // Cashless at creation. An admin sets it outright; an organizer can only
   // ask, and the ask is a second call once the event id exists.
   const [cashlessWanted, setCashlessWanted] = useState(false);
@@ -93,6 +94,13 @@ export function EventsPage() {
   const { data: eventsData, isLoading } = useQuery({
     queryKey: ['events'],
     queryFn: () => apiClient.events.getEvents({ limit: 100 }),
+    // Admins need their Pending tab to reflect an organizer's withdrawal (a
+    // different browser session) without a manual refresh. There's no
+    // socket/push layer for events in this app, so a short poll is the
+    // established fallback (matches AllocationPage's reseller polling).
+    // Organizers only ever change their own data through this same client,
+    // where mutation-triggered invalidation already keeps things in sync.
+    refetchInterval: isAdmin ? 5000 : false,
   });
 
   const resetCreateForm = () => {
@@ -143,8 +151,8 @@ export function EventsPage() {
   });
 
   const publishMutation = useMutation({
-    mutationFn: ({ id, publish }: { id: string; publish: boolean }) =>
-      publish ? apiClient.events.publishEvent(id) : apiClient.events.unpublishEvent(id),
+    mutationFn: ({ id, publish, expectedStatus }: { id: string; publish: boolean; expectedStatus?: string }) =>
+      publish ? apiClient.events.publishEvent(id, { expectedStatus }) : apiClient.events.unpublishEvent(id),
     onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
       if (updated?.status === 'pending_approval') {
@@ -156,6 +164,23 @@ export function EventsPage() {
       }
     },
     onError: (error: any) => toast.error(error.message || 'Failed to update event'),
+  });
+
+  // Organizer withdraws a pending_approval submission back to draft. Separate
+  // from publishMutation: different endpoint/guard (blocked outright on any
+  // ticket sales, no admin override), and a retry action on failure since a
+  // failed withdrawal must leave the event sitting in Pending.
+  const withdrawMutation = useMutation({
+    mutationFn: (id: string) => apiClient.events.withdrawEvent(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+      toast.success('Submission withdrawn — you can edit and resubmit it any time.');
+    },
+    onError: (error: any, id) => {
+      toast.error(error.message || 'Failed to withdraw submission', {
+        action: { label: 'Retry', onClick: () => withdrawMutation.mutate(id) },
+      });
+    },
   });
 
   const allEvents = useMemo(() => eventsData?.data ?? [], [eventsData]);
@@ -577,8 +602,14 @@ export function EventsPage() {
                       // publish/unpublish toggle.
                       if (isPendingEvent && !isAdmin) {
                         return (
-                          <Button size="sm" variant="outline" className="flex-1" disabled>
-                            Pending Approval
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => setWithdrawTarget(event)}
+                            disabled={withdrawMutation.isPending}
+                          >
+                            Withdraw
                           </Button>
                         );
                       }
@@ -587,7 +618,11 @@ export function EventsPage() {
                           <Button
                             size="sm"
                             className="flex-1"
-                            onClick={() => publishMutation.mutate({ id: event._id, publish: true })}
+                            // Sends the status this card was rendered for so a
+                            // stale click (the organizer withdrew after this
+                            // list last loaded) is rejected instead of
+                            // silently publishing anyway.
+                            onClick={() => publishMutation.mutate({ id: event._id, publish: true, expectedStatus: 'pending_approval' })}
                           >
                             Approve
                           </Button>
@@ -653,6 +688,25 @@ export function EventsPage() {
         confirmLabel="Delete event"
         isLoading={deleteMutation.isPending}
         onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget._id)}
+      />
+
+      {/* Withdraw confirmation */}
+      <ConfirmDialog
+        open={!!withdrawTarget}
+        onOpenChange={(open) => !open && setWithdrawTarget(null)}
+        destructive={false}
+        title="Withdraw this submission?"
+        description={
+          withdrawTarget
+            ? `"${withdrawTarget.name}" will be withdrawn from approval and returned to draft. You can edit it and submit it again any time.`
+            : ''
+        }
+        confirmLabel="Withdraw"
+        isLoading={withdrawMutation.isPending}
+        onConfirm={() => {
+          if (withdrawTarget) withdrawMutation.mutate(withdrawTarget._id);
+          setWithdrawTarget(null);
+        }}
       />
     </div>
   );
