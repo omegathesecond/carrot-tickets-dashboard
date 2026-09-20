@@ -30,7 +30,7 @@ export function ResellerSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const navigate = useNavigate();
 
   const items: NavItem[] = [
-    { to: '/reseller', label: 'Sell Tickets', icon: ShoppingCart, end: true, show: hasResellerPermission(operator, ResellerPermission.SELL_TICKETS) },
+    { to: '/reseller', label: 'Complimentary / Sell Tickets', icon: ShoppingCart, end: true, show: hasResellerPermission(operator, ResellerPermission.SELL_TICKETS) },
     { to: '/reseller/sales-history', label: 'Sales History', icon: History, show: hasResellerPermission(operator, ResellerPermission.VIEW_HUB_SALES) },
     { to: '/reseller/reports', label: 'Reports', icon: BarChart3, show: hasResellerPermission(operator, ResellerPermission.VIEW_REPORTS) },
     { to: '/reseller/hubs', label: 'Hubs', icon: Building2, show: hasResellerPermission(operator, ResellerPermission.VIEW_HUB_SALES) },
@@ -76,7 +76,7 @@ export function ResellerSidebar({ onNavigate }: { onNavigate?: () => void }) {
                 }
               >
                 <Icon className="h-4.5 w-4.5 shrink-0" style={{ width: 18, height: 18 }} />
-                <span className="truncate">{i.label}</span>
+                <span className="leading-tight">{i.label}</span>
               </NavLink>
             );
           })}

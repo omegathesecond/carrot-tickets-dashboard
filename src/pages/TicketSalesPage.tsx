@@ -209,7 +209,7 @@ export function TicketSalesPage() {
   return (
     <div className="p-8 space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Sell Tickets</h1>
+        <h1 className="text-3xl font-bold">Complimentary / Sell Tickets</h1>
         <p className="text-slate-600">Process ticket sales for your events</p>
       </div>
 
@@ -392,11 +392,11 @@ export function TicketSalesPage() {
 
               <Button
                 type="submit"
-                className="w-full bg-gradient-to-r from-orange-600 to-amber-600"
+                className="w-full whitespace-normal bg-gradient-to-r from-orange-600 to-amber-600"
                 disabled={sellMutation.isPending}
                 size="lg"
               >
-                {sellMutation.isPending ? 'Processing...' : `Sell Tickets`}
+                {sellMutation.isPending ? 'Processing...' : `Complimentary / Sell Tickets`}
               </Button>
             </form>
           </CardContent>

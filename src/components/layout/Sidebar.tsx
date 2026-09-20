@@ -98,7 +98,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       show: canManageEvents(user),
     },
     {
-      name: 'Sell Tickets',
+      name: 'Complimentary / Sell Tickets',
       href: '/sell-tickets',
       icon: ShoppingCart,
       show: hasPermission(user, TicketsPermission.SELL_TICKETS),
