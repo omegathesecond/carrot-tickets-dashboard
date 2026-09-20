@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { TagListInput } from '@/components/TagListInput';
 import {
   Plus, Calendar, MapPin, Trash2, CheckCircle, XCircle, Nfc,
-  CalendarDays, Ticket as TicketIcon, DollarSign, Activity,
+  CalendarDays, Ticket as TicketIcon, DollarSign, Activity, Search, X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { type Event, EventFormData } from '@/types';
@@ -59,6 +59,17 @@ function classifyEvent(e: Event, now: number): Exclude<Bucket, 'all'> {
 }
 
 export function EventsPage() {
+  // Kept in the URL (not plain useState) so it survives opening an event and
+  // navigating back — the Events route remounts on return, which would wipe
+  // component state, but the query string round-trips through history.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const searchTerm = searchParams.get('q') ?? '';
+  const setSearchTerm = (value: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set('q', value);
+    else next.delete('q');
+    setSearchParams(next, { replace: true });
+  };
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   // Defaults to checked — most Carrot events span more than one day, and an
   // organizer who leaves it off the default single start/end time fields
@@ -175,10 +186,12 @@ export function EventsPage() {
   }, [allEvents, classified]);
 
   const filteredEvents = useMemo(() => {
-    const base =
+    const byTab =
       activeTab === 'all'
         ? allEvents
         : classified.filter((c) => c.bucket === activeTab).map((c) => c.event);
+    const query = searchTerm.trim().toLowerCase();
+    const base = query ? byTab.filter((e) => e.name.toLowerCase().includes(query)) : byTab;
     // A pending cashless ask is only actionable by Carrot staff, and there is
     // no admin notification channel in this system (event approval works the
     // same way) — so the list itself has to carry the signal. Float the asks
@@ -186,7 +199,7 @@ export function EventsPage() {
     if (!isAdmin) return base;
     const pending = (e: Event) => (e.cashlessRequestedAt && !e.cashless ? 0 : 1);
     return [...base].sort((a, b) => pending(a) - pending(b));
-  }, [allEvents, classified, activeTab, isAdmin]);
+  }, [allEvents, classified, activeTab, isAdmin, searchTerm]);
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -473,15 +486,44 @@ export function EventsPage() {
         </TabsList>
       </Tabs>
 
+      {/* Search — filters the already-tab-scoped list live, client-side, so
+          typing never refetches or shifts the surrounding layout. */}
+      <div className="relative max-w-md">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <Input
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search events by name"
+          className="pl-9 pr-9"
+          aria-label="Search events by name"
+        />
+        {searchTerm && (
+          <button
+            type="button"
+            onClick={() => setSearchTerm('')}
+            aria-label="Clear search"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+
       {filteredEvents.length === 0 ? (
-        <div className="text-center py-16 text-slate-500">No events in this category.</div>
+        <div className="text-center py-16 text-slate-500">
+          {searchTerm ? 'No events found' : 'No events in this category.'}
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredEvents.map((event) => {
             const isPublished = event.status === 'published';
             return (
               <Card key={event._id} className="hover:shadow-lg transition-shadow">
-                <Link to={`/events/${event._id}`} className="block">
+                <Link
+                  to={`/events/${event._id}`}
+                  state={{ from: searchParams.toString() ? `/events?${searchParams.toString()}` : '/events' }}
+                  className="block"
+                >
                   {(event.posterUrl || event.thumbnailUrl) && (
                     <div className="aspect-video w-full overflow-hidden rounded-t-lg bg-slate-100">
                       <img
