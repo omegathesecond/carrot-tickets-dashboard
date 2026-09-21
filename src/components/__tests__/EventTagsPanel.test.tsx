@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, it, expect, vi } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { EventTagsPanel } from '@/components/cashless/EventTagsPanel';
@@ -12,6 +12,9 @@ const money = (cents: number) => (t: string) =>
   t.replace(/\s/g, '') === fmtR(cents).replace(/\s/g, '');
 
 afterEach(cleanup);
+// The mocks below are module-level and shared, and one test asserts HOW MANY
+// requests the panel made — so call history must not leak between tests.
+beforeEach(() => vi.clearAllMocks());
 
 const summary = vi.fn();
 const list = vi.fn();
@@ -77,10 +80,12 @@ describe('EventTagsPanel', () => {
     await waitFor(() => expect(screen.getByText(/no tags issued yet/i)).toBeDefined());
   });
 
-  // The bug this guards: the tags endpoint sorts newest-registered-first with
-  // no balance filter, so at an event that bulk-registers plastic the few tags
-  // holding money are scattered across every page and page 1 looks empty.
-  it('funded only: keeps just the tags holding money, biggest balance first', async () => {
+  // The bug this guards: the tags endpoint used to sort newest-registered-first
+  // with no balance filter, so at an event that bulk-registers plastic the few
+  // tags holding money were scattered across every page and page 1 looked
+  // empty. The endpoint now filters and sorts, so what this asserts is that the
+  // toggle ASKS IT TO — the panel must not go back to sifting pages itself.
+  it('funded only: asks the server for funded tags, biggest balance first', async () => {
     summary.mockResolvedValue({
       tagsInUse: 4, activeTags: 4, unboundTags: 0,
       balanceOutstanding: 18000, cashFundedOutstanding: 18000, averageBalance: 4500,
@@ -90,28 +95,67 @@ describe('EventTagsPanel', () => {
       balance, cashFundedBalance: balance,
       holder: { name: null, phone: null, ticketCode: null },
     });
-    // Two server pages; the funded tags sit on both, out of balance order.
-    list.mockImplementation(async (_e: string, params: { cursor?: string }) =>
-      params?.cursor === 'c1'
-        ? { tags: [row('w3', 'CCC', 0), row('w4', 'DDD', 12000)], hasMore: false, nextCursor: null }
-        : { tags: [row('w1', 'AAA', 0), row('w2', 'BBB', 6000)], hasMore: true, nextCursor: 'c1' },
-    );
+    list.mockResolvedValue({
+      tags: [row('w4', 'DDD', 12000), row('w2', 'BBB', 6000)],
+      hasMore: false, nextCursor: null,
+    });
 
     renderPanel();
 
-    // No click: funded-only is the default. Wait for the scan to RESOLVE, not
-    // merely for rows to appear — mid-scan the table is empty and every
-    // assertion below would pass vacuously.
+    // No click: funded-only is the default.
     await waitFor(() => expect(screen.getByText('DDD')).toBeDefined());
-    expect(screen.queryByText('AAA')).toBeNull();
-    expect(screen.queryByText('CCC')).toBeNull();
-    const uids = screen.getAllByText(/^(AAA|BBB|CCC|DDD)$/).map((n) => n.textContent);
+    expect(list).toHaveBeenCalledWith('e1', expect.objectContaining({ funded: true, sort: 'balance' }));
+    // Rendered in the order the server returned them — no client-side re-sort.
+    const uids = screen.getAllByText(/^(BBB|DDD)$/).map((n) => n.textContent);
     expect(uids).toEqual(['DDD', 'BBB']);
 
-    // ...and switching it off brings the empty tags back, newest-first.
+    // ONE request, not a walk of the cursor: the whole point of the server-side
+    // filter is that the browser stops dragging thousands of rows over the wire
+    // to display a handful.
+    expect(list).toHaveBeenCalledTimes(1);
+  });
+
+  it('switching funded only off asks for the plain, newest-first list', async () => {
+    summary.mockResolvedValue({
+      tagsInUse: 2, activeTags: 2, unboundTags: 0,
+      balanceOutstanding: 6000, cashFundedOutstanding: 6000, averageBalance: 3000,
+    });
+    const row = (id: string, uid: string, balance: number) => ({
+      walletId: id, bandUid: uid, status: 'active' as const,
+      balance, cashFundedBalance: balance,
+      holder: { name: null, phone: null, ticketCode: null },
+    });
+    list.mockResolvedValue({
+      tags: [row('w1', 'AAA', 0), row('w2', 'BBB', 6000)],
+      hasMore: false, nextCursor: null,
+    });
+
+    renderPanel();
+    await waitFor(() => expect(screen.getByText('BBB')).toBeDefined());
+
     fireEvent.click(screen.getByRole('switch'));
+
     await waitFor(() => expect(screen.getByText('AAA')).toBeDefined());
-    expect(screen.getByText('BBB')).toBeDefined();
+    const off = list.mock.calls[list.mock.calls.length - 1]![1] as Record<string, unknown>;
+    expect(off['funded']).toBeUndefined();
+    expect(off['sort']).toBeUndefined();
+  });
+
+  // The status and search controls have to travel WITH the funded filter, or
+  // the server filters a different set than the organizer is looking at.
+  it('funded only: carries the search term alongside the funded filter', async () => {
+    summary.mockResolvedValue({
+      tagsInUse: 1, activeTags: 1, unboundTags: 0,
+      balanceOutstanding: 6000, cashFundedOutstanding: 6000, averageBalance: 6000,
+    });
+    list.mockResolvedValue({ tags: [], hasMore: false, nextCursor: null });
+
+    renderPanel();
+    fireEvent.change(screen.getByPlaceholderText(/search tag uid/i), { target: { value: 'UID9' } });
+
+    await waitFor(() =>
+      expect(list).toHaveBeenCalledWith('e1', expect.objectContaining({ funded: true, sort: 'balance', q: 'UID9' })),
+    );
   });
 
   it('funded only: says so when nothing is holding a balance', async () => {
@@ -119,38 +163,13 @@ describe('EventTagsPanel', () => {
       tagsInUse: 2, activeTags: 2, unboundTags: 0,
       balanceOutstanding: 0, cashFundedOutstanding: 0, averageBalance: 0,
     });
-    list.mockResolvedValue({
-      tags: [{
-        walletId: 'w1', bandUid: 'AAA', status: 'active', balance: 0, cashFundedBalance: 0,
-        holder: { name: null, phone: null, ticketCode: null },
-      }],
-      hasMore: false, nextCursor: null,
-    });
+    // The endpoint applies the funded filter, so "nothing holding a balance"
+    // arrives as an empty page — the panel does not sift rows any more.
+    list.mockResolvedValue({ tags: [], hasMore: false, nextCursor: null });
 
     renderPanel();
 
     await waitFor(() => expect(screen.getByText('No tags are holding a balance.')).toBeDefined());
-  });
-
-  // A partial "who is holding your money" list that looks complete is worse
-  // than no list, so the cap has to announce itself.
-  it('funded only: warns when the scan hits its page cap', async () => {
-    summary.mockResolvedValue({
-      tagsInUse: 9999, activeTags: 9999, unboundTags: 0,
-      balanceOutstanding: 100, cashFundedOutstanding: 100, averageBalance: 1,
-    });
-    // Always more — forces the scan to run out of pages.
-    list.mockImplementation(async () => ({
-      tags: [{
-        walletId: 'w1', bandUid: 'AAA', status: 'active', balance: 100, cashFundedBalance: 100,
-        holder: { name: null, phone: null, ticketCode: null },
-      }],
-      hasMore: true, nextCursor: 'next',
-    }));
-
-    renderPanel();
-
-    await waitFor(() => expect(screen.getByText(/did not reach/i)).toBeDefined());
   });
 
   // With the filter on by default, searching an empty tag's UID must not read
@@ -160,13 +179,9 @@ describe('EventTagsPanel', () => {
       tagsInUse: 1, activeTags: 1, unboundTags: 0,
       balanceOutstanding: 0, cashFundedOutstanding: 0, averageBalance: 0,
     });
-    list.mockResolvedValue({
-      tags: [{
-        walletId: 'w1', bandUid: 'EMPTYTAG', status: 'active', balance: 0, cashFundedBalance: 0,
-        holder: { name: null, phone: null, ticketCode: null },
-      }],
-      hasMore: false, nextCursor: null,
-    });
+    // EMPTYTAG exists but holds nothing, so a funded search for it comes back
+    // empty from the endpoint.
+    list.mockResolvedValue({ tags: [], hasMore: false, nextCursor: null });
 
     renderPanel();
     fireEvent.change(screen.getByPlaceholderText(/search tag uid/i), { target: { value: 'EMPTYTAG' } });

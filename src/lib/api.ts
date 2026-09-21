@@ -1141,15 +1141,29 @@ export class ApiClient {
     summary: async (eventId: string): Promise<TagSummary> =>
       this.request<TagSummary>(`/tickets/events/${eventId}/tags/summary`),
 
+    /**
+     * `funded` and `sort` are filtering and ordering the endpoint does itself.
+     * They matter because the default order is newest-tag-registered-first with
+     * no balance filter: at an event that bulk-registers plastic before the
+     * gates open, the handful of tags actually holding money land scattered
+     * across every page (at the Bikers Rally, 11 funded tags among 496).
+     *
+     * A `nextCursor` belongs to the sort that issued it — the endpoint 400s a
+     * cursor handed back under the other sort, rather than serve a wrong page.
+     */
     list: async (
       eventId: string,
-      params: { limit?: number; cursor?: string; status?: TagStatus; q?: string } = {},
+      params: { limit?: number; cursor?: string; status?: TagStatus; q?: string; funded?: boolean; sort?: TagSort } = {},
     ): Promise<{ tags: TagRow[]; hasMore: boolean; nextCursor: string | null }> => {
       const qs = new URLSearchParams();
       if (params.limit) qs.set('limit', String(params.limit));
       if (params.cursor) qs.set('cursor', params.cursor);
       if (params.status) qs.set('status', params.status);
       if (params.q) qs.set('q', params.q);
+      // Sent only when true: "funded=false" and no funded param at all mean the
+      // same thing to the endpoint, and the absent form cannot be misread.
+      if (params.funded) qs.set('funded', 'true');
+      if (params.sort) qs.set('sort', params.sort);
       const query = qs.toString();
       return this.request(`/tickets/events/${eventId}/tags${query ? `?${query}` : ''}`);
     },
@@ -2167,6 +2181,12 @@ export interface BulkRegisterResult {
 }
 // ── Tags (the wallets behind an event's NFC tags) ──────────────────────────
 export type TagStatus = 'active' | 'unbound' | 'frozen' | 'closed';
+/**
+ * How the tags list is ordered. `recent` is the endpoint's default — newest tag
+ * registered first. `balance` is biggest balance first, which is the order the
+ * cash-out desk actually reads.
+ */
+export type TagSort = 'recent' | 'balance';
 
 export interface TagSummary {
   tagsInUse: number;
