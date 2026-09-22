@@ -1,4 +1,6 @@
 export * from './reseller';
+import type { EventCategory } from '@/constants/eventCategories';
+export type { EventCategory };
 
 /**
  * Every payment method the API can return — mirrors PaymentMethod in the api's
@@ -116,6 +118,10 @@ export interface Event {
   name: string;
   description?: string;
   venue: string;
+  // Organizer-set category — see constants/eventCategories. Always present
+  // on events created after the 16-category rollout; legacy events read
+  // through the API's own fallback.
+  category: EventCategory;
   eventDate: string; // For single-day: event date. For multi-day: start date
   startTime: string; // For single-day: start time on eventDate. For multi-day: start datetime
   endTime: string; // For single-day: end time on eventDate. For multi-day: end datetime
@@ -185,6 +191,9 @@ export interface EventFormData {
   name: string;
   description?: string;
   venue: string;
+  // Required at creation (backend rejects a missing value); optional on an
+  // update PATCH, where omitting it just leaves the stored category alone.
+  category: EventCategory;
   eventDate: string; // For single-day: event date. For multi-day: start date
   startTime: string; // For single-day: start time. For multi-day: start datetime
   endTime: string; // For single-day: end time. For multi-day: end datetime

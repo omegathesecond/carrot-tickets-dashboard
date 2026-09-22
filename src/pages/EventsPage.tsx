@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { type Event, EventFormData } from '@/types';
+import { EVENT_CATEGORIES, EVENT_CATEGORY_LABELS, type EventCategory } from '@/constants/eventCategories';
 import { useAuth } from '@/contexts/AuthContext';
 import { type Currency } from '@/lib/currency';
 import { formatCurrency } from '@/lib/chartColors';
@@ -75,6 +76,8 @@ export function EventsPage() {
   // organizer who leaves it off the default single start/end time fields
   // often doesn't notice there's a multi-day option at all.
   const [isMultiDay, setIsMultiDay] = useState(true);
+  // No default — the organizer must pick one explicitly (see handleSubmit).
+  const [category, setCategory] = useState<EventCategory | ''>('');
   const [lineup, setLineup] = useState<string[]>([]);
   const [outfitThemeOptions, setOutfitThemeOptions] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<Bucket>('all');
@@ -106,6 +109,7 @@ export function EventsPage() {
   const resetCreateForm = () => {
     setIsDialogOpen(false);
     setIsMultiDay(true);
+    setCategory('');
     setCashlessWanted(false);
     setCashlessNote('');
     setPosterFile(null);
@@ -246,6 +250,11 @@ export function EventsPage() {
     const description = formData.get('description') as string;
     const venue = formData.get('venue') as string;
 
+    if (!category) {
+      toast.error('Select a category');
+      return;
+    }
+
     // Compose eventDate/startTime/endTime from the raw single- or multi-day
     // inputs. Shared with the edit form so both send identical UTC-normalized
     // shapes (see composeEventDateTime for the timezone rationale).
@@ -268,6 +277,7 @@ export function EventsPage() {
       name,
       description: description || undefined,
       venue,
+      category,
       eventDate,
       startTime,
       endTime,
@@ -348,6 +358,27 @@ export function EventsPage() {
                   <Label htmlFor="venue">Venue</Label>
                   <Input id="venue" name="venue" required placeholder="e.g., National Stadium" />
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="category">Category</Label>
+                <select
+                  id="category"
+                  name="category"
+                  required
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value as EventCategory)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="" disabled>
+                    Select a category
+                  </option>
+                  {EVENT_CATEGORIES.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="space-y-2">
@@ -576,6 +607,11 @@ export function EventsPage() {
                         <XCircle className="h-5 w-5 text-slate-400" />
                       )}
                     </CardTitle>
+                    {event.category && (
+                      <span className="inline-flex w-fit items-center rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700">
+                        {EVENT_CATEGORY_LABELS[event.category] ?? event.category}
+                      </span>
+                    )}
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {/* A cashless ask is only actionable by Carrot staff, so it

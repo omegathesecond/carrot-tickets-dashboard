@@ -47,9 +47,10 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { QRCodeSVG } from 'qrcode.react';
 import { TicketType, EventFormData } from '@/types';
+import { EVENT_CATEGORIES, EVENT_CATEGORY_LABELS, type EventCategory } from '@/constants/eventCategories';
 
 /** Draft state for the editable Event Information card. */
-type InfoDraft = { name: string; description: string; venue: string } & EventDateTimeFormValues;
+type InfoDraft = { name: string; description: string; venue: string; category: EventCategory | '' } & EventDateTimeFormValues;
 
 export function EventDetailsPage() {
   const { id } = useParams<{ id: string }>();
@@ -238,6 +239,7 @@ export function EventDetailsPage() {
       name: event.name ?? '',
       description: event.description ?? '',
       venue: event.venue ?? '',
+      category: event.category ?? '',
       ...eventToDateTimeInputs(event),
     });
     setIsEditingInfo(true);
@@ -257,6 +259,7 @@ export function EventDetailsPage() {
     const venue = infoDraft.venue.trim();
     if (!name) { toast.error('Event name cannot be empty'); return; }
     if (!venue) { toast.error('Venue cannot be empty'); return; }
+    if (!infoDraft.category) { toast.error('Select a category'); return; }
     if (infoDraft.isMultiDay) {
       if (!infoDraft.startDateTime || !infoDraft.endDateTime) {
         toast.error('Start and end date & time are required');
@@ -277,6 +280,7 @@ export function EventDetailsPage() {
       name,
       description: infoDraft.description.trim() || undefined,
       venue,
+      category: infoDraft.category as EventCategory,
       isMultiDay: infoDraft.isMultiDay,
       eventDate,
       startTime,
@@ -773,6 +777,26 @@ export function EventDetailsPage() {
                 </div>
 
                 <div className="space-y-2">
+                  <Label htmlFor="edit-category">Category</Label>
+                  <select
+                    id="edit-category"
+                    required
+                    value={infoDraft.category}
+                    onChange={(e) => setInfoField('category', e.target.value as EventCategory)}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="" disabled>
+                      Select a category
+                    </option>
+                    {EVENT_CATEGORIES.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="edit-description">Description (Optional)</Label>
                   <Input
                     id="edit-description"
@@ -871,6 +895,17 @@ export function EventDetailsPage() {
                       Capacity
                     </div>
                     <div className="text-sm text-slate-900">{totalCapacity.toLocaleString()}</div>
+                  </div>
+                </div>
+
+                {/* Category — surfaces the organizer's pick in the admin review view too */}
+                <div className="py-4 space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-slate-500">
+                    <Type className="h-3.5 w-3.5" />
+                    Category
+                  </div>
+                  <div className="text-sm text-slate-900">
+                    {event.category ? (EVENT_CATEGORY_LABELS[event.category] ?? event.category) : '—'}
                   </div>
                 </div>
 
