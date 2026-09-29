@@ -1,8 +1,10 @@
 import { Fragment, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2, ChevronRight, ChevronDown } from 'lucide-react';
+import { Loader2, ChevronRight, ChevronDown, Download } from 'lucide-react';
+import { toast } from 'sonner';
 import { apiClient, type StockStatus, type StockMovementRow } from '@/lib/api';
 import { fmtR } from '@/lib/money';
+import { saveBlob } from '@/lib/ticketDownloads';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
@@ -204,9 +206,39 @@ function ReconciliationSection({ eventId }: { eventId: string }) {
   const variance = (v: number | null) =>
     v == null ? <span className="text-muted-foreground">—</span> : <span className={v < 0 ? 'text-red-700 font-semibold' : v > 0 ? 'text-green-700' : ''}>{v}</span>;
 
+  // Deliberately not a react-query mutation: there is nothing to cache or
+  // invalidate, and the PDF is rebuilt server-side on every request so that it
+  // reports the position as at the moment it was asked for.
+  const [downloading, setDownloading] = useState(false);
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      const blob = await apiClient.events.getEventStockReconciliationPdf(eventId);
+      // The server puts the real filename in Content-Disposition, which a
+      // programmatic save cannot read — so rebuild the same shape from the
+      // event name the report already returned, and fall back to the date
+      // alone if the report has not loaded.
+      const slug = (data?.event?.name ?? '').replace(/[^a-zA-Z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+      const date = new Date().toISOString().slice(0, 10);
+      saveBlob(blob, `stock-reconciliation-${slug ? `${slug}-` : ''}${date}.pdf`);
+    } catch (err) {
+      // Loud: an organiser who is handed a silently empty file finds out at
+      // the stall, with the manager waiting.
+      toast.error(err instanceof Error ? err.message : 'Could not build the reconciliation PDF');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   return (
     <Card>
-      <CardHeader><CardTitle className="text-base">Reconciliation</CardTitle></CardHeader>
+      <CardHeader className="flex-row items-center justify-between space-y-0">
+        <CardTitle className="text-base">Reconciliation</CardTitle>
+        <Button size="sm" variant="outline" disabled={downloading} onClick={handleDownload}>
+          {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          <span className="ml-1">Download PDF</span>
+        </Button>
+      </CardHeader>
       <CardContent>
         <SectionState loading={isLoading} error={!!error} empty={!data || data.byProduct.length === 0} emptyText="No stock movements yet.">
           <div className="overflow-x-auto">

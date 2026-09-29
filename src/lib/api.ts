@@ -399,6 +399,10 @@ export class ApiClient {
     getEventStockReconciliation: async (id: string): Promise<StockReconciliation> =>
       this.request<StockReconciliation>(`/tickets/events/${id}/stock/reconciliation`),
 
+    /** The same reconciliation as a printable PDF — bytes, so it goes via `fetchPdf`. */
+    getEventStockReconciliationPdf: async (id: string): Promise<Blob> =>
+      this.fetchPdf(`/tickets/events/${id}/stock/reconciliation.pdf`, { method: 'GET' }),
+
     getEventStockDashboard: async (id: string): Promise<StockDashboard> =>
       this.request<StockDashboard>(`/tickets/events/${id}/stock/dashboard`),
 
