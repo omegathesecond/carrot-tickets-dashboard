@@ -71,6 +71,42 @@ import type { WristbandDesignDoc } from '@/lib/wristband/design';
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const APP_API_KEY = import.meta.env.VITE_APP_API_KEY || '';
 
+/**
+ * A request the server throttled (HTTP 429), carrying the exact number of
+ * seconds until it will be accepted.
+ *
+ * Lets a caller render a real countdown instead of showing a dead-end error and
+ * making the user guess when to try again. `retryAfterSeconds` is read from the
+ * standard `Retry-After` header (the API exposes it via CORS); the "please wait
+ * N seconds" copy is only a fallback for endpoints not yet migrated, so the
+ * countdown never silently depends on wording.
+ */
+export class RateLimitedError extends Error {
+  // Declared and assigned explicitly rather than as a constructor parameter
+  // property: this project builds with `erasableSyntaxOnly`, which rejects
+  // syntax that needs runtime emit.
+  readonly retryAfterSeconds: number;
+
+  constructor(message: string, retryAfterSeconds: number) {
+    super(message);
+    this.name = 'RateLimitedError';
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+/** Default when neither the header nor the copy says: the backend's OTP window. */
+const DEFAULT_RETRY_AFTER_SECONDS = 60;
+
+function retryAfterSecondsFrom(response: Response, message: string): number {
+  const header = Number(response.headers.get('Retry-After'));
+  if (Number.isFinite(header) && header > 0) return Math.ceil(header);
+
+  const fromCopy = /wait\s+(\d+)\s+second/i.exec(message);
+  if (fromCopy) return Number(fromCopy[1]);
+
+  return DEFAULT_RETRY_AFTER_SECONDS;
+}
+
 export class ApiClient {
   private baseUrl: string;
   private token: string | null;
@@ -163,6 +199,10 @@ export class ApiClient {
             console.error('[ApiClient] Token refresh failed, redirecting to login');
             throw new Error('Session expired. Please log in again.');
           }
+        }
+
+        if (response.status === 429) {
+          throw new RateLimitedError(errorMessage, retryAfterSecondsFrom(response, errorMessage));
         }
 
         throw new Error(errorMessage);

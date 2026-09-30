@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { AuthHeader } from '@/components/AuthHeader';
 import { BRAND_NAME } from '@/lib/brand';
 import { getOperatorContext, operatorHomePath } from '@/lib/operatorContext';
+import { OTP_RESEND_COOLDOWN_SECONDS, cooldownSecondsFrom, resendLabel } from '@/lib/otpCooldown';
 
 export function ForgotPasswordPage() {
   const [step, setStep] = useState<'request' | 'verify'>('request');
@@ -26,6 +27,24 @@ export function ForgotPasswordPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [reset, setReset] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Seconds until another code may be requested, mirroring the backend's 60s
+  // per-destination window so the organizer sees a countdown instead of
+  // clicking into a rejection.
+  const [resendIn, setResendIn] = useState(0);
+
+  // Tick the countdown down to zero, one second at a time.
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const timer = setTimeout(() => setResendIn((s) => s - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendIn]);
+
+  // The throttle is keyed on the DESTINATION, so a different email or phone is
+  // not throttled at all — editing the identifier must release the countdown or
+  // it would block a request the server would have accepted.
+  useEffect(() => {
+    setResendIn(0);
+  }, [identifier]);
 
   const { resetPassword, user } = useAuth();
   const navigate = useNavigate();
@@ -57,9 +76,34 @@ export function ForgotPasswordPage() {
       const res = await apiClient.auth.requestPasswordReset(identifier);
       setChannel(res.channel);
       setStep('verify');
+      setResendIn(OTP_RESEND_COOLDOWN_SECONDS);
       toast.success(res.channel === 'sms' ? 'We texted you a reset code' : 'We emailed you a reset code');
     } catch (err: any) {
+      // A throttle is a "not yet", not a dead end: count down to the exact
+      // second the server will accept another request.
+      const wait = cooldownSecondsFrom(err);
+      if (wait !== null) setResendIn(wait);
       setError(err.message || 'Could not send reset code');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Ask for another code without leaving the verify step. Same endpoint as the
+  // first request — the organizer keeps the code box and whatever they typed.
+  const handleResend = async () => {
+    if (resendIn > 0 || isLoading) return;
+    setError(null);
+    setIsLoading(true);
+    try {
+      const res = await apiClient.auth.requestPasswordReset(identifier);
+      setChannel(res.channel);
+      setResendIn(OTP_RESEND_COOLDOWN_SECONDS);
+      toast.success(res.channel === 'sms' ? 'We texted you a new code' : 'We emailed you a new code');
+    } catch (err: any) {
+      const wait = cooldownSecondsFrom(err);
+      if (wait !== null) setResendIn(wait);
+      setError(err.message || 'Could not resend the code');
     } finally {
       setIsLoading(false);
     }
@@ -153,9 +197,13 @@ export function ForgotPasswordPage() {
               <Button
                 type="submit"
                 className="w-full bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700"
-                disabled={isLoading}
+                disabled={isLoading || resendIn > 0}
               >
-                {isLoading ? 'Sending code...' : 'Send reset code'}
+                {isLoading
+                  ? 'Sending code...'
+                  : resendIn > 0
+                    ? `Try again in ${resendIn}s`
+                    : 'Send reset code'}
               </Button>
             </form>
           ) : (
@@ -209,6 +257,14 @@ export function ForgotPasswordPage() {
               >
                 {isLoading ? 'Resetting...' : 'Reset password'}
               </Button>
+              <button
+                type="button"
+                onClick={handleResend}
+                disabled={isLoading || resendIn > 0}
+                className="w-full text-center text-sm font-medium text-orange-600 hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
+              >
+                {resendLabel(resendIn)}
+              </button>
               <button
                 type="button"
                 onClick={() => { setStep('request'); setCode(''); setError(null); }}
