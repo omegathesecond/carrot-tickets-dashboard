@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { Building2, BadgeCheck, Clock3, Ban } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api';
-import type { CreateOrganizerData, Organizer, OrganizerVerificationStatus } from '@/types';
+import type { CreateOrganizerData, Organizer, OrganizerVerificationStatus, VenueCurrency, VenueStatus } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { formatCurrency } from '@/lib/chartColors';
@@ -100,6 +101,11 @@ export function OrganizersPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState<CreateOrganizerData>(EMPTY_CREATE_FORM);
 
+  // "Switch on venue trading" dialog state.
+  const [venueTarget, setVenueTarget] = useState<Organizer | null>(null);
+  const [venueName, setVenueName] = useState('');
+  const [venueCurrency, setVenueCurrency] = useState<VenueCurrency>('SZL');
+
   // Debounce the search box so we don't refetch on every keystroke, and reset
   // to page 1 whenever the query changes.
   useEffect(() => {
@@ -148,6 +154,31 @@ export function OrganizersPage() {
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : 'Create failed'),
   });
+
+  const activateVenue = useMutation({
+    mutationFn: (p: { vendorId: string; name: string; currency: VenueCurrency }) => apiClient.organizers.activateVenue(p),
+    onSuccess: (_d, p) => {
+      qc.invalidateQueries({ queryKey: ['organizers'] });
+      toast.success(`Venue trading switched on for ${p.name}`);
+      setVenueTarget(null);
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : 'Switch-on failed'),
+  });
+
+  const setVenueStatus = useMutation({
+    mutationFn: (p: { venueId: string; status: VenueStatus }) => apiClient.organizers.setVenueStatus(p.venueId, p.status),
+    onSuccess: (_d, p) => {
+      qc.invalidateQueries({ queryKey: ['organizers'] });
+      toast.success(p.status === 'suspended' ? 'Venue trading suspended' : 'Venue trading reactivated');
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : 'Update failed'),
+  });
+
+  const openVenueSwitch = (o: Organizer) => {
+    setVenueTarget(o);
+    setVenueName(o.businessName);
+    setVenueCurrency('SZL');
+  };
 
   const submitCreateOrganizer = () => {
     const payload: CreateOrganizerData = {
@@ -306,6 +337,14 @@ export function OrganizersPage() {
                             {(o.businessType ?? '').replace(/_/g, ' ') || '—'}
                           </div>
                         )}
+                        {o.venue && (
+                          <Badge
+                            variant="outline"
+                            className={`mt-1 ${o.venue.status === 'active' ? 'bg-orange-100 text-orange-800 border-orange-200' : 'bg-slate-100 text-slate-700 border-slate-200'}`}
+                          >
+                            Venue · {o.venue.status === 'active' ? 'on' : 'suspended'}
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">{o.primaryContact || '—'}</div>
@@ -328,7 +367,7 @@ export function OrganizersPage() {
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="sm" disabled={verification.isPending}>
+                            <Button variant="outline" size="sm" disabled={verification.isPending || setVenueStatus.isPending}>
                               Actions
                             </Button>
                           </DropdownMenuTrigger>
@@ -357,6 +396,21 @@ export function OrganizersPage() {
                                 onClick={() => setVerificationStatus(o, 'suspended')}
                               >
                                 Suspend
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuSeparator />
+                            {!o.venue ? (
+                              <DropdownMenuItem onClick={() => openVenueSwitch(o)}>Switch on venue trading</DropdownMenuItem>
+                            ) : o.venue.status === 'active' ? (
+                              <DropdownMenuItem
+                                className="text-red-600 focus:text-red-600"
+                                onClick={() => setVenueStatus.mutate({ venueId: o.venue!.id, status: 'suspended' })}
+                              >
+                                Suspend venue trading
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem onClick={() => setVenueStatus.mutate({ venueId: o.venue!.id, status: 'active' })}>
+                                Reactivate venue trading
                               </DropdownMenuItem>
                             )}
                           </DropdownMenuContent>
@@ -424,6 +478,50 @@ export function OrganizersPage() {
                 : reasonTarget?.status === 'rejected'
                   ? 'Reject organizer'
                   : 'Suspend organizer'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Switch on venue trading */}
+      <Dialog open={!!venueTarget} onOpenChange={(open) => !open && setVenueTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Switch on venue trading</DialogTitle>
+            <DialogDescription>
+              {venueTarget?.businessName} gets a Venue section in their dashboard. One venue per account.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="venue-name">Venue name</Label>
+              <Input id="venue-name" value={venueName} onChange={(e) => setVenueName(e.target.value)} maxLength={120} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="venue-currency">Currency</Label>
+              <select
+                id="venue-currency"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={venueCurrency}
+                onChange={(e) => setVenueCurrency(e.target.value as VenueCurrency)}
+              >
+                <option value="SZL">Lilangeni (E) — SZL</option>
+                <option value="ZAR">Rand (R) — ZAR</option>
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setVenueTarget(null)} disabled={activateVenue.isPending}>
+              Cancel
+            </Button>
+            <Button
+              disabled={activateVenue.isPending || !venueName.trim()}
+              onClick={() =>
+                venueTarget &&
+                activateVenue.mutate({ vendorId: venueTarget.id, name: venueName.trim(), currency: venueCurrency })
+              }
+            >
+              Switch on
             </Button>
           </DialogFooter>
         </DialogContent>
