@@ -44,6 +44,10 @@ import type {
   Organizer,
   OrganizersListResponse,
   OrganizerVerificationStatus,
+  VenueStatus,
+  VenueCurrency,
+  VenueSummary,
+  MyVenueResponse,
   CreateOrganizerData,
   FeesResponse,
   VehicleType,
@@ -949,6 +953,11 @@ export class ApiClient {
       this.request<UserAnalytics>(`/tickets/admin/users/analytics`),
   };
 
+  // Venue trading — the signed-in vendor's own venue.
+  venue = {
+    mine: async (): Promise<MyVenueResponse> => this.request<MyVenueResponse>(`/tickets/venue`),
+  };
+
   // Organizers admin endpoints (super-admin only)
   organizers = {
     list: async (params?: { search?: string; status?: string; operatorType?: string; page?: number; limit?: number }): Promise<OrganizersListResponse> => {
@@ -974,6 +983,20 @@ export class ApiClient {
       this.request(`/tickets/admin/organizers`, {
         method: 'POST',
         body: JSON.stringify(data),
+      }),
+
+    // Venue trading switch (super-admin). One venue per vendor — a second
+    // switch-on is a 409 whose message the caller toasts.
+    activateVenue: async (data: { vendorId: string; name: string; currency: VenueCurrency }): Promise<VenueSummary> =>
+      this.request<VenueSummary>(`/tickets/admin/venues`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    setVenueStatus: async (venueId: string, status: VenueStatus): Promise<VenueSummary> =>
+      this.request<VenueSummary>(`/tickets/admin/venues/${venueId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
       }),
   };
 

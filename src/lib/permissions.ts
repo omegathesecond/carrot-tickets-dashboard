@@ -24,6 +24,7 @@ export const TicketsPermission = {
   MANAGE_STOCK: 'tickets:manage_stock',
   MANAGE_MENU: 'tickets:manage_menu',
   ISSUE_TAGS: 'tickets:issue_tags',
+  MANAGE_VENUE: 'tickets:manage_venue',
 } as const;
 
 export type TicketsPermissionValue =
@@ -184,4 +185,9 @@ export function canIssueTags(user: AuthUser | null | undefined): boolean {
   if (!user) return false;
   if (user.isSuperAdmin) return true;
   return hasPermission(user, TicketsPermission.ISSUE_TAGS);
+}
+
+/** Venue trading section — the vendor's own venue (stalls, staff, settings). */
+export function canManageVenue(user: AuthUser | null | undefined): boolean {
+  return hasPermission(user, TicketsPermission.MANAGE_VENUE);
 }

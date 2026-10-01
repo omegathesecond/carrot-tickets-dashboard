@@ -811,6 +811,26 @@ export interface UserAnalytics {
   signups: { date: string; count: number }[];
 }
 
+// Venue trading (venue trading spec) — a vendor's day-to-day premises.
+export type VenueStatus = 'active' | 'suspended';
+export type VenueCurrency = 'SZL' | 'ZAR';
+
+export interface VenueSummary {
+  id: string;
+  name: string;
+  currency: VenueCurrency;
+  status: VenueStatus;
+  activatedAt: string;
+}
+
+// GET /api/tickets/venue. `eligible` decides whether the Venue section applies
+// at all: a venue-type account (waiting to be switched on) or any account
+// that has a venue.
+export interface MyVenueResponse {
+  venue: VenueSummary | null;
+  eligible: boolean;
+}
+
 // Organizers (vendors) — admin Organizers tab
 export type OrganizerVerificationStatus = 'pending' | 'verified' | 'rejected' | 'suspended';
 
@@ -831,6 +851,7 @@ export interface Organizer {
   eventCount: number;
   ticketsSold: number;
   revenue: number;
+  venue?: VenueSummary | null;
 }
 
 export interface OrganizersListResponse {
