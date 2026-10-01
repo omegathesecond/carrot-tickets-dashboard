@@ -25,10 +25,12 @@ import {
   Armchair,
   Receipt,
   Smartphone,
+  Store,
   type LucideIcon,
 } from 'lucide-react';
 
 import { useAuth } from '@/contexts/AuthContext';
+import { useMyVenue } from '@/hooks/useMyVenue';
 import { BRAND_NAME } from '@/lib/brand';
 import { getOperatorContext, operatorLabel, operatorHomePath } from '@/lib/operatorContext';
 import { SOCIAL_LOGIN_URL, mintSocialFeedUrl } from '@/lib/socialFeed';
@@ -60,6 +62,10 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const [openingSocial, setOpeningSocial] = useState(false);
   const ctx = getOperatorContext(user);
   const homePath = operatorHomePath(ctx);
+  // Shown for an eligible account — and also when the lookup FAILED, so the
+  // Venue page stays reachable to show that failure instead of the section
+  // silently vanishing.
+  const myVenue = useMyVenue();
 
   // Open the brand social feed in a new tab, already signed in via a one-time
   // SSO handoff. Falls back to the social login page if the handoff can't be
@@ -96,6 +102,12 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       href: '/updates',
       icon: Video,
       show: canManageEvents(user),
+    },
+    {
+      name: 'Venue',
+      href: '/venue',
+      icon: Store,
+      show: !!myVenue.data?.eligible || myVenue.isError,
     },
     {
       name: 'Complimentary / Sell Tickets',
