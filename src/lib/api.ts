@@ -45,7 +45,6 @@ import type {
   OrganizersListResponse,
   OrganizerVerificationStatus,
   VenueStatus,
-  VenueCurrency,
   VenueSummary,
   MyVenueResponse,
   CreateOrganizerData,
@@ -71,6 +70,7 @@ import type {
   ShareEarnFlaggedReferral,
 } from '@/types';
 import type { WristbandDesignDoc } from '@/lib/wristband/design';
+import type { Currency } from '@/lib/currency';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const APP_API_KEY = import.meta.env.VITE_APP_API_KEY || '';
@@ -987,7 +987,7 @@ export class ApiClient {
 
     // Venue trading switch (super-admin). One venue per vendor — a second
     // switch-on is a 409 whose message the caller toasts.
-    activateVenue: async (data: { vendorId: string; name: string; currency: VenueCurrency }): Promise<VenueSummary> =>
+    activateVenue: async (data: { vendorId: string; name: string; currency: Currency }): Promise<VenueSummary> =>
       this.request<VenueSummary>(`/tickets/admin/venues`, {
         method: 'POST',
         body: JSON.stringify(data),

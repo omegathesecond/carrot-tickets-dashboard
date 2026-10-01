@@ -3,7 +3,8 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { Building2, BadgeCheck, Clock3, Ban } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api';
-import type { CreateOrganizerData, Organizer, OrganizerVerificationStatus, VenueCurrency, VenueStatus } from '@/types';
+import type { CreateOrganizerData, Organizer, OrganizerVerificationStatus, VenueStatus } from '@/types';
+import { currencyLabel, type Currency } from '@/lib/currency';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -80,6 +81,12 @@ const EMPTY_CREATE_FORM: CreateOrganizerData = {
   primaryContact: '',
 };
 
+// A services or transport account never holds the venue permission, so the API
+// refuses to switch venue trading on for one (409) — don't offer it. Accounts
+// that already have a venue keep their suspend / reactivate actions regardless.
+const NO_VENUE_OPERATOR_TYPES = ['services', 'transport'];
+const canSwitchOnVenue = (o: Organizer) => !NO_VENUE_OPERATOR_TYPES.includes(o.operatorType ?? '');
+
 function formatDate(value: string | null): string {
   if (!value) return '—';
   return new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -104,7 +111,7 @@ export function OrganizersPage() {
   // "Switch on venue trading" dialog state.
   const [venueTarget, setVenueTarget] = useState<Organizer | null>(null);
   const [venueName, setVenueName] = useState('');
-  const [venueCurrency, setVenueCurrency] = useState<VenueCurrency>('SZL');
+  const [venueCurrency, setVenueCurrency] = useState<Currency>('SZL');
 
   // Debounce the search box so we don't refetch on every keystroke, and reset
   // to page 1 whenever the query changes.
@@ -155,23 +162,27 @@ export function OrganizersPage() {
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : 'Create failed'),
   });
 
+  // Both venue mutations refetch the list on success AND failure (onSettled):
+  // the app turns refetchOnWindowFocus off, so after a refused switch-on (409)
+  // or a stale suspend the row would otherwise keep offering an action the
+  // server has just told us is wrong, until a reload.
   const activateVenue = useMutation({
-    mutationFn: (p: { vendorId: string; name: string; currency: VenueCurrency }) => apiClient.organizers.activateVenue(p),
-    onSuccess: (_d, p) => {
+    mutationFn: (p: { vendorId: string; name: string; currency: Currency }) => apiClient.organizers.activateVenue(p),
+    onSuccess: (_d, p) => toast.success(`Venue trading switched on for ${p.name}`),
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : 'Switch-on failed'),
+    // The dialog closes either way — on a failure the toast carries the reason
+    // and the refetched row shows the truth, rather than leaving a stale form.
+    onSettled: () => {
       qc.invalidateQueries({ queryKey: ['organizers'] });
-      toast.success(`Venue trading switched on for ${p.name}`);
       setVenueTarget(null);
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : 'Switch-on failed'),
   });
 
   const setVenueStatus = useMutation({
     mutationFn: (p: { venueId: string; status: VenueStatus }) => apiClient.organizers.setVenueStatus(p.venueId, p.status),
-    onSuccess: (_d, p) => {
-      qc.invalidateQueries({ queryKey: ['organizers'] });
-      toast.success(p.status === 'suspended' ? 'Venue trading suspended' : 'Venue trading reactivated');
-    },
+    onSuccess: (_d, p) => toast.success(p.status === 'suspended' ? 'Venue trading suspended' : 'Venue trading reactivated'),
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : 'Update failed'),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['organizers'] }),
   });
 
   const openVenueSwitch = (o: Organizer) => {
@@ -398,20 +409,29 @@ export function OrganizersPage() {
                                 Suspend
                               </DropdownMenuItem>
                             )}
-                            <DropdownMenuSeparator />
-                            {!o.venue ? (
-                              <DropdownMenuItem onClick={() => openVenueSwitch(o)}>Switch on venue trading</DropdownMenuItem>
-                            ) : o.venue.status === 'active' ? (
-                              <DropdownMenuItem
-                                className="text-red-600 focus:text-red-600"
-                                onClick={() => setVenueStatus.mutate({ venueId: o.venue!.id, status: 'suspended' })}
-                              >
-                                Suspend venue trading
-                              </DropdownMenuItem>
+                            {o.venue ? (
+                              <>
+                                <DropdownMenuSeparator />
+                                {o.venue.status === 'active' ? (
+                                  <DropdownMenuItem
+                                    className="text-red-600 focus:text-red-600"
+                                    onClick={() => setVenueStatus.mutate({ venueId: o.venue!.id, status: 'suspended' })}
+                                  >
+                                    Suspend venue trading
+                                  </DropdownMenuItem>
+                                ) : (
+                                  <DropdownMenuItem onClick={() => setVenueStatus.mutate({ venueId: o.venue!.id, status: 'active' })}>
+                                    Reactivate venue trading
+                                  </DropdownMenuItem>
+                                )}
+                              </>
                             ) : (
-                              <DropdownMenuItem onClick={() => setVenueStatus.mutate({ venueId: o.venue!.id, status: 'active' })}>
-                                Reactivate venue trading
-                              </DropdownMenuItem>
+                              canSwitchOnVenue(o) && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem onClick={() => openVenueSwitch(o)}>Switch on venue trading</DropdownMenuItem>
+                                </>
+                              )
                             )}
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -503,10 +523,10 @@ export function OrganizersPage() {
                 id="venue-currency"
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 value={venueCurrency}
-                onChange={(e) => setVenueCurrency(e.target.value as VenueCurrency)}
+                onChange={(e) => setVenueCurrency(e.target.value as Currency)}
               >
-                <option value="SZL">Lilangeni (E) — SZL</option>
-                <option value="ZAR">Rand (R) — ZAR</option>
+                <option value="SZL">{currencyLabel('SZL')} — SZL</option>
+                <option value="ZAR">{currencyLabel('ZAR')} — ZAR</option>
               </select>
             </div>
           </div>

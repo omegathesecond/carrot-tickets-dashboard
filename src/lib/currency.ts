@@ -11,6 +11,13 @@ export function currencySymbol(currency?: Currency | string): 'E' | 'R' {
   return currency === 'ZAR' ? 'R' : 'E';
 }
 
+const CURRENCY_NAME: Record<Currency, string> = { SZL: 'Lilangeni', ZAR: 'Rand' };
+
+/** The currency's name with its display symbol: "Lilangeni (E)" / "Rand (R)". */
+export function currencyLabel(currency: Currency): string {
+  return `${CURRENCY_NAME[currency]} (${currencySymbol(currency)})`;
+}
+
 /**
  * Format a money amount with the currency's symbol. Default is tight ("R100")
  * to match inline price sites. `space` inserts a gap ("E 100") and `decimals`

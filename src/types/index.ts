@@ -1,5 +1,6 @@
 export * from './reseller';
 import type { EventCategory } from '@/constants/eventCategories';
+import type { Currency } from '@/lib/currency';
 export type { EventCategory };
 
 /**
@@ -813,12 +814,11 @@ export interface UserAnalytics {
 
 // Venue trading (venue trading spec) — a vendor's day-to-day premises.
 export type VenueStatus = 'active' | 'suspended';
-export type VenueCurrency = 'SZL' | 'ZAR';
 
 export interface VenueSummary {
   id: string;
   name: string;
-  currency: VenueCurrency;
+  currency: Currency;
   status: VenueStatus;
   activatedAt: string;
 }

@@ -98,4 +98,62 @@ describe('OrganizersPage — venue trading switch', () => {
     fireEvent.click(await screen.findByRole('menuitem', { name: /reactivate venue trading/i }));
     await waitFor(() => expect(apiClient.organizers.setVenueStatus).toHaveBeenCalledWith('ven1', 'active'));
   });
+
+  // The API refuses these (409) because their permission set never includes
+  // the venue permission — so don't offer the action at all.
+  it.each(['services', 'transport'])('does not offer to switch venue trading on for a %s account', async (operatorType) => {
+    list([{ ...base, operatorType }]);
+    renderPage();
+    await screen.findByText('Kwa-Linda Lounge');
+    openActions();
+    // The menu is open once its verification items render.
+    await screen.findByRole('menuitem', { name: /move to pending/i });
+    expect(screen.queryByRole('menuitem', { name: /switch on venue trading/i })).toBeNull();
+  });
+
+  it('an events or both account is still offered the switch-on', async () => {
+    list([{ ...base, operatorType: 'both' }]);
+    renderPage();
+    await screen.findByText('Kwa-Linda Lounge');
+    openActions();
+    expect(await screen.findByRole('menuitem', { name: /switch on venue trading/i })).toBeTruthy();
+  });
+
+  it('a services account that already has a venue can still be suspended', async () => {
+    list([{ ...base, operatorType: 'services', venue: { id: 'ven1', name: 'Kwa-Linda Lounge', currency: 'SZL', status: 'active', activatedAt: '2026-10-01T00:00:00.000Z' } }]);
+    renderPage();
+    await screen.findByText('Venue · on');
+    openActions();
+    expect(await screen.findByRole('menuitem', { name: /suspend venue trading/i })).toBeTruthy();
+  });
+
+  // refetchOnWindowFocus is off app-wide, so without an explicit refetch a
+  // refused switch-on leaves the row offering "Switch on" until a reload.
+  it('after a refused switch-on the list is refetched and the dialog closes (the error toast stays)', async () => {
+    list([base]);
+    (apiClient.organizers.activateVenue as any).mockRejectedValue(new Error('This vendor already has a venue'));
+    renderPage();
+    await screen.findByText('Kwa-Linda Lounge');
+    expect(apiClient.organizers.list).toHaveBeenCalledTimes(1);
+    openActions();
+    fireEvent.click(await screen.findByRole('menuitem', { name: /switch on venue trading/i }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /switch on/i }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('This vendor already has a venue'));
+    await waitFor(() => expect(apiClient.organizers.list).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('after a failed suspend the list is refetched too, so the row shows the truth', async () => {
+    list([{ ...base, venue: { id: 'ven1', name: 'Kwa-Linda Lounge', currency: 'SZL', status: 'active', activatedAt: '2026-10-01T00:00:00.000Z' } }]);
+    (apiClient.organizers.setVenueStatus as any).mockRejectedValue(new Error('Venue not found'));
+    renderPage();
+    await screen.findByText('Venue · on');
+    expect(apiClient.organizers.list).toHaveBeenCalledTimes(1);
+    openActions();
+    fireEvent.click(await screen.findByRole('menuitem', { name: /suspend venue trading/i }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Venue not found'));
+    await waitFor(() => expect(apiClient.organizers.list).toHaveBeenCalledTimes(2));
+  });
 });

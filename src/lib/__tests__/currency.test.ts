@@ -1,9 +1,14 @@
 import { it, expect } from 'vitest';
-import { currencySymbol, formatMoney, formatMoneyRange } from '@/lib/currency';
+import { currencyLabel, currencySymbol, formatMoney, formatMoneyRange } from '@/lib/currency';
 
 it("maps ZAR to 'R'", () => expect(currencySymbol('ZAR')).toBe('R'));
 it("maps SZL to 'E'", () => expect(currencySymbol('SZL')).toBe('E'));
 it("defaults undefined to 'E'", () => expect(currencySymbol(undefined)).toBe('E'));
+
+it('labels each currency with its name and symbol', () => {
+  expect(currencyLabel('SZL')).toBe('Lilangeni (E)');
+  expect(currencyLabel('ZAR')).toBe('Rand (R)');
+});
 
 it('formats SZL with E and ZAR with R', () => {
   expect(formatMoney(100, 'SZL')).toBe('E100');

@@ -6,9 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useAuth } from '@/contexts/AuthContext';
 import { canManageVenue } from '@/lib/permissions';
 import { useMyVenue } from '@/hooks/useMyVenue';
-import type { VenueCurrency } from '@/types';
-
-const CURRENCY_LABEL: Record<VenueCurrency, string> = { SZL: 'Lilangeni (E)', ZAR: 'Rand (R)' };
+import { currencyLabel } from '@/lib/currency';
 
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -72,7 +70,7 @@ export function VenuePage() {
           <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 text-sm">
             <div>
               <dt className="text-slate-500">Currency</dt>
-              <dd className="font-medium">{CURRENCY_LABEL[v.currency]}</dd>
+              <dd className="font-medium">{currencyLabel(v.currency)}</dd>
             </div>
             <div>
               <dt className="text-slate-500">Switched on</dt>
