@@ -97,3 +97,11 @@ describe('EventCataloguePanel wording per owner', () => {
     )).toBeTruthy();
   });
 });
+
+describe('EventCataloguePanel currency threading', () => {
+  it('prices a SZL venue product in E with the en-ZA decimal comma', async () => {
+    renderPanel(VENUE, 'SZL');
+    expect(await screen.findByText('E25,00')).toBeTruthy();
+    expect(screen.queryByText('R25,00')).toBeNull();
+  });
+});
