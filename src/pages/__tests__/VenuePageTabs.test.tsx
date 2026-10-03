@@ -57,4 +57,12 @@ describe('VenuePage — trading tabs', () => {
     expect(await screen.findByRole('tab', { name: 'Stalls' })).toBeTruthy();
     expect(screen.queryByRole('tab', { name: 'Catalogue & stock' })).toBeNull();
   });
+
+  it('?tab=catalogue does not open the catalogue for a member without tickets:manage_stock', async () => {
+    currentUser = { permissions: ['tickets:manage_venue'] } as unknown as AuthUser;
+    (apiClient.venue.mine as any).mockResolvedValue(ACTIVE);
+    renderAt('/venue?tab=catalogue');
+    expect(await screen.findByText('stalls-panel {"kind":"venue"}')).toBeTruthy();
+    expect(screen.queryByText(/catalogue-panel/)).toBeNull();
+  });
 });
