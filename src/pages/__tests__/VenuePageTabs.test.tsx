@@ -65,4 +65,23 @@ describe('VenuePage — trading tabs', () => {
     expect(await screen.findByText('stalls-panel {"kind":"venue"}')).toBeTruthy();
     expect(screen.queryByText(/catalogue-panel/)).toBeNull();
   });
+
+  it('a manager with only tickets:manage_stock opens the Venue on Catalogue & stock, with no Stalls tab', async () => {
+    currentUser = { permissions: ['tickets:manage_stock'] } as unknown as AuthUser;
+    (apiClient.venue.mine as any).mockResolvedValue(ACTIVE);
+    renderAt('/venue');
+    expect(await screen.findByRole('tab', { name: 'Catalogue & stock' })).toBeTruthy();
+    expect(screen.getByText('catalogue-panel {"kind":"venue"} SZL')).toBeTruthy();
+    expect(screen.queryByRole('tab', { name: 'Stalls' })).toBeNull();
+    expect(screen.queryByText(/stalls-panel/)).toBeNull();
+  });
+
+  it('a member with neither tickets:manage_venue nor tickets:manage_stock gets the no-access notice', async () => {
+    currentUser = { permissions: ['tickets:view_revenue'] } as unknown as AuthUser;
+    (apiClient.venue.mine as any).mockResolvedValue(ACTIVE);
+    renderAt('/venue');
+    expect(await screen.findByText("You don't have access to the venue")).toBeTruthy();
+    expect(screen.queryByRole('tab')).toBeNull();
+    expect(apiClient.venue.mine).not.toHaveBeenCalled();
+  });
 });

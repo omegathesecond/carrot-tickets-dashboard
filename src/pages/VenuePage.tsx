@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EventStallsPanel } from '@/components/cashless/EventStallsPanel';
 import { EventCataloguePanel } from '@/components/cashless/EventCataloguePanel';
 import { useAuth } from '@/contexts/AuthContext';
-import { canManageVenue, hasPermission, TicketsPermission } from '@/lib/permissions';
+import { canManageVenue, canOpenVenue, hasPermission, TicketsPermission } from '@/lib/permissions';
 import { useMyVenue } from '@/hooks/useMyVenue';
 import { currencyLabel, type Currency } from '@/lib/currency';
 import type { StockScope } from '@/lib/stockScope';
@@ -66,8 +66,8 @@ export function VenuePage() {
   const { data, isLoading, isError, error, refetch, isFetching } = useMyVenue();
 
   let body: ReactNode;
-  if (!canManageVenue(user)) {
-    body = <Notice title="You don't have access to the venue" description="Ask the account owner to give you venue access." />;
+  if (!canOpenVenue(user)) {
+    body = <Notice title="You don't have access to the venue" description="Ask the account owner to give you venue or stock access." />;
   } else if (isLoading) {
     body = <p className="text-slate-500">Loading venue…</p>;
   } else if (isError) {

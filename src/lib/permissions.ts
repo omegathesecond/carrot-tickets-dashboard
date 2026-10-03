@@ -191,3 +191,8 @@ export function canIssueTags(user: AuthUser | null | undefined): boolean {
 export function canManageVenue(user: AuthUser | null | undefined): boolean {
   return hasPermission(user, TicketsPermission.MANAGE_VENUE);
 }
+
+/** May open the Venue section: venue admin, or venue stock (managers). Each tab gates itself. */
+export function canOpenVenue(user: AuthUser | null | undefined): boolean {
+  return canManageVenue(user) || hasPermission(user, TicketsPermission.MANAGE_STOCK);
+}
