@@ -12,7 +12,7 @@ import {
   type StockStatus,
 } from '@/lib/api';
 import { fmtCents, randToCents, centsToRand } from '@/lib/money';
-import type { Currency } from '@/lib/currency';
+import { currencySymbol, type Currency } from '@/lib/currency';
 import { scopeKey, type StockScope } from '@/lib/stockScope';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -90,6 +90,9 @@ const stockCell = (row?: { onHand: number; status: string }) => {
 
 const categoryLabel = (v: string) =>
   PRODUCT_CATEGORIES.find((c) => c.value === v)?.label ?? v;
+
+/** The scope's owner as copy — "event" / "venue" (cf. the API's ownerWord). */
+const ownerNoun = (scope: StockScope) => (scope.kind === 'event' ? 'event' : 'venue');
 
 /**
  * Cashless catalogue & stock management for ONE event (Slice 6 / parent §9) or
@@ -551,7 +554,7 @@ export function EventCataloguePanel({ scope, currency = 'ZAR' }: { scope: StockS
     <div className="space-y-6">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Package className="h-4 w-4 text-orange-600" />
-        What this event's stalls sell — priced per unit, stocked per stall
+        What this {ownerNoun(scope)}'s stalls sell — priced per unit, stocked per stall
       </div>
 
       {/* Two jobs share this page and they are read at different moments: during
@@ -889,7 +892,7 @@ export function EventCataloguePanel({ scope, currency = 'ZAR' }: { scope: StockS
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label>Price (R per unit)</Label>
+                <Label>Price ({currencySymbol(currency)} per unit)</Label>
                 <Input inputMode="decimal" value={form.priceRand} onChange={(e) => setForm({ ...form, priceRand: e.target.value })} placeholder="25.00" />
               </div>
             </div>
@@ -898,7 +901,7 @@ export function EventCataloguePanel({ scope, currency = 'ZAR' }: { scope: StockS
               {!stallsLoaded ? (
                 <p className={stallsErrored ? 'text-xs text-red-600' : 'text-xs text-muted-foreground'}>
                   {stallsErrored
-                    ? 'Stalls could not be loaded — this event may already have stalls, so this is not necessarily a setup problem. This product will not be assigned to a stall until it is saved again once stalls load.'
+                    ? `Stalls could not be loaded — this ${ownerNoun(scope)} may already have stalls, so this is not necessarily a setup problem. This product will not be assigned to a stall until it is saved again once stalls load.`
                     : 'Loading stalls…'}
                 </p>
               ) : stalls.length === 0 ? (

@@ -215,11 +215,15 @@ function ReconciliationSection({ scope }: { scope: StockScope }) {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Mbabane' });
   const [fromDay, setFromDay] = useState(today);
   const [toDay, setToDay] = useState(today);
-  const range = scope.kind === 'venue' ? dayRange(fromDay, toDay) : undefined;
+  // A cleared date input yields '' — a half-picked range is not a range, so
+  // neither the table nor the PDF is asked for one until both days are set.
+  const rangeIncomplete = scope.kind === 'venue' && (!fromDay || !toDay);
+  const range = scope.kind === 'venue' && !rangeIncomplete ? dayRange(fromDay, toDay) : undefined;
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['event-stock-recon', scopeKey(scope), range?.from, range?.to],
     queryFn: () => apiClient.stock.reconciliation(scope, range),
+    enabled: !rangeIncomplete,
     retry: false,
   });
   const num = (n: number | null) => (n == null ? '—' : n);
@@ -254,7 +258,7 @@ function ReconciliationSection({ scope }: { scope: StockScope }) {
     <Card>
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle className="text-base">Reconciliation</CardTitle>
-        <Button size="sm" variant="outline" disabled={downloading} onClick={handleDownload}>
+        <Button size="sm" variant="outline" disabled={downloading || rangeIncomplete} onClick={handleDownload}>
           {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
           <span className="ml-1">Download PDF</span>
         </Button>
@@ -272,7 +276,12 @@ function ReconciliationSection({ scope }: { scope: StockScope }) {
             </div>
           </div>
         )}
-        <SectionState loading={isLoading} error={!!error} empty={!data || data.byProduct.length === 0} emptyText="No stock movements yet.">
+        <SectionState
+          loading={isLoading}
+          error={!!error}
+          empty={rangeIncomplete || !data || data.byProduct.length === 0}
+          emptyText={rangeIncomplete ? 'Pick both dates' : 'No stock movements yet.'}
+        >
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>

@@ -1,12 +1,13 @@
 /**
- * Cashless money helpers (ZAR cents on the wire). The dashboard's cashless
+ * Cashless money helpers (integer cents on the wire, in the event's or venue's
+ * currency — SZL or ZAR, see lib/currency). The dashboard's cashless
  * surfaces move money in integer cents; the catalogue price field is entered in
  * rand and converted here so the API only ever sees integer cents.
  */
 
 import { currencySymbol, type Currency } from '@/lib/currency';
 
-/** Integer cents with the currency's symbol: "E12.50" / "R12.50". */
+/** Integer cents with the currency's symbol, en-ZA separators (decimal comma): "E12,50" / "R12,50". */
 export function fmtCents(cents: number, currency: Currency): string {
   return `${currencySymbol(currency)}${((cents ?? 0) / 100).toLocaleString('en-ZA', {
     minimumFractionDigits: 2,

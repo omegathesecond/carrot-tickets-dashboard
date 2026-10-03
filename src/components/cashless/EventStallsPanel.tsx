@@ -16,6 +16,9 @@ import { scopeKey, stallPath, type StockScope } from '@/lib/stockScope';
 const initialsOf = (name: string) =>
   name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
 
+/** What a stall's till does at its owner: an event's stalls charge bands; a venue has no tags. */
+const tillJob = (scope: StockScope) => (scope.kind === 'event' ? 'charge bands at this event' : 'sell at this venue');
+
 type AddForm = { name: string; commissionPercent: string };
 const DEFAULT_FORM: AddForm = { name: '', commissionPercent: '0' };
 
@@ -66,13 +69,12 @@ export function EventStallsPanel({ scope }: { scope: StockScope }) {
 
   const pendingActiveId = setActive.isPending ? setActive.variables?.id : undefined;
   const isFormValid = form.name.trim().length > 0;
-  const where = scope.kind === 'event' ? 'event' : 'venue';
 
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          Bars, food stalls and merch tables that charge bands at this {where}
+          Bars, food stalls and merch tables that {tillJob(scope)}
           {scope.kind === 'event' && ', each with a commission cut'}
         </p>
         <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
@@ -125,7 +127,7 @@ export function EventStallsPanel({ scope }: { scope: StockScope }) {
             </span>
             <p className="font-medium text-slate-700">No stalls yet</p>
             <p className="text-sm text-slate-500 max-w-xs">
-              Add a stall, then add the people who work its till so they can charge bands at this {where}.
+              Add a stall, then add the people who work its till so they can {tillJob(scope)}.
             </p>
             <Button onClick={() => setIsAddOpen(true)}
               className="mt-1 bg-gradient-to-r from-orange-600 to-amber-600 text-white hover:opacity-90">

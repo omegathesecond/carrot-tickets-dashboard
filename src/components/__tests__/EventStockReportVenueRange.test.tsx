@@ -140,6 +140,34 @@ describe('EventStockReport reconciliation range', () => {
     ));
   });
 
+  it('a cleared date asks for no reconciliation or PDF and says to pick both dates', async () => {
+    renderReport({ kind: 'venue' }, 'SZL');
+    openReconciliation();
+    await screen.findByText('Castle Lite');
+    const recon = apiClient.stock.reconciliation as any;
+    const callsBefore = recon.mock.calls.length;
+
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '' } });
+
+    expect(await screen.findByText('Pick both dates')).toBeTruthy();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(recon.mock.calls).toHaveLength(callsBefore);
+    for (const [, range] of recon.mock.calls) {
+      expect(range.from).toMatch(/^\d{4}-\d{2}-\d{2}T00:00:00\+02:00$/);
+      expect(range.to).toMatch(/^\d{4}-\d{2}-\d{2}T00:00:00\+02:00$/);
+    }
+    const pdf = screen.getByRole('button', { name: /download pdf/i }) as HTMLButtonElement;
+    expect(pdf.disabled).toBe(true);
+    fireEvent.click(pdf);
+    expect(apiClient.stock.reconciliationPdf).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-10-01' } });
+    await waitFor(() => expect(recon).toHaveBeenLastCalledWith(
+      { kind: 'venue' }, expect.objectContaining({ from: '2026-10-01T00:00:00+02:00' }),
+    ));
+    expect(screen.queryByText('Pick both dates')).toBeNull();
+  });
+
   it('an event reconciliation shows no date range and passes no range', async () => {
     renderReport({ kind: 'event', eventId: 'e1' });
     openReconciliation();

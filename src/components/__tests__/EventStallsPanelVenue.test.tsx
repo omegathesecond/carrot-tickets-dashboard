@@ -63,4 +63,19 @@ describe('EventStallsPanel scopes', () => {
     submit();
     await waitFor(() => expect(apiClient.merchants.create).toHaveBeenCalledWith(scope, { name: 'Patio', commissionPercent: 0 }));
   });
+
+  it('says a venue stall sells (no bands at a venue) and keeps the event copy', async () => {
+    (apiClient.merchants.list as any).mockResolvedValue([]);
+    renderPanel({ kind: 'venue' });
+    expect(await screen.findByText('No stalls yet')).toBeTruthy();
+    expect(screen.getByText('Bars, food stalls and merch tables that sell at this venue')).toBeTruthy();
+    expect(screen.getByText('Add a stall, then add the people who work its till so they can sell at this venue.')).toBeTruthy();
+    expect(screen.queryByText(/bands/)).toBeNull();
+    cleanup();
+
+    renderPanel({ kind: 'event', eventId: 'e1' });
+    expect(await screen.findByText('No stalls yet')).toBeTruthy();
+    expect(screen.getByText('Bars, food stalls and merch tables that charge bands at this event, each with a commission cut')).toBeTruthy();
+    expect(screen.getByText('Add a stall, then add the people who work its till so they can charge bands at this event.')).toBeTruthy();
+  });
 });
