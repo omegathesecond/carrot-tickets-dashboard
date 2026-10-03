@@ -71,7 +71,7 @@ import type {
 } from '@/types';
 import type { WristbandDesignDoc } from '@/lib/wristband/design';
 import type { Currency } from '@/lib/currency';
-import { stockBase, type StockScope } from '@/lib/stockScope';
+import { operatorsBase, stallsBase, stockBase, type StockScope } from '@/lib/stockScope';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const APP_API_KEY = import.meta.env.VITE_APP_API_KEY || '';
@@ -1411,7 +1411,7 @@ export class ApiClient {
     /** The stalls in one scope (event: ?eventId=; venue: the vendor's own). */
     list: async (scope: StockScope): Promise<MerchantRow[]> =>
       this.request<MerchantRow[]>(
-        scope.kind === 'event' ? `/tickets/merchants?eventId=${scope.eventId}` : `/tickets/venue/stalls`,
+        scope.kind === 'event' ? `${stallsBase(scope)}?eventId=${scope.eventId}` : stallsBase(scope),
       ),
 
     /** A venue stall never carries a commission — the API stores 0 regardless. */
@@ -1420,7 +1420,7 @@ export class ApiClient {
       data: { name: string; commissionPercent?: number },
     ): Promise<{ merchant: MerchantRow }> =>
       this.request<{ merchant: MerchantRow }>(
-        scope.kind === 'event' ? `/tickets/merchants` : `/tickets/venue/stalls`,
+        stallsBase(scope),
         {
           method: 'POST',
           body: JSON.stringify(scope.kind === 'event' ? { eventId: scope.eventId, ...data } : data),
@@ -1433,13 +1433,13 @@ export class ApiClient {
       data: { name?: string; commissionPercent?: number; isActive?: boolean },
     ): Promise<MerchantRow> =>
       this.request<MerchantRow>(
-        scope.kind === 'event' ? `/tickets/merchants/${id}` : `/tickets/venue/stalls/${id}`,
+        `${stallsBase(scope)}/${id}`,
         { method: 'PATCH', body: JSON.stringify(data) },
       ),
 
     transactions: async (scope: StockScope, id: string, limit = 100): Promise<MerchantDetail> =>
       this.request<MerchantDetail>(
-        `${scope.kind === 'event' ? `/tickets/merchants/${id}` : `/tickets/venue/stalls/${id}`}/transactions?limit=${limit}`,
+        `${stallsBase(scope)}/${id}/transactions?limit=${limit}`,
       ),
   };
 
@@ -1449,9 +1449,7 @@ export class ApiClient {
   merchantOperators = {
     list: async (scope: StockScope, merchantId: string): Promise<{ operators: MerchantOperatorRow[] }> =>
       this.request<{ operators: MerchantOperatorRow[] }>(
-        scope.kind === 'event'
-          ? `/tickets/merchants/${merchantId}/operators`
-          : `/tickets/venue/stalls/${merchantId}/operators`,
+        `${stallsBase(scope)}/${merchantId}/operators`,
       ),
 
     create: async (
@@ -1460,9 +1458,7 @@ export class ApiClient {
       data: { fullName: string; phoneNumber?: string; grants?: OperatorGrant[] },
     ): Promise<IssuedMerchantOperatorCredentials> =>
       this.request<IssuedMerchantOperatorCredentials>(
-        scope.kind === 'event'
-          ? `/tickets/merchants/${merchantId}/operators`
-          : `/tickets/venue/stalls/${merchantId}/operators`,
+        `${stallsBase(scope)}/${merchantId}/operators`,
         {
           method: 'POST',
           body: JSON.stringify(data),
@@ -1475,7 +1471,7 @@ export class ApiClient {
       data: { fullName?: string; isActive?: boolean; grants?: OperatorGrant[] },
     ): Promise<{ operator: MerchantOperatorRow }> =>
       this.request<{ operator: MerchantOperatorRow }>(
-        scope.kind === 'event' ? `/tickets/merchant-operators/${id}` : `/tickets/venue/operators/${id}`,
+        `${operatorsBase(scope)}/${id}`,
         {
           method: 'PATCH',
           body: JSON.stringify(data),
@@ -1484,9 +1480,7 @@ export class ApiClient {
 
     resetPin: async (scope: StockScope, id: string): Promise<{ operatorId: string; pin: string }> =>
       this.request<{ operatorId: string; pin: string }>(
-        scope.kind === 'event'
-          ? `/tickets/merchant-operators/${id}/reset-pin`
-          : `/tickets/venue/operators/${id}/reset-pin`,
+        `${operatorsBase(scope)}/${id}/reset-pin`,
         {
           method: 'POST',
         },

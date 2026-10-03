@@ -1,11 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { stockBase, scopeKey, stallPath } from '@/lib/stockScope';
+import { stockBase, stallsBase, operatorsBase, scopeKey, stallPath } from '@/lib/stockScope';
 import { fmtCents, fmtR } from '@/lib/money';
 
 describe('stockScope', () => {
   it('builds event and venue API bases', () => {
     expect(stockBase({ kind: 'event', eventId: 'e1' })).toBe('/tickets/events/e1');
     expect(stockBase({ kind: 'venue' })).toBe('/tickets/venue');
+  });
+  it('builds event and venue stall and operator bases', () => {
+    expect(stallsBase({ kind: 'event', eventId: 'e1' })).toBe('/tickets/merchants');
+    expect(stallsBase({ kind: 'venue' })).toBe('/tickets/venue/stalls');
+    expect(operatorsBase({ kind: 'event', eventId: 'e1' })).toBe('/tickets/merchant-operators');
+    expect(operatorsBase({ kind: 'venue' })).toBe('/tickets/venue/operators');
   });
   it('keys react-query caches per scope', () => {
     expect(scopeKey({ kind: 'event', eventId: 'e1' })).toBe('event:e1');
