@@ -14,28 +14,28 @@ import { render, screen, cleanup, fireEvent, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { EventStockReport } from '@/components/EventStockReport';
 
-const getEventStockBoard = vi.fn();
-const getEventStockDashboard = vi.fn();
-const getEventStockReconciliation = vi.fn();
-const getEventStockMovements = vi.fn();
+const stockBoard = vi.fn();
+const stockDashboard = vi.fn();
+const stockReconciliation = vi.fn();
+const stockMovements = vi.fn();
 
 vi.mock('@/lib/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/api')>();
   return {
     ...actual,
     apiClient: {
-      events: {
-        getEventStockBoard: (...a: unknown[]) => getEventStockBoard(...a),
-        getEventStockDashboard: (...a: unknown[]) => getEventStockDashboard(...a),
-        getEventStockReconciliation: (...a: unknown[]) => getEventStockReconciliation(...a),
-        getEventStockMovements: (...a: unknown[]) => getEventStockMovements(...a),
+      stock: {
+        board: (...a: unknown[]) => stockBoard(...a),
+        dashboard: (...a: unknown[]) => stockDashboard(...a),
+        reconciliation: (...a: unknown[]) => stockReconciliation(...a),
+        movements: (...a: unknown[]) => stockMovements(...a),
       },
     },
   };
 });
 
 function renderReport() {
-  getEventStockBoard.mockResolvedValue({
+  stockBoard.mockResolvedValue({
     event: { id: 'e1', name: 'Event' },
     perBar: [],
     byProduct: [{
@@ -43,14 +43,14 @@ function renderReport() {
       totalOnHand: 94, unitsSold: 30, revenue: 500000, status: 'in_stock',
     }],
   });
-  getEventStockDashboard.mockResolvedValue({
+  stockDashboard.mockResolvedValue({
     event: { id: 'e1', name: 'Event' },
     revenueByProduct: [], bestSellers: [], salesByBar: [], salesByEmployee: [],
     itemisedSplit: { itemised: { gross: 100, count: 1 }, unitemised: { gross: 0, count: 0 } },
     peakTimes: [], variances: [], totalShrinkageUnits: 0,
     predictedStockOut: [], noRecentSales: 0,
   });
-  getEventStockReconciliation.mockResolvedValue({
+  stockReconciliation.mockResolvedValue({
     event: { id: 'e1', name: 'Event' },
     perBar: [],
     byProduct: [{
@@ -64,7 +64,7 @@ function renderReport() {
       physicalCount: 11, variance: -1,
     },
   });
-  getEventStockMovements.mockResolvedValue({
+  stockMovements.mockResolvedValue({
     movements: [{
       id: 'm1', at: '2026-09-05T10:00:00.000Z', merchantId: 'b1',
       merchantName: 'Sandwich Stall', productId: 'p1', productName: 'Moved Product',
@@ -78,7 +78,7 @@ function renderReport() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <EventStockReport eventId="e1" />
+      <EventStockReport scope={{ kind: 'event', eventId: 'e1' }} />
     </QueryClientProvider>,
   );
 }
@@ -155,7 +155,7 @@ describe('Live stock is gone', () => {
     renderReport();
     // Not merely hidden — the query is gone, so the page stops paying for a
     // request whose every column is rendered elsewhere.
-    expect(getEventStockBoard).not.toHaveBeenCalled();
+    expect(stockBoard).not.toHaveBeenCalled();
   });
 
   it('still reaches reconciliation and movements, which Live stock used to sit above', async () => {

@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { TransactionDetailDialog, type TxnDetail } from '@/components/TransactionDetailDialog';
 import { StallOperatorsPanel } from '@/components/StallOperatorsPanel';
+import type { StockScope } from '@/lib/stockScope';
 
 const fmtR = (c: number) => `R${((c ?? 0) / 100).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtTime = (iso: string) => {
@@ -18,27 +19,32 @@ const fmtTime = (iso: string) => {
 const bandRef = (uid: string) => (!uid ? '—' : `••${(uid.length > 6 ? uid.slice(-6) : uid).toUpperCase()}`);
 
 /**
- * One stall's takings, reached from its event's Cashless > Stalls tab. The
- * route carries both ids (/events/:id/stalls/:merchantId) because a merchant
- * belongs to exactly one event — the event id is what makes the URL, and the
- * back link, honest about where this stall lives.
+ * One stall's takings, reached from its event's Cashless > Stalls tab (or a
+ * venue's Stalls tab). The event route carries both ids
+ * (/events/:id/stalls/:merchantId) because a merchant belongs to exactly one
+ * event — the event id is what makes the URL, and the back link, honest about
+ * where this stall lives. The venue route (/venue/stalls/:merchantId) has no
+ * :id, which is how the page knows which scope it is in.
  */
 export function StallDetailPage() {
   const { id = '', merchantId = '' } = useParams();
+  const scope: StockScope = id ? { kind: 'event', eventId: id } : { kind: 'venue' };
   const navigate = useNavigate();
   const [selected, setSelected] = useState<TxnDetail | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['stall-detail', merchantId],
-    queryFn: () => apiClient.merchants.transactions(merchantId),
+    queryFn: () => apiClient.merchants.transactions(scope, merchantId),
     retry: false,
   });
+  // The stall belongs to an event or a venue — the API names whichever it is.
+  const ownerName = data?.event?.name ?? data?.venue?.name;
 
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
         <Button variant="ghost" size="sm" className="text-slate-500"
-          onClick={() => navigate(`/events/${id}?tab=cashless&sub=stalls`)}>
+          onClick={() => navigate(scope.kind === 'event' ? `/events/${id}?tab=cashless&sub=stalls` : '/venue?tab=stalls')}>
           <ArrowLeft className="h-4 w-4 mr-1.5" /> Stalls
         </Button>
 
@@ -55,7 +61,7 @@ export function StallDetailPage() {
                 <h1 className="text-2xl font-bold text-slate-900">{data.merchant.name}</h1>
                 <p className="text-sm text-slate-500 mt-0.5">
                   {data.merchant.commissionPercent}% commission
-                  {data.event?.name ? ` · ${data.event.name}` : ''}
+                  {ownerName ? ` · ${ownerName}` : ''}
                 </p>
               </div>
               <Badge variant={data.merchant.status === 'active' ? 'default' : 'secondary'}>
@@ -84,7 +90,7 @@ export function StallDetailPage() {
 
             <Card>
               <CardContent className="pt-6">
-                <StallOperatorsPanel merchantId={merchantId} stallName={data.merchant.name} />
+                <StallOperatorsPanel scope={scope} merchantId={merchantId} stallName={data.merchant.name} />
               </CardContent>
             </Card>
 

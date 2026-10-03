@@ -71,6 +71,7 @@ import type {
 } from '@/types';
 import type { WristbandDesignDoc } from '@/lib/wristband/design';
 import type { Currency } from '@/lib/currency';
+import { stockBase, type StockScope } from '@/lib/stockScope';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const APP_API_KEY = import.meta.env.VITE_APP_API_KEY || '';
@@ -109,6 +110,12 @@ function retryAfterSecondsFrom(response: Response, message: string): number {
   if (fromCopy) return Number(fromCopy[1]);
 
   return DEFAULT_RETRY_AFTER_SECONDS;
+}
+
+/** `?from=&to=` for a venue range; empty for an event or no range. */
+function rangeQuery(scope: StockScope, range?: { from: string; to: string }): string {
+  if (scope.kind !== 'venue' || !range) return '';
+  return `?${new URLSearchParams({ from: range.from, to: range.to }).toString()}`;
 }
 
 export class ApiClient {
@@ -437,34 +444,6 @@ export class ApiClient {
     getEventTables: async (id: string): Promise<EventTablesReport> =>
       this.request<EventTablesReport>(`/tickets/events/${id}/tables`),
 
-    getEventStockBoard: async (id: string): Promise<StockBoard> =>
-      this.request<StockBoard>(`/tickets/events/${id}/stock/board`),
-
-    getEventStockReconciliation: async (id: string): Promise<StockReconciliation> =>
-      this.request<StockReconciliation>(`/tickets/events/${id}/stock/reconciliation`),
-
-    /** The same reconciliation as a printable PDF — bytes, so it goes via `fetchPdf`. */
-    getEventStockReconciliationPdf: async (id: string): Promise<Blob> =>
-      this.fetchPdf(`/tickets/events/${id}/stock/reconciliation.pdf`, { method: 'GET' }),
-
-    getEventStockDashboard: async (id: string): Promise<StockDashboard> =>
-      this.request<StockDashboard>(`/tickets/events/${id}/stock/dashboard`),
-
-    getEventStockMovements: async (
-      id: string,
-      params: { productId?: string; merchantId?: string; cursor?: string; limit?: number } = {},
-    ): Promise<StockMovementsPage> => {
-      const q = new URLSearchParams();
-      if (params.productId) q.set('productId', params.productId);
-      if (params.merchantId) q.set('merchantId', params.merchantId);
-      if (params.cursor) q.set('cursor', params.cursor);
-      if (params.limit) q.set('limit', String(params.limit));
-      const qs = q.toString();
-      return this.request<StockMovementsPage>(
-        `/tickets/events/${id}/stock/movements${qs ? `?${qs}` : ''}`,
-      );
-    },
-
     createEvent: async (data: EventFormData): Promise<Event> => {
       return this.request<Event>(`/tickets/events`, {
         method: 'POST',
@@ -643,29 +622,6 @@ export class ApiClient {
       if (!response.ok) {
         const error = await response.json().catch(() => ({ message: 'Upload failed' }));
         throw new Error(error.message || 'Failed to upload image');
-      }
-
-      const data = await response.json();
-      return data.data.media.url;
-    },
-
-    uploadProductImage: async (eventId: string, file: File): Promise<string> => {
-      const formData = new FormData();
-      formData.append('image', file);
-
-      const token = this.getToken();
-      const uploadHeaders: Record<string, string> = {};
-      if (token) uploadHeaders['Authorization'] = `Bearer ${token}`;
-      if (APP_API_KEY) uploadHeaders['x-api-key'] = APP_API_KEY;
-      const response = await fetch(`${this.baseUrl}/media/events/${eventId}/product`, {
-        method: 'POST',
-        headers: uploadHeaders,
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ message: 'Upload failed' }));
-        throw new Error(error.message || 'Failed to upload product image');
       }
 
       const data = await response.json();
@@ -1447,139 +1403,227 @@ export class ApiClient {
       }),
   };
 
-  // Vendors (in-event merchants) — the stalls that charge bands. Scoped to one event.
+  // Vendors (in-event merchants) — the stalls that charge bands. Scoped to one
+  // event, or to the vendor's own venue.
   // A stall holds no credentials of its own (see MerchantOperator below) —
   // create/update just return the merchant record.
   merchants = {
-    list: async (eventId: string): Promise<MerchantRow[]> =>
-      this.request<MerchantRow[]>(`/tickets/merchants?eventId=${eventId}`),
+    /** The stalls in one scope (event: ?eventId=; venue: the vendor's own). */
+    list: async (scope: StockScope): Promise<MerchantRow[]> =>
+      this.request<MerchantRow[]>(
+        scope.kind === 'event' ? `/tickets/merchants?eventId=${scope.eventId}` : `/tickets/venue/stalls`,
+      ),
 
-    create: async (data: {
-      eventId: string;
-      name: string;
-      commissionPercent?: number;
-    }): Promise<{ merchant: MerchantRow }> =>
-      this.request<{ merchant: MerchantRow }>(`/tickets/merchants`, {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
+    /** A venue stall never carries a commission — the API stores 0 regardless. */
+    create: async (
+      scope: StockScope,
+      data: { name: string; commissionPercent?: number },
+    ): Promise<{ merchant: MerchantRow }> =>
+      this.request<{ merchant: MerchantRow }>(
+        scope.kind === 'event' ? `/tickets/merchants` : `/tickets/venue/stalls`,
+        {
+          method: 'POST',
+          body: JSON.stringify(scope.kind === 'event' ? { eventId: scope.eventId, ...data } : data),
+        },
+      ),
 
     update: async (
+      scope: StockScope,
       id: string,
       data: { name?: string; commissionPercent?: number; isActive?: boolean },
     ): Promise<MerchantRow> =>
-      this.request<MerchantRow>(`/tickets/merchants/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(data),
-      }),
+      this.request<MerchantRow>(
+        scope.kind === 'event' ? `/tickets/merchants/${id}` : `/tickets/venue/stalls/${id}`,
+        { method: 'PATCH', body: JSON.stringify(data) },
+      ),
 
-    transactions: async (id: string, limit = 100): Promise<MerchantDetail> =>
-      this.request<MerchantDetail>(`/tickets/merchants/${id}/transactions?limit=${limit}`),
+    transactions: async (scope: StockScope, id: string, limit = 100): Promise<MerchantDetail> =>
+      this.request<MerchantDetail>(
+        `${scope.kind === 'event' ? `/tickets/merchants/${id}` : `/tickets/venue/stalls/${id}`}/transactions?limit=${limit}`,
+      ),
   };
 
   // MerchantOperators — the people who actually work a stall's till, each
   // with their own loginCode + PIN so a charge names a human (MANAGE_ACCESS;
   // ownership is enforced server-side off the stall's event, never the body).
   merchantOperators = {
-    list: async (merchantId: string): Promise<{ operators: MerchantOperatorRow[] }> =>
-      this.request<{ operators: MerchantOperatorRow[] }>(`/tickets/merchants/${merchantId}/operators`),
+    list: async (scope: StockScope, merchantId: string): Promise<{ operators: MerchantOperatorRow[] }> =>
+      this.request<{ operators: MerchantOperatorRow[] }>(
+        scope.kind === 'event'
+          ? `/tickets/merchants/${merchantId}/operators`
+          : `/tickets/venue/stalls/${merchantId}/operators`,
+      ),
 
     create: async (
+      scope: StockScope,
       merchantId: string,
       data: { fullName: string; phoneNumber?: string; grants?: OperatorGrant[] },
     ): Promise<IssuedMerchantOperatorCredentials> =>
-      this.request<IssuedMerchantOperatorCredentials>(`/tickets/merchants/${merchantId}/operators`, {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
+      this.request<IssuedMerchantOperatorCredentials>(
+        scope.kind === 'event'
+          ? `/tickets/merchants/${merchantId}/operators`
+          : `/tickets/venue/stalls/${merchantId}/operators`,
+        {
+          method: 'POST',
+          body: JSON.stringify(data),
+        },
+      ),
 
     update: async (
+      scope: StockScope,
       id: string,
       data: { fullName?: string; isActive?: boolean; grants?: OperatorGrant[] },
     ): Promise<{ operator: MerchantOperatorRow }> =>
-      this.request<{ operator: MerchantOperatorRow }>(`/tickets/merchant-operators/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(data),
-      }),
+      this.request<{ operator: MerchantOperatorRow }>(
+        scope.kind === 'event' ? `/tickets/merchant-operators/${id}` : `/tickets/venue/operators/${id}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify(data),
+        },
+      ),
 
-    resetPin: async (id: string): Promise<{ operatorId: string; pin: string }> =>
-      this.request<{ operatorId: string; pin: string }>(`/tickets/merchant-operators/${id}/reset-pin`, {
-        method: 'POST',
-      }),
+    resetPin: async (scope: StockScope, id: string): Promise<{ operatorId: string; pin: string }> =>
+      this.request<{ operatorId: string; pin: string }>(
+        scope.kind === 'event'
+          ? `/tickets/merchant-operators/${id}/reset-pin`
+          : `/tickets/venue/operators/${id}/reset-pin`,
+        {
+          method: 'POST',
+        },
+      ),
   };
 
   // Cashless STOCK management (Slices 1/3; MANAGE_STOCK, ownership server-side) —
-  // product catalogue + per-bar stock ops for ONE event.
+  // product catalogue + per-bar stock ops for ONE event or the vendor's venue.
   stock = {
-    listProducts: async (eventId: string): Promise<StockProductRow[]> =>
-      this.request<StockProductRow[]>(`/tickets/events/${eventId}/products`),
+    listProducts: async (scope: StockScope): Promise<StockProductRow[]> =>
+      this.request<StockProductRow[]>(`${stockBase(scope)}/products`),
 
-    createProduct: async (eventId: string, data: NewProduct): Promise<StockProductRow> =>
-      this.request<StockProductRow>(`/tickets/events/${eventId}/products`, {
+    createProduct: async (scope: StockScope, data: NewProduct): Promise<StockProductRow> =>
+      this.request<StockProductRow>(`${stockBase(scope)}/products`, {
         method: 'POST',
         body: JSON.stringify(data),
       }),
 
     updateProduct: async (
+      scope: StockScope,
       productId: string,
       data: UpdateProduct,
     ): Promise<StockProductRow> =>
-      this.request<StockProductRow>(`/tickets/products/${productId}`, {
-        method: 'PATCH',
-        body: JSON.stringify(data),
-      }),
+      this.request<StockProductRow>(
+        scope.kind === 'event' ? `/tickets/products/${productId}` : `/tickets/venue/products/${productId}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify(data),
+        },
+      ),
 
     receive: async (
-      eventId: string,
+      scope: StockScope,
       data: { merchantId: string; productId: string; quantity: number; unit: 'unit' | 'pack'; note?: string },
     ): Promise<{ onHand: number; movementId: string }> =>
-      this.request(`/tickets/events/${eventId}/stock/receive`, {
+      this.request(`${stockBase(scope)}/stock/receive`, {
         method: 'POST',
         body: JSON.stringify(data),
       }),
 
-    /** productId → the stalls that carry it. Every product at the event is a
+    /** productId → the stalls that carry it. Every product in the scope is a
      *  key; a product no stall carries maps to an empty array. */
-    getAllocations: async (eventId: string): Promise<{ allocations: Record<string, string[]> }> =>
+    getAllocations: async (scope: StockScope): Promise<{ allocations: Record<string, string[]> }> =>
       this.request<{ allocations: Record<string, string[]> }>(
-        `/tickets/events/${eventId}/stock/allocations`,
+        `${stockBase(scope)}/stock/allocations`,
       ),
 
     setAllocations: async (
-      eventId: string,
+      scope: StockScope,
       data: { productId: string; merchantIds: string[] },
     ): Promise<{ allocated: string[] }> =>
-      this.request<{ allocated: string[] }>(`/tickets/events/${eventId}/stock/allocations`, {
+      this.request<{ allocated: string[] }>(`${stockBase(scope)}/stock/allocations`, {
         method: 'PUT',
         body: JSON.stringify(data),
       }),
 
     transfer: async (
-      eventId: string,
+      scope: StockScope,
       data: { productId: string; fromMerchantId: string; toMerchantId: string; qty: number; note?: string },
     ): Promise<{ transferId: string; fromOnHand: number; toOnHand: number }> =>
-      this.request(`/tickets/events/${eventId}/stock/transfer`, {
+      this.request(`${stockBase(scope)}/stock/transfer`, {
         method: 'POST',
         body: JSON.stringify(data),
       }),
 
     recordCount: async (
-      eventId: string,
+      scope: StockScope,
       data: { merchantId: string; productId: string; countedOnHand: number; phase?: string },
     ): Promise<{ countId: string; expectedOnHand: number; countedOnHand: number; variance: number; onHand: number }> =>
-      this.request(`/tickets/events/${eventId}/stock/count`, {
+      this.request(`${stockBase(scope)}/stock/count`, {
         method: 'POST',
         body: JSON.stringify(data),
       }),
 
     setThreshold: async (
-      eventId: string,
+      scope: StockScope,
       data: { merchantId: string; productId: string; lowStockThreshold: number | null },
     ): Promise<{ merchantId: string; productId: string; lowStockThreshold: number | null }> =>
-      this.request(`/tickets/events/${eventId}/stock/threshold`, {
+      this.request(`${stockBase(scope)}/stock/threshold`, {
         method: 'PATCH',
         body: JSON.stringify(data),
       }),
+
+    board: async (scope: StockScope): Promise<StockBoard> =>
+      this.request<StockBoard>(`${stockBase(scope)}/stock/board`),
+
+    /** A venue may pass a range (ISO instants); an event reconciles from its doors and ignores it. */
+    reconciliation: async (scope: StockScope, range?: { from: string; to: string }): Promise<StockReconciliation> =>
+      this.request<StockReconciliation>(`${stockBase(scope)}/stock/reconciliation${rangeQuery(scope, range)}`),
+
+    /** The same reconciliation as a printable PDF — bytes, so it goes via `fetchPdf`. */
+    reconciliationPdf: async (scope: StockScope, range?: { from: string; to: string }): Promise<Blob> =>
+      this.fetchPdf(`${stockBase(scope)}/stock/reconciliation.pdf${rangeQuery(scope, range)}`, { method: 'GET' }),
+
+    dashboard: async (scope: StockScope): Promise<StockDashboard> =>
+      this.request<StockDashboard>(`${stockBase(scope)}/stock/dashboard`),
+
+    movements: async (
+      scope: StockScope,
+      params: { productId?: string; merchantId?: string; cursor?: string; limit?: number } = {},
+    ): Promise<StockMovementsPage> => {
+      const q = new URLSearchParams();
+      if (params.productId) q.set('productId', params.productId);
+      if (params.merchantId) q.set('merchantId', params.merchantId);
+      if (params.cursor) q.set('cursor', params.cursor);
+      if (params.limit) q.set('limit', String(params.limit));
+      const qs = q.toString();
+      return this.request<StockMovementsPage>(
+        `${stockBase(scope)}/stock/movements${qs ? `?${qs}` : ''}`,
+      );
+    },
+
+    uploadProductImage: async (scope: StockScope, file: File): Promise<string> => {
+      const formData = new FormData();
+      formData.append('image', file);
+
+      const token = this.getToken();
+      const uploadHeaders: Record<string, string> = {};
+      if (token) uploadHeaders['Authorization'] = `Bearer ${token}`;
+      if (APP_API_KEY) uploadHeaders['x-api-key'] = APP_API_KEY;
+      const response = await fetch(
+        `${this.baseUrl}${scope.kind === 'event' ? `/media/events/${scope.eventId}/product` : '/media/venue/product'}`,
+        {
+          method: 'POST',
+          headers: uploadHeaders,
+          body: formData,
+        },
+      );
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: 'Upload failed' }));
+        throw new Error(error.message || 'Failed to upload product image');
+      }
+
+      const data = await response.json();
+      return data.data.media.url;
+    },
   };
 
   // Event Menu (MANAGE_MENU, ownership server-side) — bar/vendor preorder
@@ -2729,7 +2773,9 @@ export interface MerchantChargeTxn {
 
 export interface MerchantDetail {
   merchant: MerchantRow;
-  event: { id: string; name: string };
+  /** Exactly one: the stall's event, or its venue. */
+  event?: { id: string; name: string };
+  venue?: { id: string; name: string };
   transactions: MerchantChargeTxn[];
   summary: { totalCharged: number; totalNet: number; totalFee: number; count: number };
 }

@@ -65,11 +65,8 @@ vi.mock('@/lib/api', () => ({
       updateProduct: (...a: unknown[]) => updateProduct(...(a as [])),
       recordCount: (...a: unknown[]) => recordCount(...(a as [])),
       setAllocations: (...a: unknown[]) => setAllocations(...(a as [])),
-    },
-    merchants: { list: vi.fn(async () => [{ _id: 'm1', name: 'Main Bar' }]) },
-    events: {
-      getEventStockBoard: vi.fn(async () => BOARD),
-      getEventStockMovements: vi.fn(async () => ({
+      board: vi.fn(async () => BOARD),
+      movements: vi.fn(async () => ({
         movements: [{
           id: 'mv1', at: '2026-09-05T10:00:00.000Z',
           merchantId: 'm1', merchantName: 'Main Bar',
@@ -83,6 +80,7 @@ vi.mock('@/lib/api', () => ({
         hasMore: false,
       })),
     },
+    merchants: { list: vi.fn(async () => [{ _id: 'm1', name: 'Main Bar' }]) },
   },
 }));
 
@@ -97,7 +95,7 @@ function renderPanel(url = '/events/e1?tab=cashless&sub=catalogue') {
   render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[url]}>
-        <EventCataloguePanel eventId="e1" />
+        <EventCataloguePanel scope={{ kind: 'event', eventId: 'e1' }} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -118,7 +116,7 @@ describe('inline price editing on the catalogue list', () => {
     fireEvent.change(input, { target: { value: '30.00' } });
     fireEvent.keyDown(input, { key: 'Enter' });
 
-    await waitFor(() => expect(updateProduct).toHaveBeenCalledWith('p1', { price: 3000 }));
+    await waitFor(() => expect(updateProduct).toHaveBeenCalledWith({ kind: 'event', eventId: 'e1' }, 'p1', { price: 3000 }));
   });
 });
 
@@ -136,7 +134,7 @@ describe('inline stock editing on the stock levels list', () => {
     fireEvent.change(input, { target: { value: '80' } });
     fireEvent.keyDown(input, { key: 'Enter' });
 
-    await waitFor(() => expect(recordCount).toHaveBeenCalledWith('e1', {
+    await waitFor(() => expect(recordCount).toHaveBeenCalledWith({ kind: 'event', eventId: 'e1' }, {
       merchantId: 'm1', productId: 'p1', countedOnHand: 80,
     }));
   });
@@ -170,10 +168,10 @@ describe('a product switched off in the catalogue but still holding stock', () =
 
     // The write-off goes through a count so the 40 units land in the journal
     // as a variance rather than vanishing.
-    await waitFor(() => expect(recordCount).toHaveBeenCalledWith('e1', {
+    await waitFor(() => expect(recordCount).toHaveBeenCalledWith({ kind: 'event', eventId: 'e1' }, {
       merchantId: 'm1', productId: 'p2', countedOnHand: 0,
     }));
-    await waitFor(() => expect(setAllocations).toHaveBeenCalledWith('e1', {
+    await waitFor(() => expect(setAllocations).toHaveBeenCalledWith({ kind: 'event', eventId: 'e1' }, {
       productId: 'p2', merchantIds: [],
     }));
   });

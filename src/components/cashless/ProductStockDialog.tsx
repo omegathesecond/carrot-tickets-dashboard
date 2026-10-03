@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiClient, type StockProductRow, type StockMovementRow } from '@/lib/api';
-import { fmtR } from '@/lib/money';
+import { fmtCents } from '@/lib/money';
+import type { Currency } from '@/lib/currency';
+import { scopeKey, type StockScope } from '@/lib/stockScope';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -34,16 +36,17 @@ const REASON_LABEL: Record<string, string> = {
  * every change already, so this reads the audit trail that always existed.
  */
 export function ProductStockDialog({
-  eventId, product, levels, onClose,
+  scope, currency = 'ZAR', product, levels, onClose,
 }: {
-  eventId: string;
+  scope: StockScope;
+  currency?: Currency;
   product: StockProductRow | null;
   levels: StallLevel[];
   onClose: () => void;
 }) {
   const { data, isLoading } = useQuery({
-    queryKey: ['stock-movements', eventId, product?._id],
-    queryFn: () => apiClient.events.getEventStockMovements(eventId, { productId: product!._id, limit: 50 }),
+    queryKey: ['stock-movements', scopeKey(scope), product?._id],
+    queryFn: () => apiClient.stock.movements(scope, { productId: product!._id, limit: 50 }),
     enabled: !!product,
   });
   const movements: StockMovementRow[] = data?.movements ?? [];
@@ -55,7 +58,7 @@ export function ProductStockDialog({
         <DialogHeader><DialogTitle>{product?.name}</DialogTitle></DialogHeader>
 
         <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
-          <span><span className="text-muted-foreground">Price </span><span className="font-semibold">{product ? fmtR(product.price) : '—'}</span></span>
+          <span><span className="text-muted-foreground">Price </span><span className="font-semibold">{product ? fmtCents(product.price, currency) : '—'}</span></span>
           <span><span className="text-muted-foreground">On hand </span><span className="font-semibold tabular-nums">{totalOnHand}</span></span>
           {product?.active === false && (
             <span className="rounded bg-gray-200 px-1.5 py-0.5 text-[11px] font-medium text-gray-700">Inactive</span>

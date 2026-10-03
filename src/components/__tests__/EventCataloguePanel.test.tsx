@@ -49,9 +49,8 @@ const BOARD = {
 vi.mock('@/lib/api', () => ({
   PRODUCT_CATEGORIES: [{ value: 'beer', label: 'Beer' }],
   apiClient: {
-    stock: { listProducts: vi.fn(async () => [PRODUCT]) },
+    stock: { listProducts: vi.fn(async () => [PRODUCT]), board: vi.fn(async () => BOARD) },
     merchants: { list: vi.fn(async () => [{ _id: 'm1', name: 'Main Bar' }]) },
-    events: { getEventStockBoard: vi.fn(async () => BOARD) },
   },
 }));
 
@@ -70,7 +69,7 @@ function renderPanel(url = '/events/e1?tab=cashless&sub=catalogue') {
   render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[url]}>
-        <EventCataloguePanel eventId="e1" />
+        <EventCataloguePanel scope={{ kind: 'event', eventId: 'e1' }} />
       </MemoryRouter>
     </QueryClientProvider>,
   );

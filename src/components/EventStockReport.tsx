@@ -3,19 +3,25 @@ import { useQuery } from '@tanstack/react-query';
 import { Loader2, ChevronRight, ChevronDown, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiClient, type StockStatus, type StockMovementRow } from '@/lib/api';
-import { fmtR } from '@/lib/money';
+import { fmtCents } from '@/lib/money';
+import type { Currency } from '@/lib/currency';
+import { scopeKey, type StockScope } from '@/lib/stockScope';
 import { saveBlob } from '@/lib/ticketDownloads';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 /**
- * The organiser's STOCK report for one cashless event (Slice 6 / parent §9) —
+ * The organiser's STOCK report for one cashless event (Slice 6 / parent §9) or
+ * the vendor's venue —
  * the stock dashboard, reconciliation and a movements log, one per tab. All
  * read-only, each section its own query so one failing section never blanks the
- * rest. Money is ZAR cents (fmtR); stock is whole base units.
+ * rest. Money is integer cents in the `currency` shown (default ZAR, via
+ * fmtCents); stock is whole base units.
  *
  * Tabbed rather than stacked: these are three different questions (how did it
  * sell, does the count add up, who moved what), and stacking them put the
@@ -27,7 +33,7 @@ import { Button } from '@/components/ui/button';
  * In stock / Sales / Status per stall, and the Catalogue carries On hand —
  * so it cost a query to repeat columns rendered twice over already.
  */
-export function EventStockReport({ eventId }: { eventId: string }) {
+export function EventStockReport({ scope, currency = 'ZAR' }: { scope: StockScope; currency?: Currency }) {
   return (
     <Tabs defaultValue="stock" className="space-y-4">
       <TabsList>
@@ -37,13 +43,13 @@ export function EventStockReport({ eventId }: { eventId: string }) {
       </TabsList>
 
       <TabsContent value="stock">
-        <DashboardSection eventId={eventId} />
+        <DashboardSection scope={scope} currency={currency} />
       </TabsContent>
       <TabsContent value="reconciliation">
-        <ReconciliationSection eventId={eventId} />
+        <ReconciliationSection scope={scope} />
       </TabsContent>
       <TabsContent value="movements">
-        <MovementsSection eventId={eventId} />
+        <MovementsSection scope={scope} />
       </TabsContent>
     </Tabs>
   );
@@ -70,10 +76,10 @@ function SectionState({ loading, error, empty, emptyText, children }: {
 }
 
 // ---------------------------------------------------------------- dashboard
-function DashboardSection({ eventId }: { eventId: string }) {
+function DashboardSection({ scope, currency }: { scope: StockScope; currency: Currency }) {
   const { data, isLoading, error } = useQuery({
-    queryKey: ['event-stock-dashboard', eventId],
-    queryFn: () => apiClient.events.getEventStockDashboard(eventId),
+    queryKey: ['event-stock-dashboard', scopeKey(scope)],
+    queryFn: () => apiClient.stock.dashboard(scope),
     retry: false,
   });
 
@@ -92,26 +98,26 @@ function DashboardSection({ eventId }: { eventId: string }) {
               <div>
                 <div className="flex justify-between text-sm mb-1">
                   <span className="text-muted-foreground">Itemised vs un-itemised revenue</span>
-                  <span className="font-semibold">{fmtR(totalRevenue)}</span>
+                  <span className="font-semibold">{fmtCents(totalRevenue, currency)}</span>
                 </div>
                 <div className="flex h-3 rounded-full overflow-hidden bg-slate-100">
-                  <div className="bg-orange-500" style={{ width: `${itemisedPct}%` }} title={`Itemised ${fmtR(data.itemisedSplit.itemised.gross)}`} />
-                  <div className="bg-slate-400" style={{ width: `${100 - itemisedPct}%` }} title={`Un-itemised ${fmtR(data.itemisedSplit.unitemised.gross)}`} />
+                  <div className="bg-orange-500" style={{ width: `${itemisedPct}%` }} title={`Itemised ${fmtCents(data.itemisedSplit.itemised.gross, currency)}`} />
+                  <div className="bg-slate-400" style={{ width: `${100 - itemisedPct}%` }} title={`Un-itemised ${fmtCents(data.itemisedSplit.unitemised.gross, currency)}`} />
                 </div>
                 <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                  <span>Itemised {fmtR(data.itemisedSplit.itemised.gross)} ({itemisedPct}%)</span>
-                  <span>Un-itemised {fmtR(data.itemisedSplit.unitemised.gross)}</span>
+                  <span>Itemised {fmtCents(data.itemisedSplit.itemised.gross, currency)} ({itemisedPct}%)</span>
+                  <span>Un-itemised {fmtCents(data.itemisedSplit.unitemised.gross, currency)}</span>
                 </div>
               </div>
 
               {/* Best sellers */}
-              <TwoColTable title="Best sellers" rows={data.bestSellers.map((p) => ({ k: p.productId, label: p.productName, right: `${p.units} · ${fmtR(p.revenue)}` }))} emptyText="No itemised sales yet." />
+              <TwoColTable title="Best sellers" rows={data.bestSellers.map((p) => ({ k: p.productId, label: p.productName, right: `${p.units} · ${fmtCents(p.revenue, currency)}` }))} emptyText="No itemised sales yet." />
 
               {/* Sales by stall */}
-              <TwoColTable title="Sales by stall" rows={data.salesByBar.map((b) => ({ k: b.merchantId, label: b.merchantName, right: `${fmtR(b.gross)} · ${b.count}` }))} emptyText="No charges yet." />
+              <TwoColTable title="Sales by stall" rows={data.salesByBar.map((b) => ({ k: b.merchantId, label: b.merchantName, right: `${fmtCents(b.gross, currency)} · ${b.count}` }))} emptyText="No charges yet." />
 
               {/* Sales by employee */}
-              <TwoColTable title="Sales by till" rows={data.salesByEmployee.map((e, i) => ({ k: `${e.staffName ?? 'none'}-${i}`, label: e.label, right: `${fmtR(e.gross)} · ${e.count}` }))} emptyText="No charges yet." />
+              <TwoColTable title="Sales by till" rows={data.salesByEmployee.map((e, i) => ({ k: `${e.staffName ?? 'none'}-${i}`, label: e.label, right: `${fmtCents(e.gross, currency)} · ${e.count}` }))} emptyText="No charges yet." />
 
               {/* Peak times */}
               <div>
@@ -196,10 +202,24 @@ function fmtMinutes(mins: number): string {
 }
 
 // ---------------------------------------------------------------- reconciliation
-function ReconciliationSection({ eventId }: { eventId: string }) {
+/** Inclusive local days → the API's [from, to) instants (Eswatini is UTC+2, no DST). */
+function dayRange(fromDay: string, toDay: string): { from: string; to: string } {
+  const next = new Date(`${toDay}T00:00:00+02:00`);
+  next.setUTCDate(next.getUTCDate() + 1);
+  const nextDay = next.toLocaleDateString('en-CA', { timeZone: 'Africa/Mbabane' });
+  return { from: `${fromDay}T00:00:00+02:00`, to: `${nextDay}T00:00:00+02:00` };
+}
+
+function ReconciliationSection({ scope }: { scope: StockScope }) {
+  // Venue reports are by day (Eswatini, UTC+2): an inclusive From–To date pair.
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Mbabane' });
+  const [fromDay, setFromDay] = useState(today);
+  const [toDay, setToDay] = useState(today);
+  const range = scope.kind === 'venue' ? dayRange(fromDay, toDay) : undefined;
+
   const { data, isLoading, error } = useQuery({
-    queryKey: ['event-stock-recon', eventId],
-    queryFn: () => apiClient.events.getEventStockReconciliation(eventId),
+    queryKey: ['event-stock-recon', scopeKey(scope), range?.from, range?.to],
+    queryFn: () => apiClient.stock.reconciliation(scope, range),
     retry: false,
   });
   const num = (n: number | null) => (n == null ? '—' : n);
@@ -213,7 +233,7 @@ function ReconciliationSection({ eventId }: { eventId: string }) {
   const handleDownload = async () => {
     setDownloading(true);
     try {
-      const blob = await apiClient.events.getEventStockReconciliationPdf(eventId);
+      const blob = await apiClient.stock.reconciliationPdf(scope, range);
       // The server puts the real filename in Content-Disposition, which a
       // programmatic save cannot read — so rebuild the same shape from the
       // event name the report already returned, and fall back to the date
@@ -240,6 +260,18 @@ function ReconciliationSection({ eventId }: { eventId: string }) {
         </Button>
       </CardHeader>
       <CardContent>
+        {scope.kind === 'venue' && (
+          <div className="flex flex-wrap items-end gap-3 pb-4">
+            <div className="space-y-1">
+              <Label htmlFor="recon-from">From</Label>
+              <Input id="recon-from" type="date" value={fromDay} max={toDay} onChange={(e) => setFromDay(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="recon-to">To</Label>
+              <Input id="recon-to" type="date" value={toDay} min={fromDay} onChange={(e) => setToDay(e.target.value)} />
+            </div>
+          </div>
+        )}
         <SectionState loading={isLoading} error={!!error} empty={!data || data.byProduct.length === 0} emptyText="No stock movements yet.">
           <div className="overflow-x-auto">
             <Table>
@@ -307,16 +339,16 @@ const fmtTime = (iso: string) => {
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('en-ZA', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 };
 
-function MovementsSection({ eventId }: { eventId: string }) {
+function MovementsSection({ scope }: { scope: StockScope }) {
   const [pages, setPages] = useState<StockMovementRow[]>([]);
   const [cursor, setCursor] = useState<string | undefined>(undefined);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
 
   const { isLoading, error } = useQuery({
-    queryKey: ['event-stock-movements', eventId],
+    queryKey: ['event-stock-movements', scopeKey(scope)],
     queryFn: async () => {
-      const res = await apiClient.events.getEventStockMovements(eventId, { limit: 50 });
+      const res = await apiClient.stock.movements(scope, { limit: 50 });
       setPages(res.movements);
       setCursor(res.nextCursor ?? undefined);
       setHasMore(res.hasMore);
@@ -334,7 +366,7 @@ function MovementsSection({ eventId }: { eventId: string }) {
     if (!cursor) return;
     setLoadingMore(true);
     try {
-      const res = await apiClient.events.getEventStockMovements(eventId, { limit: 50, cursor });
+      const res = await apiClient.stock.movements(scope, { limit: 50, cursor });
       setPages((p) => [...p, ...res.movements]);
       setCursor(res.nextCursor ?? undefined);
       setHasMore(res.hasMore);

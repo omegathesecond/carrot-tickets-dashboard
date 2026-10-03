@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { OperatorCredentialsDialog } from '@/components/OperatorCredentialsDialog';
 import { OperatorGrantsField } from '@/components/OperatorGrantsField';
+import type { StockScope } from '@/lib/stockScope';
 
 type Credentials = { title: string; loginCode?: string; pin: string };
 
@@ -15,11 +16,12 @@ type Credentials = { title: string; loginCode?: string; pin: string };
  * The people who work ONE stall's till — each with their own login code +
  * PIN, so a charge names a human instead of the stall. The stall itself
  * (Merchant) holds no credentials any more; this panel is where they live.
- * Mounted on the stall detail page (/events/:id/stalls/:merchantId), which
+ * Mounted on the stall detail page (/events/:id/stalls/:merchantId, or
+ * /venue/stalls/:merchantId for a venue), which
  * already loads under MANAGE_ACCESS, so no separate permission gate is
  * needed here.
  */
-export function StallOperatorsPanel({ merchantId, stallName }: { merchantId: string; stallName: string }) {
+export function StallOperatorsPanel({ scope, merchantId, stallName }: { scope: StockScope; merchantId: string; stallName: string }) {
   const qc = useQueryClient();
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState<{ fullName: string; phoneNumber: string; grants: OperatorGrant[] }>(
@@ -29,13 +31,13 @@ export function StallOperatorsPanel({ merchantId, stallName }: { merchantId: str
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['merchantOperators', merchantId],
-    queryFn: () => apiClient.merchantOperators.list(merchantId),
+    queryFn: () => apiClient.merchantOperators.list(scope, merchantId),
   });
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['merchantOperators', merchantId] });
 
   const create = useMutation({
-    mutationFn: () => apiClient.merchantOperators.create(merchantId, {
+    mutationFn: () => apiClient.merchantOperators.create(scope, merchantId, {
       fullName: form.fullName.trim(),
       ...(form.phoneNumber.trim() ? { phoneNumber: form.phoneNumber.trim() } : {}),
       grants: form.grants,
@@ -50,21 +52,21 @@ export function StallOperatorsPanel({ merchantId, stallName }: { merchantId: str
   });
 
   const resetPin = useMutation({
-    mutationFn: (id: string) => apiClient.merchantOperators.resetPin(id),
+    mutationFn: (id: string) => apiClient.merchantOperators.resetPin(scope, id),
     onSuccess: (res) => setCredentials({ title: 'New PIN', pin: res.pin }),
     onError: (e: Error) => toast.error(e.message || 'Failed to reset PIN'),
   });
 
   const setActive = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
-      apiClient.merchantOperators.update(id, { isActive }),
+      apiClient.merchantOperators.update(scope, id, { isActive }),
     onSuccess: invalidate,
     onError: (e: Error) => toast.error(e.message || 'Failed to update person'),
   });
 
   const setGrants = useMutation({
     mutationFn: ({ id, grants }: { id: string; grants: OperatorGrant[] }) =>
-      apiClient.merchantOperators.update(id, { grants }),
+      apiClient.merchantOperators.update(scope, id, { grants }),
     onSuccess: invalidate,
     onError: (e: Error) => toast.error(e.message || 'Failed to update person'),
   });

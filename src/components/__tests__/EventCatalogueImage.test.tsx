@@ -20,7 +20,7 @@ const listProducts = vi.fn();
 const createProduct = vi.fn();
 const updateProduct = vi.fn();
 const listMerchants = vi.fn();
-const getEventStockBoard = vi.fn();
+const stockBoard = vi.fn();
 const uploadProductImage = vi.fn();
 const getAllocations = vi.fn();
 const setAllocations = vi.fn();
@@ -36,15 +36,12 @@ vi.mock('@/lib/api', async (importOriginal) => {
         updateProduct: (...a: unknown[]) => updateProduct(...a),
         getAllocations: (...a: unknown[]) => getAllocations(...a),
         setAllocations: (...a: unknown[]) => setAllocations(...a),
-      },
-      merchants: { list: (...a: unknown[]) => listMerchants(...a) },
-      events: {
-        getEventStockBoard: (...a: unknown[]) => getEventStockBoard(...a),
-        // The endpoint under test: mirrors uploadMenuItemImage's shape one
-        // level up, against apiClient.events (Task 3's convention for every
-        // media-upload method, not just menu items).
+        board: (...a: unknown[]) => stockBoard(...a),
+        // The endpoint under test: mirrors uploadMenuItemImage's shape, but
+        // lives on apiClient.stock because it is scope-aware (event or venue).
         uploadProductImage: (...a: unknown[]) => uploadProductImage(...a),
       },
+      merchants: { list: (...a: unknown[]) => listMerchants(...a) },
     },
   };
 });
@@ -79,7 +76,7 @@ beforeEach(() => {
   listMerchants.mockResolvedValue([STALL]);
   getAllocations.mockResolvedValue({ allocations: {} });
   setAllocations.mockResolvedValue({ allocated: [] });
-  getEventStockBoard.mockResolvedValue({
+  stockBoard.mockResolvedValue({
     event: { id: 'e1', name: 'Cashless Tap Test' },
     perBar: [],
     byProduct: [],
@@ -93,7 +90,7 @@ async function renderCataloguePanel() {
   render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={['/events/e1?tab=cashless&sub=catalogue&view=catalogue']}>
-        <EventCataloguePanel eventId="e1" />
+        <EventCataloguePanel scope={{ kind: 'event', eventId: 'e1' }} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -193,7 +190,7 @@ describe('EventCataloguePanel product image', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: /save changes/i }));
 
     await waitFor(() =>
-      expect(updateProduct).toHaveBeenCalledWith('p1', expect.objectContaining({ imageUrl: null })),
+      expect(updateProduct).toHaveBeenCalledWith({ kind: 'event', eventId: 'e1' }, 'p1', expect.objectContaining({ imageUrl: null })),
     );
   });
 });
