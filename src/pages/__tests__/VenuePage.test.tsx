@@ -1,12 +1,15 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { AuthUser } from '@/types';
 
 let currentUser: AuthUser | null = { _id: 'v1' } as AuthUser;
 vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: currentUser }) }));
 vi.mock('@/lib/api', () => ({ apiClient: { venue: { mine: vi.fn() } } }));
+vi.mock('@/components/cashless/EventStallsPanel', () => ({ EventStallsPanel: () => <div>stalls-panel</div> }));
+vi.mock('@/components/cashless/EventCataloguePanel', () => ({ EventCataloguePanel: () => <div>catalogue-panel</div> }));
 
 import { apiClient } from '@/lib/api';
 import { VenuePage } from '@/pages/VenuePage';
@@ -15,7 +18,7 @@ const mine = () => apiClient.venue.mine as any;
 
 function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(<QueryClientProvider client={qc}><VenuePage /></QueryClientProvider>);
+  return render(<QueryClientProvider client={qc}><MemoryRouter><VenuePage /></MemoryRouter></QueryClientProvider>);
 }
 
 beforeEach(() => {

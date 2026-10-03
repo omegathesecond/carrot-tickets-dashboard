@@ -39,6 +39,11 @@ export function StallDetailPage() {
   });
   // The stall belongs to an event or a venue — the API names whichever it is.
   const ownerName = data?.event?.name ?? data?.venue?.name;
+  // Commission is an event-stall concept: Carrot takes it off a stall that
+  // belongs to someone else's event. A venue's own stalls never carry one (the
+  // API stores 0), so none of its figures — the percentage, the fee, or the
+  // net-of-fee amounts — belong on a venue stall's page.
+  const showCommission = scope.kind === 'event';
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -60,8 +65,7 @@ export function StallDetailPage() {
               <div>
                 <h1 className="text-2xl font-bold text-slate-900">{data.merchant.name}</h1>
                 <p className="text-sm text-slate-500 mt-0.5">
-                  {data.merchant.commissionPercent}% commission
-                  {ownerName ? ` · ${ownerName}` : ''}
+                  {[showCommission ? `${data.merchant.commissionPercent}% commission` : null, ownerName].filter(Boolean).join(' · ')}
                 </p>
               </div>
               <Badge variant={data.merchant.status === 'active' ? 'default' : 'secondary'}>
@@ -69,19 +73,23 @@ export function StallDetailPage() {
               </Badge>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className={showCommission ? 'grid grid-cols-2 sm:grid-cols-4 gap-4' : 'grid grid-cols-2 gap-4'}>
               <Card><CardContent className="pt-6">
                 <div className="text-xs font-medium text-slate-500">Charged</div>
                 <div className="text-2xl font-bold mt-1">{fmtR(data.summary.totalCharged)}</div>
               </CardContent></Card>
-              <Card><CardContent className="pt-6">
-                <div className="text-xs font-medium text-green-600">Net owed</div>
-                <div className="text-2xl font-bold mt-1">{fmtR(data.summary.totalNet)}</div>
-              </CardContent></Card>
-              <Card><CardContent className="pt-6">
-                <div className="text-xs font-medium text-slate-500">Commission</div>
-                <div className="text-2xl font-bold mt-1">{fmtR(data.summary.totalFee)}</div>
-              </CardContent></Card>
+              {showCommission && (
+                <>
+                  <Card><CardContent className="pt-6">
+                    <div className="text-xs font-medium text-green-600">Net owed</div>
+                    <div className="text-2xl font-bold mt-1">{fmtR(data.summary.totalNet)}</div>
+                  </CardContent></Card>
+                  <Card><CardContent className="pt-6">
+                    <div className="text-xs font-medium text-slate-500">Commission</div>
+                    <div className="text-2xl font-bold mt-1">{fmtR(data.summary.totalFee)}</div>
+                  </CardContent></Card>
+                </>
+              )}
               <Card><CardContent className="pt-6">
                 <div className="text-xs font-medium text-slate-500">Charges</div>
                 <div className="text-2xl font-bold mt-1">{data.summary.count}</div>
@@ -117,7 +125,8 @@ export function StallDetailPage() {
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-slate-900">{fmtR(t.amount)}</p>
                           <p className="text-xs text-slate-500">
-                            Net {fmtR(t.netAmount)}{t.fee > 0 ? ` · Fee ${fmtR(t.fee)}` : ''} · {bandRef(t.bandUid)} · {fmtTime(t.createdAt)}
+                            {showCommission ? `Net ${fmtR(t.netAmount)}${t.fee > 0 ? ` · Fee ${fmtR(t.fee)}` : ''} · ` : null}
+                            {bandRef(t.bandUid)} · {fmtTime(t.createdAt)}
                           </p>
                         </div>
                         <Badge variant="secondary" className="bg-green-100 text-green-800">{t.status || 'completed'}</Badge>

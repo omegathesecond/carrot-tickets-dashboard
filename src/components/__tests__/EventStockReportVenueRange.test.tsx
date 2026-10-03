@@ -113,6 +113,21 @@ describe('EventStockReport reconciliation range', () => {
     await waitFor(() => expect(saveBlob).toHaveBeenCalled());
   });
 
+  it('a venue PDF is named after the venue, whose response carries venue in place of event', async () => {
+    renderReport({ kind: 'venue' }, 'SZL');
+    const { event: _event, ...eventless } = RECON;
+    (apiClient.stock.reconciliation as any).mockResolvedValue({ ...eventless, venue: { id: 'ven1', name: 'Kwa-Linda Lounge' } });
+    openReconciliation();
+    // Wait for the table, so the venue name the filename is built from has
+    // arrived — clicking before it does fall back to a date-only name.
+    await screen.findByText('Castle Lite');
+
+    fireEvent.click(screen.getByRole('button', { name: /download pdf/i }));
+
+    await waitFor(() => expect(saveBlob).toHaveBeenCalled());
+    expect(String(saveBlob.mock.calls[0]![1])).toMatch(/^stock-reconciliation-Kwa-Linda-Lounge-\d{4}-\d{2}-\d{2}\.pdf$/);
+  });
+
   it('a range crossing a month end rolls the exclusive upper bound to the next month', async () => {
     renderReport({ kind: 'venue' }, 'SZL');
     openReconciliation();

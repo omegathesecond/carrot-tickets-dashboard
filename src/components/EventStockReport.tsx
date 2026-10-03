@@ -236,9 +236,9 @@ function ReconciliationSection({ scope }: { scope: StockScope }) {
       const blob = await apiClient.stock.reconciliationPdf(scope, range);
       // The server puts the real filename in Content-Disposition, which a
       // programmatic save cannot read — so rebuild the same shape from the
-      // event name the report already returned, and fall back to the date
+      // event (or venue) name the report already returned, and fall back to the date
       // alone if the report has not loaded.
-      const slug = (data?.event?.name ?? '').replace(/[^a-zA-Z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+      const slug = (data?.event?.name ?? data?.venue?.name ?? '').replace(/[^a-zA-Z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
       const date = new Date().toISOString().slice(0, 10);
       saveBlob(blob, `stock-reconciliation-${slug ? `${slug}-` : ''}${date}.pdf`);
     } catch (err) {

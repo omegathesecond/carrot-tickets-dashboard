@@ -108,6 +108,7 @@ function App() {
                   <Route path="gate-operators/:id" element={<GateOperatorDetailPage />} />
                   <Route path="get-pos-app" element={<GetPosAppPage />} />
                   <Route path="venue" element={<VenuePage />} />
+                  <Route path="venue/stalls/:merchantId" element={<StallDetailPage />} />
                   <Route path="cashiers" element={<CashiersPage />} />
                   <Route path="cashiers/:id" element={<CashierDetailPage />} />
                   <Route path="events/:id/stalls/:merchantId" element={<StallDetailPage />} />

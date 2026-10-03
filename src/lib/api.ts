@@ -2692,7 +2692,9 @@ export interface StockBoardProductRow {
   status: StockStatus;
 }
 export interface StockBoard {
-  event: { id: string; name: string };
+  /** Exactly one: the event, or the venue. */
+  event?: { id: string; name: string };
+  venue?: { id: string; name: string };
   perBar: StockBoardBarRow[];
   byProduct: StockBoardProductRow[];
 }
@@ -2715,14 +2717,18 @@ export interface ReconRow {
   variance: number | null;
 }
 export interface StockReconciliation {
-  event: { id: string; name: string };
+  /** Exactly one: the event, or the venue. */
+  event?: { id: string; name: string };
+  venue?: { id: string; name: string };
   perBar: ReconRow[];
   byProduct: ReconRow[];
   total: Omit<ReconRow, 'merchantId' | 'merchantName' | 'productId' | 'productName'>;
 }
 
 export interface StockDashboard {
-  event: { id: string; name: string };
+  /** Exactly one: the event, or the venue. */
+  event?: { id: string; name: string };
+  venue?: { id: string; name: string };
   revenueByProduct: { productId: string; productName: string; revenue: number; units: number }[];
   bestSellers: { productId: string; productName: string; revenue: number; units: number }[];
   salesByBar: { merchantId: string; merchantName: string; gross: number; fee: number; net: number; count: number }[];
