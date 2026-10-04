@@ -1,17 +1,23 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { Building2, BadgeCheck, Clock3, Ban } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api';
-import type { CreateOrganizerData, Organizer, OrganizerVerificationStatus, VenueStatus } from '@/types';
+import type {
+  CreateOrganizerData,
+  Organizer,
+  OrganizerSort,
+  OrganizerVenueTrading,
+  OrganizerVerificationStatus,
+  VenueStatus,
+} from '@/types';
 import { currencyLabel, type Currency } from '@/lib/currency';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { StatsCard } from '@/components/ui/stats-card';
 import {
   Dialog,
@@ -21,50 +27,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { formatCurrency } from '@/lib/chartColors';
 import { TablePagination } from '@/components/TablePagination';
+import { OrganizerFilters } from '@/components/organizers/OrganizerFilters';
+import { OrganizerTypeTabs } from '@/components/organizers/OrganizerTypeTabs';
+import { OrganizersTable } from '@/components/organizers/OrganizersTable';
+import type { OrganizerRowActions } from '@/components/organizers/OrganizerActionsMenu';
+import { parseOrganizerTab, type OrganizerTab } from '@/components/organizers/organizerModel';
 
 const PAGE_SIZE = 25;
-
-const STATUS_FILTERS: { value: '' | OrganizerVerificationStatus; label: string }[] = [
-  { value: '', label: 'All' },
-  { value: 'pending', label: 'Pending' },
-  { value: 'verified', label: 'Verified' },
-  { value: 'rejected', label: 'Rejected' },
-  { value: 'suspended', label: 'Suspended' },
-];
-
-const STATUS_BADGE: Record<OrganizerVerificationStatus, string> = {
-  pending: 'bg-amber-100 text-amber-800 border-amber-200',
-  verified: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-  rejected: 'bg-red-100 text-red-800 border-red-200',
-  suspended: 'bg-slate-200 text-slate-700 border-slate-300',
-};
-
-// Vendor "type" filter for the directory. 'events' covers organizers whose
-// operatorType is events/transport/both (i.e. everything that isn't a
-// service business) — the API doesn't take a combined param for that, so we
-// pass no operatorType and filter services out client-side instead.
-type TypeFilterValue = '' | 'events' | 'services';
-
-const TYPE_FILTERS: { value: TypeFilterValue; label: string }[] = [
-  { value: '', label: 'All types' },
-  { value: 'events', label: 'Event organizers' },
-  { value: 'services', label: 'Service businesses' },
-];
-
-function humanize(value: string): string {
-  return value
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 const OPERATOR_TYPES: { value: CreateOrganizerData['operatorType']; label: string }[] = [
   { value: 'events', label: 'Event Organizer' },
@@ -81,24 +51,30 @@ const EMPTY_CREATE_FORM: CreateOrganizerData = {
   primaryContact: '',
 };
 
-// A services or transport account never holds the venue permission, so the API
-// refuses to switch venue trading on for one (409) — don't offer it. Accounts
-// that already have a venue keep their suspend / reactivate actions regardless.
-const NO_VENUE_OPERATOR_TYPES = ['services', 'transport'];
-const canSwitchOnVenue = (o: Organizer) => !NO_VENUE_OPERATOR_TYPES.includes(o.operatorType ?? '');
-
-function formatDate(value: string | null): string {
-  if (!value) return '—';
-  return new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-}
-
 export function OrganizersPage() {
   const qc = useQueryClient();
+  // The open tab lives in ?type= so a refresh or a shared link keeps it.
+  const [params, setParams] = useSearchParams();
+  const tab = parseOrganizerTab(params.get('type'));
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<'' | OrganizerVerificationStatus>('');
-  const [typeFilter, setTypeFilter] = useState<TypeFilterValue>('');
+  const [sort, setSort] = useState<OrganizerSort>('newest');
+  const [venueTrading, setVenueTrading] = useState<'' | OrganizerVenueTrading>('');
+  const [category, setCategory] = useState('');
   const [page, setPage] = useState(1);
+
+  // Venue trading and Category only exist on one tab each (the API refuses
+  // them anywhere else), so a tab change — click, back/forward or a pasted
+  // link — clears both and goes back to page 1. Reset during render, before
+  // any query is built from the stale values.
+  const [filtersTab, setFiltersTab] = useState<OrganizerTab>(tab);
+  if (filtersTab !== tab) {
+    setFiltersTab(tab);
+    setVenueTrading('');
+    setCategory('');
+    setPage(1);
+  }
 
   // "Reject / suspend needs a reason" dialog state.
   const [reasonTarget, setReasonTarget] = useState<{ organizer: Organizer; status: OrganizerVerificationStatus } | null>(null);
@@ -123,18 +99,32 @@ export function OrganizersPage() {
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['organizers', search, status, typeFilter, page],
+  // Every filter is applied by the server.
+  const { data, isLoading, isPlaceholderData, isError, error, refetch, isFetching } = useQuery({
+    queryKey: ['organizers', tab, search, status, venueTrading, category, sort, page],
     queryFn: () =>
       apiClient.organizers.list({
         search,
         status: status || undefined,
-        operatorType: typeFilter === 'services' ? 'services' : undefined,
+        type: tab === 'all' ? undefined : tab,
+        venueTrading: venueTrading || undefined,
+        category: category || undefined,
+        sort,
         page,
         limit: PAGE_SIZE,
       }),
     placeholderData: keepPreviousData,
   });
+
+  // The previous response stays up while the next page or filter loads, but
+  // not across a tab change: another tab has other columns and other counts,
+  // and its rows would read "Not on yet" under Venue trading. Until this tab's
+  // own response lands, only the tab-independent parts of `data` (the tab
+  // counts and the service categories) are used. A failed request shows no
+  // numbers either, even if an older response is still cached.
+  const [dataTab, setDataTab] = useState<OrganizerTab>(tab);
+  if (!isPlaceholderData && dataTab !== tab) setDataTab(tab);
+  const tabData = isError || (isPlaceholderData && dataTab !== tab) ? undefined : data;
 
   const verification = useMutation({
     mutationFn: (params: { id: string; status: OrganizerVerificationStatus; rejectionReason?: string }) =>
@@ -218,12 +208,20 @@ export function OrganizersPage() {
     verification.mutate({ id: organizer.id, status: next });
   };
 
-  const rawOrganizers = data?.organizers ?? [];
-  const organizers =
-    typeFilter === 'events' ? rawOrganizers.filter((o) => o.operatorType !== 'services') : rawOrganizers;
-  const pagination = data?.pagination;
-  const counts = data?.statusCounts ?? {};
+  const organizers = tabData?.organizers ?? [];
+  const pagination = tabData?.pagination;
+  const counts = tabData?.statusCounts ?? {};
   const totalOrganizers = Object.values(counts).reduce((a, b) => a + (b ?? 0), 0);
+  // No data yet (loading, or the request failed) is a dash, never a zero.
+  const stat = (n: number) => (tabData ? n.toLocaleString() : '—');
+  const filtered = !!(search || status || venueTrading || category) || tab !== 'all';
+
+  const rowActions: OrganizerRowActions = {
+    busy: verification.isPending || setVenueStatus.isPending,
+    onVerification: setVerificationStatus,
+    onVenueStatus: (venueId, next) => setVenueStatus.mutate({ venueId, status: next }),
+    onSwitchOnVenue: openVenueSwitch,
+  };
 
   return (
     <div className="p-4 md:p-8 space-y-6">
@@ -235,224 +233,103 @@ export function OrganizersPage() {
         <Button onClick={() => setCreateOpen(true)}>Add Operator</Button>
       </div>
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatsCard
-          title="Total organizers"
-          value={isLoading && !data ? '—' : totalOrganizers.toLocaleString()}
-          description="All registered organizer accounts"
-          icon={Building2}
-          gradient="from-orange-500 to-orange-600"
-        />
-        <StatsCard
-          title="Verified"
-          value={isLoading && !data ? '—' : (counts.verified ?? 0).toLocaleString()}
-          description="Can publish events"
-          icon={BadgeCheck}
-          gradient="from-emerald-500 to-emerald-600"
-        />
-        <StatsCard
-          title="Pending review"
-          value={isLoading && !data ? '—' : (counts.pending ?? 0).toLocaleString()}
-          description="Awaiting admin verification"
-          icon={Clock3}
-          gradient="from-amber-500 to-amber-600"
-        />
-        <StatsCard
-          title="Rejected / suspended"
-          value={isLoading && !data ? '—' : ((counts.rejected ?? 0) + (counts.suspended ?? 0)).toLocaleString()}
-          description="Blocked from going live"
-          icon={Ban}
-          gradient="from-slate-500 to-slate-600"
-        />
-      </div>
+      <OrganizerTypeTabs
+        value={tab}
+        counts={data?.typeCounts}
+        onChange={(next) => setParams(next === 'all' ? {} : { type: next })}
+      >
+        {/* KPI cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatsCard
+            title="Total organizers"
+            value={stat(totalOrganizers)}
+            description="All registered organizer accounts"
+            icon={Building2}
+            gradient="from-orange-500 to-orange-600"
+          />
+          <StatsCard
+            title="Verified"
+            value={stat(counts.verified ?? 0)}
+            description="Can publish events"
+            icon={BadgeCheck}
+            gradient="from-emerald-500 to-emerald-600"
+          />
+          <StatsCard
+            title="Pending review"
+            value={stat(counts.pending ?? 0)}
+            description="Awaiting admin verification"
+            icon={Clock3}
+            gradient="from-amber-500 to-amber-600"
+          />
+          <StatsCard
+            title="Rejected / suspended"
+            value={stat((counts.rejected ?? 0) + (counts.suspended ?? 0))}
+            description="Blocked from going live"
+            icon={Ban}
+            gradient="from-slate-500 to-slate-600"
+          />
+        </div>
 
-      {/* Organizers table */}
-      <Card>
-        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <CardTitle>All organizers</CardTitle>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <div className="flex flex-wrap gap-1">
-              {STATUS_FILTERS.map((f) => (
-                <Button
-                  key={f.label}
-                  size="sm"
-                  variant={status === f.value ? 'default' : 'outline'}
-                  onClick={() => {
-                    setStatus(f.value);
-                    setPage(1);
-                  }}
-                >
-                  {f.label}
-                </Button>
-              ))}
-            </div>
-            <select
-              aria-label="Filter by type"
-              className="flex h-8 rounded-md border border-input bg-transparent px-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              value={typeFilter}
-              onChange={(e) => {
-                setTypeFilter(e.target.value as TypeFilterValue);
+        {/* Organizers table */}
+        <Card>
+          <CardHeader>
+            <OrganizerFilters
+              tab={tab}
+              status={status}
+              onStatusChange={(next) => {
+                setStatus(next);
                 setPage(1);
               }}
-            >
-              {TYPE_FILTERS.map((f) => (
-                <option key={f.value} value={f.value}>{f.label}</option>
-              ))}
-            </select>
-            <Input
-              placeholder="Search name, email or phone…"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              className="sm:max-w-xs"
+              statusCounts={tabData?.statusCounts}
+              venueTrading={venueTrading}
+              onVenueTradingChange={(next) => {
+                setVenueTrading(next);
+                setPage(1);
+              }}
+              category={category}
+              onCategoryChange={(next) => {
+                setCategory(next);
+                setPage(1);
+              }}
+              serviceCategories={data?.serviceCategories ?? []}
+              searchInput={searchInput}
+              onSearchInputChange={setSearchInput}
             />
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Business</TableHead>
-                  <TableHead>Contact</TableHead>
-                  <TableHead>Joined</TableHead>
-                  <TableHead className="text-right">Events</TableHead>
-                  <TableHead className="text-right">Tickets</TableHead>
-                  <TableHead className="text-right">Revenue</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="w-24" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading && !data ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center text-slate-500 py-8">Loading…</TableCell>
-                  </TableRow>
-                ) : organizers.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center text-slate-500 py-8">
-                      {search || status || typeFilter ? 'No organizers match your filters.' : 'No organizers yet.'}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  organizers.map((o) => (
-                    <TableRow key={o.id}>
-                      <TableCell>
-                        <div className="font-medium">{o.businessName}</div>
-                        {o.operatorType === 'services' ? (
-                          <Badge variant="outline" className="mt-1 bg-purple-100 text-purple-800 border-purple-200">
-                            Service · {o.serviceCategory ? humanize(o.serviceCategory) : '—'}
-                          </Badge>
-                        ) : (
-                          <div className="text-xs text-slate-500 capitalize">
-                            {(o.businessType ?? '').replace(/_/g, ' ') || '—'}
-                          </div>
-                        )}
-                        {o.venue && (
-                          <Badge
-                            variant="outline"
-                            className={`mt-1 ${o.venue.status === 'active' ? 'bg-orange-100 text-orange-800 border-orange-200' : 'bg-slate-100 text-slate-700 border-slate-200'}`}
-                          >
-                            Venue · {o.venue.status === 'active' ? 'on' : 'suspended'}
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm">{o.primaryContact || '—'}</div>
-                        <div className="text-xs text-slate-500">{o.email || o.phoneNumber || '—'}</div>
-                      </TableCell>
-                      <TableCell>{formatDate(o.createdAt)}</TableCell>
-                      <TableCell className="text-right">{o.eventCount}</TableCell>
-                      <TableCell className="text-right">{o.ticketsSold}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(o.revenue)}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={`capitalize ${STATUS_BADGE[o.verificationStatus]}`}>
-                          {o.verificationStatus}
-                        </Badge>
-                        {o.rejectionReason && (
-                          <div className="text-xs text-slate-500 mt-1 max-w-[180px] truncate" title={o.rejectionReason}>
-                            {o.rejectionReason}
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="sm" disabled={verification.isPending || setVenueStatus.isPending}>
-                              Actions
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            {o.verificationStatus !== 'verified' && (
-                              <DropdownMenuItem onClick={() => setVerificationStatus(o, 'verified')}>
-                                Verify
-                              </DropdownMenuItem>
-                            )}
-                            {o.verificationStatus !== 'pending' && (
-                              <DropdownMenuItem onClick={() => setVerificationStatus(o, 'pending')}>
-                                Move to pending
-                              </DropdownMenuItem>
-                            )}
-                            {o.verificationStatus !== 'rejected' && (
-                              <DropdownMenuItem
-                                className="text-red-600 focus:text-red-600"
-                                onClick={() => setVerificationStatus(o, 'rejected')}
-                              >
-                                Reject
-                              </DropdownMenuItem>
-                            )}
-                            {o.verificationStatus !== 'suspended' && (
-                              <DropdownMenuItem
-                                className="text-red-600 focus:text-red-600"
-                                onClick={() => setVerificationStatus(o, 'suspended')}
-                              >
-                                Suspend
-                              </DropdownMenuItem>
-                            )}
-                            {o.venue ? (
-                              <>
-                                <DropdownMenuSeparator />
-                                {o.venue.status === 'active' ? (
-                                  <DropdownMenuItem
-                                    className="text-red-600 focus:text-red-600"
-                                    onClick={() => setVenueStatus.mutate({ venueId: o.venue!.id, status: 'suspended' })}
-                                  >
-                                    Suspend venue trading
-                                  </DropdownMenuItem>
-                                ) : (
-                                  <DropdownMenuItem onClick={() => setVenueStatus.mutate({ venueId: o.venue!.id, status: 'active' })}>
-                                    Reactivate venue trading
-                                  </DropdownMenuItem>
-                                )}
-                              </>
-                            ) : (
-                              canSwitchOnVenue(o) && (
-                                <>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem onClick={() => openVenueSwitch(o)}>Switch on venue trading</DropdownMenuItem>
-                                </>
-                              )
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-
-          <TablePagination
-            page={pagination?.page ?? page}
-            totalPages={pagination?.totalPages ?? 0}
-            total={pagination?.total ?? 0}
-            itemLabel="organizer"
-            onPageChange={setPage}
-            busy={isLoading}
-          />
-        </CardContent>
-      </Card>
+          </CardHeader>
+          <CardContent>
+            {isError ? (
+              <div role="alert" className="py-8 text-center space-y-3">
+                <p className="font-medium text-slate-900">Couldn't load organizers</p>
+                <p className="text-sm text-slate-500">{error instanceof Error ? error.message : 'Something went wrong.'}</p>
+                <Button onClick={() => refetch()} disabled={isFetching}>Try again</Button>
+              </div>
+            ) : (
+              <>
+                <OrganizersTable
+                  tab={tab}
+                  organizers={organizers}
+                  loading={!tabData}
+                  emptyMessage={filtered ? 'No organizers match your filters.' : 'No organizers yet.'}
+                  sort={sort}
+                  onSortChange={(next) => {
+                    setSort(next);
+                    setPage(1);
+                  }}
+                  actions={rowActions}
+                />
+                <TablePagination
+                  page={pagination?.page ?? page}
+                  totalPages={pagination?.totalPages ?? 0}
+                  total={pagination?.total ?? 0}
+                  itemLabel="organizer"
+                  onPageChange={setPage}
+                  busy={isLoading}
+                />
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </OrganizerTypeTabs>
 
       {/* Reject / suspend reason dialog */}
       <Dialog open={!!reasonTarget} onOpenChange={(open) => !open && setReasonTarget(null)}>

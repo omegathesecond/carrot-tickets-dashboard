@@ -834,6 +834,15 @@ export interface MyVenueResponse {
 // Organizers (vendors) — admin Organizers tab
 export type OrganizerVerificationStatus = 'pending' | 'verified' | 'rejected' | 'suspended';
 
+// Account type — exactly one per account, decided by the API (never derived
+// here): services, then venues, then transport, then events for everyone else.
+export type OrganizerType = 'events' | 'venues' | 'services' | 'transport';
+
+export type OrganizerSort = 'newest' | 'oldest' | 'name';
+
+// Venue trading state of a venue-type account: 'none' = no Venue record yet.
+export type OrganizerVenueTrading = 'on' | 'suspended' | 'none';
+
 export interface Organizer {
   id: string;
   businessName: string;
@@ -852,11 +861,30 @@ export interface Organizer {
   ticketsSold: number;
   revenue: number;
   venue?: VenueSummary | null;
+  type: OrganizerType;
+}
+
+export interface OrganizersListParams {
+  search?: string;
+  status?: OrganizerVerificationStatus;
+  type?: OrganizerType;
+  /** Only with type 'venues' — the API refuses it otherwise (400). */
+  venueTrading?: OrganizerVenueTrading;
+  /** Only with type 'services' — the API refuses it otherwise (400). */
+  category?: string;
+  sort?: OrganizerSort;
+  page?: number;
+  limit?: number;
 }
 
 export interface OrganizersListResponse {
   organizers: Organizer[];
+  /** Verification breakdown within the requested type, ignoring every other filter. */
   statusCounts: Partial<Record<OrganizerVerificationStatus, number>>;
+  /** Accounts per type, ignoring every filter. `all` is the sum of the four. */
+  typeCounts: Record<OrganizerType | 'all', number>;
+  /** Distinct service categories in use, A–Z. */
+  serviceCategories: string[];
   pagination: { page: number; limit: number; total: number; totalPages: number };
 }
 
