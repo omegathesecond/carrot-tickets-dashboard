@@ -221,7 +221,7 @@ describe('OrganizersPage — venue trading cell', () => {
     expect(row.getByText('On')).toBeTruthy();
     expect(row.getByText('Kwa-Linda Rooftop')).toBeTruthy();
     expect(row.getByText('ZAR · since 01 Oct 2026')).toBeTruthy();
-    expect(row.queryByRole('button', { name: 'Switch on' })).toBeNull();
+    expect(row.queryByRole('button', { name: /switch on/i })).toBeNull();
   });
 
   it('shows Suspended with the venue name and currency, and no start date', async () => {
@@ -232,7 +232,7 @@ describe('OrganizersPage — venue trading cell', () => {
     expect(row.getByText('Cellar Bar')).toBeTruthy();
     expect(row.getByText('SZL')).toBeTruthy();
     expect(row.queryByText(/since/)).toBeNull();
-    expect(row.queryByRole('button', { name: 'Switch on' })).toBeNull();
+    expect(row.queryByRole('button', { name: /switch on/i })).toBeNull();
   });
 
   it('shows Not on yet with a Switch on button when there is no venue', async () => {
@@ -240,7 +240,7 @@ describe('OrganizersPage — venue trading cell', () => {
     await screen.findByText('Dry Lounge');
     const row = rowOf('Dry Lounge');
     expect(row.getByText('Not on yet')).toBeTruthy();
-    expect(row.getByRole('button', { name: 'Switch on' })).toBeTruthy();
+    expect(row.getByRole('button', { name: 'Switch on venue trading for Dry Lounge' })).toBeTruthy();
   });
 
   it('offers no Switch on to an account the API would refuse (it never holds the venue permission)', async () => {
@@ -248,7 +248,7 @@ describe('OrganizersPage — venue trading cell', () => {
     await screen.findByText('Rolling Bar');
     const row = rowOf('Rolling Bar');
     expect(row.getByText('Not on yet')).toBeTruthy();
-    expect(row.queryByRole('button', { name: 'Switch on' })).toBeNull();
+    expect(row.queryByRole('button', { name: /switch on/i })).toBeNull();
   });
 
   it('Switch on opens the venue switch-on dialog for that row, and confirming switches it on', async () => {
@@ -256,7 +256,7 @@ describe('OrganizersPage — venue trading cell', () => {
     renderPage('/organizers?type=venues');
     await screen.findByText('Dry Lounge');
 
-    fireEvent.click(rowOf('Dry Lounge').getByRole('button', { name: 'Switch on' }));
+    fireEvent.click(rowOf('Dry Lounge').getByRole('button', { name: 'Switch on venue trading for Dry Lounge' }));
 
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText('Switch on venue trading')).toBeTruthy();
@@ -267,10 +267,35 @@ describe('OrganizersPage — venue trading cell', () => {
     );
   });
 
+  it('disables Switch on while another action is saving', async () => {
+    vi.mocked(apiClient.organizers.updateVerification).mockReturnValue(new Promise(() => {}));
+    renderPage('/organizers?type=venues');
+    await screen.findByText('Dry Lounge');
+    const button = rowOf('Dry Lounge').getByRole('button', { name: 'Switch on venue trading for Dry Lounge' }) as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+
+    fireEvent.pointerDown(rowOf('Kwa-Linda Lounge').getByRole('button', { name: /actions/i }), { button: 0, ctrlKey: false, pointerType: 'mouse' });
+    fireEvent.click(await screen.findByRole('menuitem', { name: /move to pending/i }));
+
+    await waitFor(() => expect(button.disabled).toBe(true));
+  });
+
+  it('leaves out "since" when the venue has no start date', async () => {
+    list.mockResolvedValue(respond([org({
+      id: 'v-nodate', businessName: 'Undated Bar', type: 'venues',
+      venue: { id: 'ven-3', name: 'Undated Taproom', currency: 'SZL', status: 'active', activatedAt: null as unknown as string },
+    })]));
+    renderPage('/organizers?type=venues');
+    await screen.findByText('Undated Bar');
+    const row = rowOf('Undated Bar');
+    expect(row.getByText('SZL')).toBeTruthy();
+    expect(row.queryByText(/since/)).toBeNull();
+  });
+
   it('the other tabs have no Venue trading column, so no Switch on button either', async () => {
     renderPage();
     await screen.findByText('Dry Lounge');
-    expect(screen.queryByRole('button', { name: 'Switch on' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /switch on/i })).toBeNull();
   });
 });
 
@@ -345,6 +370,19 @@ describe('OrganizersPage — server-side filters', () => {
     for (const [title, value] of [['Total organizers', '12'], ['Verified', '7'], ['Pending review', '2'], ['Rejected / suspended', '3']]) {
       expect(screen.getByText(title).parentElement!.textContent).toContain(value);
     }
+  });
+
+  it('the first stat card is named for the open tab', async () => {
+    renderPage();
+    await screen.findByText('Sunshine Events');
+    expect(screen.getByText('Total organizers')).toBeTruthy();
+    expect(screen.getByText('All registered organizer accounts')).toBeTruthy();
+
+    openTab(/^Venues/);
+    await waitFor(() => expect(screen.getByText('Venues').parentElement!.textContent).toContain('12'));
+    expect(screen.getByText('Bars, restaurants and lounges')).toBeTruthy();
+    expect(screen.queryByText('Total organizers')).toBeNull();
+    expect(screen.queryByText('All registered organizer accounts')).toBeNull();
   });
 
   it('typing in the search box sends search after the debounce', async () => {
@@ -476,6 +514,18 @@ describe('OrganizersPage — switching tab', () => {
     expect(lastParams().venueTrading).toBeUndefined();
   });
 
+  it('keeps the current tab\'s rows up while a filter on the same tab refetches', async () => {
+    renderPage();
+    await screen.findByText('Sunshine Events');
+    list.mockReturnValue(new Promise(() => {}));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pending (2)' }));
+
+    await waitFor(() => expect(lastParams().status).toBe('pending'));
+    expect(screen.getByText('Sunshine Events')).toBeTruthy();
+    expect(screen.queryByText('Loading…')).toBeNull();
+  });
+
   it('shows Loading, not the previous tab\'s rows, while the new tab loads', async () => {
     renderPage();
     await screen.findByText('Sunshine Events');
@@ -487,7 +537,7 @@ describe('OrganizersPage — switching tab', () => {
     expect(screen.queryByText('Sunshine Events')).toBeNull();
     // The tab counts don't depend on the tab, so they stay; the per-tab numbers don't.
     expect(screen.getByRole('tab', { name: 'Venues (12)' })).toBeTruthy();
-    expect(screen.getByText('Total organizers').parentElement!.textContent).toContain('—');
+    expect(screen.getByText('Venues').parentElement!.textContent).toContain('—');
   });
 });
 
@@ -498,9 +548,23 @@ describe('OrganizersPage — empty and failed lists', () => {
     expect(await screen.findByText('No organizers yet.')).toBeTruthy();
   });
 
-  it('says "No organizers match your filters." when a tab is open', async () => {
+  it.each([
+    ['events', 'No event organizers yet.'],
+    ['venues', 'No venues yet.'],
+    ['services', 'No businesses yet.'],
+    ['transport', 'No bus operators yet.'],
+  ])('the %s tab says its own copy when it is empty and nothing is filtered', async (type, copy) => {
+    list.mockResolvedValue(respond([]));
+    renderPage(`/organizers?type=${type}`);
+    expect(await screen.findByText(copy)).toBeTruthy();
+    expect(screen.queryByText('No organizers match your filters.')).toBeNull();
+  });
+
+  it('says "No organizers match your filters." when a tab is open and a filter is set', async () => {
     list.mockResolvedValue(respond([]));
     renderPage('/organizers?type=venues');
+    await screen.findByText('No venues yet.');
+    fireEvent.change(screen.getByLabelText('Venue trading'), { target: { value: 'on' } });
     expect(await screen.findByText('No organizers match your filters.')).toBeTruthy();
   });
 
@@ -550,6 +614,28 @@ describe('OrganizersPage — empty and failed lists', () => {
     expect(within(await screen.findByRole('alert')).getByText('Organizers are unavailable')).toBeTruthy();
     expect(screen.queryByText('Sunshine Events')).toBeNull();
     expect(screen.getByText('Total organizers').parentElement!.textContent).toContain('—');
+  });
+
+  // The new tab's fetch failed, so the only data in hand is the OLD tab's. Retrying
+  // (or changing a filter) starts a pending fetch, and the previous response must
+  // not be put back on screen under the new tab's columns.
+  it.each([
+    ['Try again', () => fireEvent.click(screen.getByRole('button', { name: 'Try again' }))],
+    ['a status button', () => fireEvent.click(screen.getByRole('button', { name: /^Pending/ }))],
+  ])('after a failed tab switch, %s does not put the old tab\'s rows back under the new columns', async (_label, act) => {
+    renderPage();
+    await screen.findByText('Sunshine Events');
+    list.mockRejectedValueOnce(new Error('Venues lookup failed'));
+    openTab(/^Venues/);
+    await screen.findByRole('alert');
+    list.mockReturnValue(new Promise(() => {}));
+
+    act();
+
+    await screen.findByText('Loading…');
+    expect(screen.queryByText('Sunshine Events')).toBeNull();
+    expect(screen.queryByRole('button', { name: /switch on/i })).toBeNull();
+    expect(screen.getByRole('columnheader', { name: 'Venue trading' })).toBeTruthy();
   });
 
   it('a failure on another tab is shown on that tab, and the tabs still work', async () => {

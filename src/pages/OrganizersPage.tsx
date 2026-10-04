@@ -32,7 +32,7 @@ import { OrganizerFilters } from '@/components/organizers/OrganizerFilters';
 import { OrganizerTypeTabs } from '@/components/organizers/OrganizerTypeTabs';
 import { OrganizersTable } from '@/components/organizers/OrganizersTable';
 import type { OrganizerRowActions } from '@/components/organizers/OrganizerActionsMenu';
-import { parseOrganizerTab, type OrganizerTab } from '@/components/organizers/organizerModel';
+import { parseOrganizerTab, tabConfig, type OrganizerTab } from '@/components/organizers/organizerModel';
 
 const PAGE_SIZE = 25;
 
@@ -121,9 +121,11 @@ export function OrganizersPage() {
   // and its rows would read "Not on yet" under Venue trading. Until this tab's
   // own response lands, only the tab-independent parts of `data` (the tab
   // counts and the service categories) are used. A failed request shows no
-  // numbers either, even if an older response is still cached.
+  // numbers either, even if an older response is still cached. `dataTab` moves
+  // only when a response for this tab is actually in hand: a failed switch has
+  // none, and a retry would otherwise be handed the old tab's rows back.
   const [dataTab, setDataTab] = useState<OrganizerTab>(tab);
-  if (!isPlaceholderData && dataTab !== tab) setDataTab(tab);
+  if (!isPlaceholderData && data && dataTab !== tab) setDataTab(tab);
   const tabData = isError || (isPlaceholderData && dataTab !== tab) ? undefined : data;
 
   const verification = useMutation({
@@ -214,7 +216,8 @@ export function OrganizersPage() {
   const totalOrganizers = Object.values(counts).reduce((a, b) => a + (b ?? 0), 0);
   // No data yet (loading, or the request failed) is a dash, never a zero.
   const stat = (n: number) => (tabData ? n.toLocaleString() : '—');
-  const filtered = !!(search || status || venueTrading || category) || tab !== 'all';
+  const filtered = !!(search || status || venueTrading || category);
+  const { total: totalCard, empty } = tabConfig(tab);
 
   const rowActions: OrganizerRowActions = {
     busy: verification.isPending || setVenueStatus.isPending,
@@ -241,9 +244,9 @@ export function OrganizersPage() {
         {/* KPI cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatsCard
-            title="Total organizers"
+            title={totalCard.title}
             value={stat(totalOrganizers)}
-            description="All registered organizer accounts"
+            description={totalCard.description}
             icon={Building2}
             gradient="from-orange-500 to-orange-600"
           />
@@ -281,6 +284,7 @@ export function OrganizersPage() {
                 setPage(1);
               }}
               statusCounts={tabData?.statusCounts}
+              statusTotal={tabData && totalOrganizers}
               venueTrading={venueTrading}
               onVenueTradingChange={(next) => {
                 setVenueTrading(next);
@@ -309,7 +313,7 @@ export function OrganizersPage() {
                   tab={tab}
                   organizers={organizers}
                   loading={!tabData}
-                  emptyMessage={filtered ? 'No organizers match your filters.' : 'No organizers yet.'}
+                  emptyMessage={filtered ? 'No organizers match your filters.' : empty}
                   sort={sort}
                   onSortChange={(next) => {
                     setSort(next);

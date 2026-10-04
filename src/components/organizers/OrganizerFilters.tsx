@@ -27,6 +27,8 @@ interface OrganizerFiltersProps {
   onStatusChange: (status: '' | OrganizerVerificationStatus) => void;
   /** Absent until the first list response lands — the buttons show no count until then. */
   statusCounts?: OrganizersListResponse['statusCounts'];
+  /** The sum of statusCounts, which the page already has — the All button's count. */
+  statusTotal?: number;
   venueTrading: '' | OrganizerVenueTrading;
   onVenueTradingChange: (value: '' | OrganizerVenueTrading) => void;
   category: string;
@@ -38,9 +40,8 @@ interface OrganizerFiltersProps {
 
 /** Every filter the open tab offers. The page sends each one to the server. */
 export function OrganizerFilters(p: OrganizerFiltersProps) {
-  const total = p.statusCounts ? Object.values(p.statusCounts).reduce((a, b) => a + (b ?? 0), 0) : undefined;
   const countOf = (value: '' | OrganizerVerificationStatus) =>
-    value === '' ? total : p.statusCounts && (p.statusCounts[value] ?? 0);
+    value === '' ? p.statusTotal : p.statusCounts && (p.statusCounts[value] ?? 0);
 
   return (
     <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -62,7 +63,7 @@ export function OrganizerFilters(p: OrganizerFiltersProps) {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         {p.tab === 'venues' && (
           <div className="flex items-center gap-2">
-            <label htmlFor="organizer-venue-trading" className="text-sm text-slate-500">Venue trading</label>
+            <label htmlFor="organizer-venue-trading" className="whitespace-nowrap text-sm text-slate-500">Venue trading</label>
             <select
               id="organizer-venue-trading"
               className={SELECT_CLASS}
@@ -77,7 +78,7 @@ export function OrganizerFilters(p: OrganizerFiltersProps) {
         )}
         {p.tab === 'services' && (
           <div className="flex items-center gap-2">
-            <label htmlFor="organizer-category" className="text-sm text-slate-500">Category</label>
+            <label htmlFor="organizer-category" className="whitespace-nowrap text-sm text-slate-500">Category</label>
             <select
               id="organizer-category"
               className={SELECT_CLASS}

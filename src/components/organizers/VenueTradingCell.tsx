@@ -12,7 +12,13 @@ export function VenueTradingCell({ organizer: o, actions }: { organizer: Organiz
       <div className="flex items-center gap-2">
         <span className="text-sm text-slate-500">Not on yet</span>
         {canSwitchOnVenue(o) && (
-          <Button size="sm" variant="outline" onClick={() => actions.onSwitchOnVenue(o)}>
+          <Button
+            size="sm"
+            variant="outline"
+            aria-label={`Switch on venue trading for ${o.businessName}`}
+            disabled={actions.busy}
+            onClick={() => actions.onSwitchOnVenue(o)}
+          >
             Switch on
           </Button>
         )}
@@ -30,7 +36,7 @@ export function VenueTradingCell({ organizer: o, actions }: { organizer: Organiz
       </Badge>
       <div className="mt-1 text-sm">{v.name}</div>
       <div className="text-xs text-slate-500">
-        {v.currency}{on ? ` · since ${formatDate(v.activatedAt)}` : ''}
+        {v.currency}{on && v.activatedAt ? ` · since ${formatDate(v.activatedAt)}` : ''}
       </div>
     </div>
   );
