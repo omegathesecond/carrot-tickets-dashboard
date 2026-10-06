@@ -117,7 +117,7 @@ export function EventTransactionLog({ eventId }: { eventId: string }) {
                         onClick={() => setSelected({
                           id: t.id, type: t.type, amount: t.amount, at: t.at,
                           actorName: t.actorName, actorType: t.actorType,
-                          bandUid: t.tagUid ?? t.bandUid, fee: t.fee, netAmount: t.netAmount,
+                          bandUid: t.tagUid ?? t.bandUid, purchaseChargeAmount: t.purchaseChargeAmount, fee: t.fee, netAmount: t.netAmount,
                           ref: t.ref, status: t.status,
                         })}
                       >

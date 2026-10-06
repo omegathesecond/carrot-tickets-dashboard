@@ -123,7 +123,7 @@ export function EventCashlessTab({ eventId }: Props) {
       </div>
 
       <div className="text-sm text-muted-foreground">
-        {s.walletsFunded} wallet{s.walletsFunded === 1 ? '' : 's'} funded · {fmtR(s.fees)} platform fees collected
+        {s.walletsFunded} wallet{s.walletsFunded === 1 ? '' : 's'} funded · {fmtR(s.fees)} platform fees collected · {fmtR(s.purchaseCharges)} organizer purchase charges
       </div>
 
       <EventTransactionLog eventId={eventId} />

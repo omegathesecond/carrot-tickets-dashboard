@@ -20,6 +20,7 @@ export interface TxnDetail {
   actorName?: string;
   actorType?: string;
   bandUid?: string;
+  purchaseChargeAmount?: number;
   fee?: number;
   netAmount?: number;
   status?: string;
@@ -68,6 +69,7 @@ export function TransactionDetailDialog({ txn, onClose }: { txn: TxnDetail | nul
             )}
             {txn.type === 'purchase' && (
               <>
+                <Row label="Organizer purchase charge" value={fmtR(txn.purchaseChargeAmount)} />
                 <Row label="Vendor net" value={fmtR(txn.netAmount)} />
                 <Row label="Commission" value={fmtR(txn.fee)} />
               </>

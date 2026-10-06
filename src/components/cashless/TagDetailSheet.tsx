@@ -172,7 +172,7 @@ export function TagDetailSheet({
                   {m.kind === 'topup'
                     ? <ArrowDownCircle className="h-4 w-4 text-green-600 shrink-0" />
                     : <ArrowUpCircle className="h-4 w-4 text-orange-600 shrink-0" />}
-                  <span className="flex-1">{m.label}</span>
+                  <span className="flex-1">{m.label}{m.kind === 'spend' && m.purchaseChargeAmount !== undefined && <span className="block text-xs text-muted-foreground">Organizer charge {fmtR(m.purchaseChargeAmount)}</span>}</span>
                   <span className="text-xs text-muted-foreground">{fmtWhen(m.at)}</span>
                   <span className="font-semibold tabular-nums">{fmtR(m.amount)}</span>
                 </div>

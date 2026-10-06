@@ -2239,6 +2239,7 @@ export interface TagBinding {
 }
 
 export interface TagMovement {
+  purchaseChargeAmount?: number;
   kind: 'topup' | 'spend' | 'cashout';
   amount: number;
   at: string;
@@ -2697,6 +2698,7 @@ export interface StockMovementsPage {
 export interface MerchantChargeTxn {
   id: string;
   amount: number; // cents
+  purchaseChargeAmount: number;
   fee: number;
   netAmount: number;
   bandUid: string;

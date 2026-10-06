@@ -102,7 +102,7 @@ export function StallDetailPage() {
                         onClick={() => setSelected({
                           id: t.id, type: 'purchase', amount: t.amount, at: t.createdAt,
                           actorName: data.merchant.name, actorType: 'Merchant',
-                          bandUid: t.bandUid, fee: t.fee, netAmount: t.netAmount, status: t.status || 'completed',
+                          bandUid: t.bandUid, purchaseChargeAmount: t.purchaseChargeAmount, fee: t.fee, netAmount: t.netAmount, status: t.status || 'completed',
                         })}
                       >
                         <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-blue-700">
