@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { EventCashlessTab } from '@/components/EventCashlessTab';
+import { fmtR } from '@/lib/money';
 import type { AuthUser } from '@/types';
 
 afterEach(cleanup);
@@ -208,7 +209,7 @@ describe('EventCashlessTab once the summary has loaded', () => {
     authUser.mockReturnValue(SUPER_ADMIN);
     summary.mockResolvedValue({
       circulated: 164000, spent: 24200, withdrawn: 4000, leftBehind: 135800,
-      fees: 450, walletsFunded: 5, vendors: [], cashiers: [],
+      fees: 450, purchaseCharges: 400, walletsFunded: 5, vendors: [], cashiers: [],
     });
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
@@ -238,4 +239,19 @@ describe('EventCashlessTab once the summary has loaded', () => {
     renderLoaded('/events/e1?tab=cashless&sub=cashiers');
     expect(await screen.findByText('No cashier activity yet.')).toBeDefined();
   });
+});
+
+
+describe('organiser charge earnings', () => {
+  it('shows the collected charge total prominently and refreshes new payments', async () => {
+    const data = { circulated: 164000, spent: 24200, withdrawn: 4000, leftBehind: 135800,
+      fees: 450, purchaseCharges: 400, walletsFunded: 5, vendors: [], cashiers: [] };
+    summary.mockResolvedValue(data);
+    renderTab(SUPER_ADMIN);
+    const label = await screen.findByText('ORGANISER CHARGES');
+    const card = label.parentElement!.parentElement!;
+    expect(within(card).getByText(fmtR(400))).toBeDefined();
+    summary.mockResolvedValue({ ...data, purchaseCharges: 800 });
+    expect(await within(card).findByText(fmtR(800), {}, { timeout: 6500 })).toBeDefined();
+  }, 10000);
 });

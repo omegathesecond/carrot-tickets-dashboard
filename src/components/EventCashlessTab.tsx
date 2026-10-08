@@ -50,6 +50,7 @@ export function EventCashlessTab({ eventId }: Props) {
   } = useQuery({
     queryKey: ['event-cashless-summary', eventId],
     queryFn: () => apiClient.events.getEventCashlessSummary(eventId),
+    refetchInterval: 5000,
     retry: false,
   });
 
@@ -115,7 +116,8 @@ export function EventCashlessTab({ eventId }: Props) {
     <div className="space-y-6">
       {/* Totals stay above the log: they are the answer to "how did the night
           go", which the log below is a breakdown of. */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <StatCard icon={<Wallet className="h-4 w-4" />} label="ORGANISER CHARGES" value={fmtR(s.purchaseCharges)} hint="earned from purchases · updates every 5s" tone="orange" />
         <StatCard icon={<CreditCard className="h-4 w-4" />} label="Circulated" value={fmtR(s.circulated)} hint="loaded onto bands" tone="ink" />
         <StatCard icon={<ArrowUpCircle className="h-4 w-4" />} label="Spent" value={fmtR(s.spent)} hint="at stalls" tone="blue" />
         <StatCard icon={<ArrowDownCircle className="h-4 w-4" />} label="Withdrawn" value={fmtR(s.withdrawn)} hint="handed back" tone="orange" />
@@ -123,7 +125,7 @@ export function EventCashlessTab({ eventId }: Props) {
       </div>
 
       <div className="text-sm text-muted-foreground">
-        {s.walletsFunded} wallet{s.walletsFunded === 1 ? '' : 's'} funded · {fmtR(s.fees)} platform fees collected · {fmtR(s.purchaseCharges)} organizer purchase charges
+        {s.walletsFunded} wallet{s.walletsFunded === 1 ? '' : 's'} funded · {fmtR(s.fees)} platform fees collected
       </div>
 
       <EventTransactionLog eventId={eventId} />
