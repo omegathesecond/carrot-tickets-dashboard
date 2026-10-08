@@ -1,8 +1,5 @@
-// Signed Android POS release, published in the Omevision Drive APK folder.
-// Version 1.7.0 displays customer purchase charges and confirms the server quote
-// before payment. Install it before using the purchase-charge API release.
-// The release signing key matches 1.6.0, allowing an in-place upgrade.
+// Signed production POS release: balance-first receipt, direct band tap and stock refresh.
 export const POS_APP = {
-  apkUrl: 'https://drive.google.com/file/d/1tSvwxH_shapFM6FL3pay6C1ji_uHBxxd/view?usp=drivesdk',
-  version: '1.7.0',
+  apkUrl: 'https://drive.google.com/file/d/1ceH2DzZyVOaa2K9fLgw7AOxm2frktFO1/view?usp=drive_link',
+  version: '1.7.1',
 };
