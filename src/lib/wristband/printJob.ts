@@ -2,6 +2,12 @@ import type { CalibrationOffset, SheetTemplate } from './templates';
 import type { WristbandElement } from './design';
 import { loadImages, renderBandPng } from './renderBand';
 import { buildWristbandPdf } from './pdf';
+import { buildWristbandPngs } from './png';
+
+export type PrintFormat = 'pdf' | 'png';
+export type PrintExport =
+  | { format: 'pdf'; bytes: Uint8Array }
+  | { format: 'png'; pages: Uint8Array[] };
 
 /**
  * Page planning: which QR payload (ticketId) goes on which band of which
@@ -22,15 +28,16 @@ export function planPages(
   return pages;
 }
 
-/** Render every band and assemble the final PDF. Fails loudly on any error. */
+/** Render every band once, then assemble the selected sheet format. */
 export async function runPrintJob(opts: {
+  format: PrintFormat;
   template: SheetTemplate;
   offset: CalibrationOffset;
   background: string;
   elements: WristbandElement[];
   pages: (string | null)[][];
   onProgress?: (done: number, total: number) => void;
-}): Promise<Uint8Array> {
+}): Promise<PrintExport> {
   const { template, offset, background, elements, pages, onProgress } = opts;
   const images = await loadImages(elements);
   const total = pages.reduce((n, p) => n + p.length, 0);
@@ -51,5 +58,8 @@ export async function runPrintJob(opts: {
     }
     pngPages.push(bands);
   }
-  return buildWristbandPdf({ template, offset, pages: pngPages });
+  const sheetOptions = { template, offset, pages: pngPages };
+  return opts.format === 'pdf'
+    ? { format: 'pdf', bytes: await buildWristbandPdf(sheetOptions) }
+    : { format: 'png', pages: await buildWristbandPngs(sheetOptions) };
 }
