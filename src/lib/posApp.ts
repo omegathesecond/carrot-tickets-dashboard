@@ -1,5 +1,5 @@
-// Signed production POS release: reload payment methods and PIN-confirmed cash handovers.
+// Signed production POS release: vendor balance checks and PIN-confirmed sale reversals.
 export const POS_APP = {
-  apkUrl: 'https://drive.google.com/file/d/1h8mPFGR2N9NqoQJCjmpMD4TVfvf2GbbE/view?usp=sharing',
-  version: '1.8.0',
+  apkUrl: 'https://drive.google.com/file/d/1H9OfmY-Jn1IMRPVdSEF5RTAeEZsmbR13/view?usp=sharing',
+  version: '1.8.1',
 };
