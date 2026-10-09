@@ -1,6 +1,11 @@
+import { deskPaymentMethodLabel } from '@/lib/deskPaymentMethod';
+import { OperatorGrantsField } from '@/components/OperatorGrantsField';
+import { useAuth } from '@/contexts/AuthContext';
+import { canManageAccess } from '@/lib/permissions';
+import { toast } from 'sonner';
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ArrowDownCircle, ArrowUpCircle, Loader2 } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
@@ -18,6 +23,9 @@ const fmtTime = (iso: string) => {
 export function CashierDetailPage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const grantsMutation = useMutation({ mutationFn: (grants: import('@/lib/api').OperatorGrant[]) => apiClient.cashiers.setGrants(id, grants), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['cashier-detail', id] }); toast.success('Staff permissions updated'); }, onError: (e: Error) => toast.error(e.message) });
   const [selected, setSelected] = useState<TxnDetail | null>(null);
 
   const { data, isLoading, error } = useQuery({
@@ -54,10 +62,15 @@ export function CashierDetailPage() {
               </Badge>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            {canManageAccess(user) && <OperatorGrantsField population="cashier" value={data.cashier.grants ?? []} disabled={grantsMutation.isPending} onChange={(grants) => grantsMutation.mutate(grants)} />}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <Card><CardContent className="pt-6">
-                <div className="flex items-center gap-1.5 text-xs font-medium text-green-600"><ArrowUpCircle className="h-4 w-4" /> Topped up</div>
-                <div className="text-2xl font-bold mt-1">{fmtR(data.summary.toppedUp)}</div>
+                <div className="flex items-center gap-1.5 text-xs font-medium text-green-600"><ArrowUpCircle className="h-4 w-4" /> Cash top-ups</div>
+                <div className="text-2xl font-bold mt-1">{fmtR(data.summary.cashTopups)}</div>
+              </CardContent></Card>
+              <Card><CardContent className="pt-6">
+                <div className="text-xs font-medium text-slate-500">Card top-ups</div>
+                <div className="text-2xl font-bold mt-1">{fmtR(data.summary.cardTopups)}</div>
               </CardContent></Card>
               <Card><CardContent className="pt-6">
                 <div className="flex items-center gap-1.5 text-xs font-medium text-orange-600"><ArrowDownCircle className="h-4 w-4" /> Cashed out</div>
@@ -83,7 +96,7 @@ export function CashierDetailPage() {
                           key={t.id}
                           className="flex items-center gap-3 py-3 cursor-pointer hover:bg-slate-50 -mx-2 px-2 rounded"
                           onClick={() => setSelected({
-                            id: t.id, type: t.type, amount: t.amount, at: t.at,
+                            id: t.id, type: t.type, method: t.method, amount: t.amount, at: t.at,
                             actorName: data.cashier.fullName, actorType: 'Cashier', status: t.status || 'completed',
                           })}
                         >
@@ -94,7 +107,7 @@ export function CashierDetailPage() {
                             <p className={`font-semibold ${isTopup ? 'text-green-700' : 'text-orange-700'}`}>
                               {isTopup ? '+' : '−'}{fmtR(t.amount)}
                             </p>
-                            <p className="text-xs text-slate-500">{isTopup ? 'Top-up' : 'Cash-out'} · {fmtTime(t.at)}</p>
+                            <p className="text-xs text-slate-500">{isTopup ? `${deskPaymentMethodLabel(t.method)} top-up` : 'Cash-out'} · {fmtTime(t.at)}</p>
                           </div>
                           <Badge variant="secondary" className="bg-green-100 text-green-800">{t.status || 'completed'}</Badge>
                         </div>

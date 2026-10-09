@@ -1,3 +1,4 @@
+import { EventCashControl } from '@/components/cashless/EventCashControl';
 import { useState, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -24,7 +25,7 @@ import { StatCard } from '@/components/cashless/StatCard';
 import { CashiersPanel } from '@/components/CashiersPanel';
 import { WaitersPanel } from '@/components/WaitersPanel';
 import { useAuth } from '@/contexts/AuthContext';
-import { canManageAccess, canManageStock, canIssueTags } from '@/lib/permissions';
+import { canManageAccess, canManageStock, canIssueTags, canViewEventFinancials } from '@/lib/permissions';
 
 /** Cashless wallet amounts move in ZAR cents on the wire. */
 const fmtR = (cents: number) => `R${((cents ?? 0) / 100).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -125,7 +126,7 @@ export function EventCashlessTab({ eventId }: Props) {
       </div>
 
       <div className="text-sm text-muted-foreground">
-        {s.walletsFunded} wallet{s.walletsFunded === 1 ? '' : 's'} funded · {fmtR(s.fees)} platform fees collected
+        Cash top-ups: {fmtR(s.cashTopups)} · Card top-ups: {fmtR(s.cardTopups)} · {s.walletsFunded} wallet{s.walletsFunded === 1 ? '' : 's'} funded · {fmtR(s.fees)} platform fees collected
       </div>
 
       <EventTransactionLog eventId={eventId} />
@@ -191,6 +192,7 @@ export function EventCashlessTab({ eventId }: Props) {
         {/* value stays "money": it is the ?sub= deep-link key and the fallback
             target above. Only the label changed. */}
         <TabsTrigger value="money">Transactions</TabsTrigger>
+        {canViewEventFinancials(user) && <TabsTrigger value="cash-control">Cash control</TabsTrigger>}
         {showRegister && <TabsTrigger value="register">Register</TabsTrigger>}
         {showStalls && <TabsTrigger value="stalls">Stalls</TabsTrigger>}
         {showCatalogue && <TabsTrigger value="catalogue">Catalogue</TabsTrigger>}
@@ -199,6 +201,7 @@ export function EventCashlessTab({ eventId }: Props) {
         <TabsTrigger value="balances">Balances</TabsTrigger>
       </TabsList>
       <TabsContent value="money">{moneyBody}</TabsContent>
+      {canViewEventFinancials(user) && <TabsContent value="cash-control"><EventCashControl eventId={eventId} /></TabsContent>}
       {showRegister && (
         <TabsContent value="register">
           {registerBody}
@@ -245,7 +248,8 @@ function CashierActivity({ summary, onManage }: { summary: CashlessSummary; onMa
               <TableHeader>
                 <TableRow>
                   <TableHead>Cashier</TableHead>
-                  <TableHead className="text-right">Topped up</TableHead>
+                  <TableHead className="text-right">Cash top-ups</TableHead>
+                  <TableHead className="text-right">Card top-ups</TableHead>
                   <TableHead className="text-right">Cashed out</TableHead>
                   <TableHead className="text-right">Transactions</TableHead>
                 </TableRow>
@@ -258,7 +262,8 @@ function CashierActivity({ summary, onManage }: { summary: CashlessSummary; onMa
                     onClick={() => navigate(`/cashiers/${c.cashierId}`)}
                   >
                     <TableCell className="font-medium text-orange-700">{c.name}</TableCell>
-                    <TableCell className="text-right text-green-700">{fmtR(c.toppedUp)}</TableCell>
+                    <TableCell className="text-right text-green-700">{fmtR(c.cashTopups)}</TableCell>
+                    <TableCell className="text-right">{fmtR(c.cardTopups)}</TableCell>
                     <TableCell className="text-right text-orange-700">{fmtR(c.withdrawn)}</TableCell>
                     <TableCell className="text-right">{c.txnCount}</TableCell>
                   </TableRow>

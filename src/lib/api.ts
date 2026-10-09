@@ -1344,6 +1344,8 @@ export class ApiClient {
   // Cashiers — the organizer's in-venue money desk staff (top-up + cash-out).
   // A cashier belongs to exactly ONE event (immutable at the API), unlike
   // GateOperator/ResellerOperator's multi-event `eventIds` set.
+  cashCollections = { report: (eventId: string) => this.request<CashControlReport>(`/tickets/events/${eventId}/cash-collections`) };
+
   cashiers = {
     /** Omit eventId for the unscoped list (super-admin platform page). */
     list: async (eventId?: string): Promise<CashierRow[]> =>
@@ -2139,6 +2141,7 @@ export type OperatorPopulation = 'gate' | 'cashier' | 'merchant' | 'waiter';
  * server drops any value it doesn't recognise.
  */
 export type OperatorGrant =
+  | 'collect_cash'
   | 'issue_tags'
   | 'manage_stock'
   | 'settle_tables'
@@ -2148,6 +2151,7 @@ export const OPERATOR_GRANT_LABELS: Record<
   OperatorGrant,
   { label: string; hint: string; appliesTo: OperatorPopulation[] }
 > = {
+  collect_cash: { label: 'Collects cash from cashiers', hint: 'Record cash pickups; the cashier must confirm each handover in the POS', appliesTo: ['cashier'] },
   issue_tags: {
     label: 'Works the Register desk',
     hint: 'Register your tags to an event, and bind one to an attendee\'s ticket',
@@ -2336,6 +2340,7 @@ export interface IssuedCashierCredentials {
 export interface CashierDeskTxn {
   id: string;
   type: 'topup' | 'withdrawal';
+  method: 'cash' | 'card';
   amount: number; // cents
   status: string;
   at: string; // ISO
@@ -2344,7 +2349,7 @@ export interface CashierDeskTxn {
 export interface CashierDetail {
   cashier: CashierRow;
   transactions: CashierDeskTxn[];
-  summary: { toppedUp: number; withdrawn: number; net: number; count: number };
+  summary: { cashTopups: number; cardTopups: number; toppedUp: number; withdrawn: number; net: number; count: number };
 }
 
 // ── Waiters (organizer floor staff) ────────────────────────────────────────
@@ -2814,3 +2819,16 @@ export interface ReportAdminView {
 }
 
 export const apiClient = new ApiClient(API_BASE_URL);
+
+export interface CashCollectionRow {
+  _id: string; eventId: string; cashierId: string; collectorId: string;
+  cashierName: string; collectorName: string; amount: number;
+  status: 'pending' | 'confirmed' | 'rejected' | 'cancelled';
+  createdAt: string; resolvedAt?: string; resolvedBy?: string;
+}
+export interface CashControlReport {
+  currency: 'SZL' | 'ZAR'; cashOnHand: number; collectorHeld: number; pendingCount: number;
+  cashiers: { id: string; fullName: string; isActive: boolean; cashTopups: number; cashWithdrawals: number; collected: number; cashOnHand: number }[];
+  collectors: { id: string; fullName: string; held: number }[];
+  collections: CashCollectionRow[];
+}

@@ -13,7 +13,7 @@ vi.mock('@/lib/api', () => ({
 
 const TOPUP = {
   id: 'txn1',
-  type: 'topup' as const,
+  type: 'topup' as const, method: 'cash' as const,
   amount: 50000,
   at: '2026-08-19T17:49:00.000Z',
   actorName: 'Demo Cashier',

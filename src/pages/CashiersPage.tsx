@@ -1,9 +1,10 @@
+import { OperatorGrantsField } from '@/components/OperatorGrantsField';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { KeyRound, Plus, Power, UserPlus } from 'lucide-react';
-import { apiClient, type CashierRow } from '@/lib/api';
+import { apiClient, type CashierRow, type OperatorGrant } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,8 +17,8 @@ import { ViewAffordance } from '@/components/ViewAffordance';
 const initialsOf = (name: string) =>
   name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
 
-type AddForm = { fullName: string; phoneNumber: string };
-const DEFAULT_FORM: AddForm = { fullName: '', phoneNumber: '' };
+type AddForm = { fullName: string; phoneNumber: string; grants: OperatorGrant[] };
+const DEFAULT_FORM: AddForm = { fullName: '', phoneNumber: '', grants: [] };
 
 /**
  * Carrot's own platform-scoped staff — cashiers with no owning organizer or
@@ -46,6 +47,7 @@ export function CashiersPage() {
       fullName: form.fullName,
       ...(form.phoneNumber.trim() ? { phoneNumber: form.phoneNumber.trim() } : {}),
       scope: 'platform',
+    grants: form.grants,
     }),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['cashiers'] });
@@ -111,6 +113,7 @@ export function CashiersPage() {
                   <Input id="c-phone" value={form.phoneNumber} className="h-12" placeholder="+268..."
                     onChange={(e) => setForm((f) => ({ ...f, phoneNumber: e.target.value }))} />
                 </div>
+                <OperatorGrantsField population="cashier" value={form.grants} onChange={(grants) => setForm(f => ({ ...f, grants }))} disabled={createCashier.isPending} />
                 <div className="flex justify-end space-x-2 pt-2">
                   <Button type="button" variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
                   <Button type="submit" disabled={createCashier.isPending || !isFormValid}

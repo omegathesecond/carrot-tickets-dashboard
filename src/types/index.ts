@@ -1011,6 +1011,8 @@ export interface CashlessVendorRow {
 export interface CashlessCashierRow {
   cashierId: string;
   name: string;
+  cashTopups: number;
+  cardTopups: number;
   toppedUp: number;  // cents loaded
   withdrawn: number; // cents handed back
   txnCount: number;
@@ -1018,6 +1020,8 @@ export interface CashlessCashierRow {
 
 export interface CashlessSummary {
   event?: { id: string; name: string };
+  cashTopups: number;
+  cardTopups: number;
   circulated: number; // Σ top-ups
   spent: number;      // Σ vendor charges
   withdrawn: number;  // Σ cash-outs
@@ -1032,6 +1036,7 @@ export interface CashlessSummary {
 export interface CashlessTxn {
   id: string;
   type: 'topup' | 'withdrawal' | 'purchase';
+  method?: 'cash' | 'card' | 'office_cash';
   amount: number; // cents
   at: string;     // ISO
   /** WHO moved the money: vendor name (purchase) or cashier/reseller name (top-up/cash-out). */

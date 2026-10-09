@@ -71,3 +71,9 @@ describe('population filtering', () => {
     expect(onChange).toHaveBeenCalledWith(['issue_tags', 'manage_stock']);
   });
 });
+
+it('offers collection only to money-desk staff and preserves existing grants', () => {
+  const { onChange } = renderField(['issue_tags'], 'cashier');
+  fireEvent.click(screen.getByRole('switch', { name: /collects cash from cashiers/i }));
+  expect(onChange).toHaveBeenCalledWith(['issue_tags', 'collect_cash']);
+});

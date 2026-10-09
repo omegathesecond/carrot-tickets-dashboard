@@ -208,7 +208,7 @@ describe('EventCashlessTab once the summary has loaded', () => {
   function renderLoaded(url = '/events/e1') {
     authUser.mockReturnValue(SUPER_ADMIN);
     summary.mockResolvedValue({
-      circulated: 164000, spent: 24200, withdrawn: 4000, leftBehind: 135800,
+      cashTopups: 5000, cardTopups: 3000, circulated: 164000, spent: 24200, withdrawn: 4000, leftBehind: 135800,
       fees: 450, purchaseCharges: 400, walletsFunded: 5, vendors: [], cashiers: [],
     });
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -244,7 +244,7 @@ describe('EventCashlessTab once the summary has loaded', () => {
 
 describe('organiser charge earnings', () => {
   it('shows the collected charge total prominently and refreshes new payments', async () => {
-    const data = { circulated: 164000, spent: 24200, withdrawn: 4000, leftBehind: 135800,
+    const data = { cashTopups: 5000, cardTopups: 3000, circulated: 164000, spent: 24200, withdrawn: 4000, leftBehind: 135800,
       fees: 450, purchaseCharges: 400, walletsFunded: 5, vendors: [], cashiers: [] };
     summary.mockResolvedValue(data);
     renderTab(SUPER_ADMIN);
