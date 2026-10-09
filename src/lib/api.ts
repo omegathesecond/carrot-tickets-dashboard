@@ -2827,8 +2827,8 @@ export interface CashCollectionRow {
   createdAt: string; resolvedAt?: string; resolvedBy?: string;
 }
 export interface CashControlReport {
-  currency: 'SZL' | 'ZAR'; cashOnHand: number; collectorHeld: number; pendingCount: number;
-  cashiers: { id: string; fullName: string; isActive: boolean; cashTopups: number; cashWithdrawals: number; collected: number; cashOnHand: number }[];
+  currency: 'SZL' | 'ZAR'; cashTopups: number; cardTopups: number; cashOnHand: number; collectorHeld: number; pendingCount: number;
+  cashiers: { id: string; fullName: string; isActive: boolean; cashTopups: number; cardTopups: number; cashWithdrawals: number; collected: number; cashOnHand: number }[];
   collectors: { id: string; fullName: string; held: number }[];
   collections: CashCollectionRow[];
 }
