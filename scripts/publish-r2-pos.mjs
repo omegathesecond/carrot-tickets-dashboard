@@ -52,6 +52,11 @@ try {
   const apk=readFileSync(apkPath), metadata=JSON.parse(readFileSync(metadataPath,'utf8'));
   const release=prepareRelease(metadata,apk,previous,args.includes('--migrate-storage'));
   await uploadApk(token,release,apk);
+  // Another release may have finished during the upload; never promote from
+  // an outdated version check.
+  const current = await fetch(RELEASE_URL,{cache:'no-store',signal:AbortSignal.timeout(30000)});
+  if(!current.ok)throw new Error(`Cannot recheck current POS release (${current.status})`);
+  prepareRelease(metadata,apk,await current.json(),args.includes('--migrate-storage'));
   await promoteRelease(token,release);
   await notify('publication','success',`POS ${release.record.version}: ${release.record.apkUrl}`);
   console.log(JSON.stringify(release.record));
