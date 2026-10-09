@@ -5,13 +5,15 @@ import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {prepareRelease,uploadApk,promoteRelease,RELEASE_URL} from './r2-pos-release.mjs';
+import {notifyRecipients} from './release-notifications.mjs';
 const args = process.argv.slice(2);
 const option = name => { const i = args.indexOf(name); return i < 0 ? undefined : args[i+1]; };
-const to = option('--notify-to');
+const recipients = args.flatMap((value,i) => value === '--notify-to' ? [args[i+1]] : []);
+if (!recipients.length) recipients.push(...JSON.parse(readFileSync(new URL('./release-notifications.json',import.meta.url),'utf8')).recipients);
 const apiDir = option('--api-dir');
 const posDir = option('--build-pos-dir');
-if (!to || !(/^\+\d{8,15}$/.test(to) || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) || !apiDir) {
-  throw new Error('Supply --notify-to (email or SMS number) and --api-dir (built Carrot API repository)');
+if (!recipients.length || recipients.some(to => !to || !(/^\+\d{8,15}$/.test(to) || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to))) || !apiDir) {
+  throw new Error('Supply valid notification recipients and --api-dir (built Carrot API repository)');
 }
 const gc = values => execFileSync('gcloud',['--configuration=deployer',...values,'--project=contracts-470406'],{encoding:'utf8',stdio:['ignore','pipe','pipe']});
 const secret = (name,version='latest') => gc(['secrets','versions','access',version,'--secret='+name]).trim();
@@ -27,11 +29,13 @@ if(messagingUrl)process.env.YEBOLINK_API_URL = messagingUrl;
 const {YeboLinkClient} = await import(pathToFileURL(resolve(apiDir,'dist/services/yebolink.client.js')));
 const notify = async (stage,result,detail) => {
   const text = `Carrot POS ${stage}: ${result}. ${detail}`;
-  const sent = to.includes('@')
+  await notifyRecipients(recipients, async to => {
+    const sent = to.includes('@')
     ? await YeboLinkClient.sendEmail(to,`Carrot POS ${stage}: ${result}`,`<p>${text.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</p>`)
     : await YeboLinkClient.sendSMS(to,text);
   if(!sent.messageId)throw new Error('Release notification returned no message ID');
-  console.log(`Release notification accepted: ${sent.messageId}`);
+    console.log(`Release notification accepted for ${to}: ${sent.messageId} (${sent.status})`);
+  });
 };
 let stage = posDir ? 'build' : 'publication';
 try {
