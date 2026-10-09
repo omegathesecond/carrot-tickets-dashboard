@@ -135,9 +135,10 @@ export function EventTransactionLog({ eventId }: { eventId: string }) {
                         <TableCell>{t.type === 'purchase' ? '—' : deskPaymentMethodLabel(t.method)}</TableCell>
                         <TableCell className="text-right font-medium">{fmtR(t.amount)}</TableCell>
                         <TableCell>
-                          <Badge variant="secondary" className="bg-green-100 text-green-800">
+                          <Badge variant="secondary" className={t.status === 'reversed' ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'}>
                             {t.status ?? 'completed'}
                           </Badge>
+                          {t.reversal && <div className="mt-1 text-xs text-muted-foreground">Reversed by {t.reversal.staffName} · {fmtWhen(t.reversal.at)}<br />{t.reversal.reason} · {t.reversal.restocked ? 'Items returned to stock' : 'Stock unchanged'}</div>}
                         </TableCell>
                       </TableRow>
                     );

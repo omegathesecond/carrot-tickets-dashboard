@@ -1047,6 +1047,7 @@ export interface CashlessTxn {
   /** The caller's own reference (clientTxnId) — what a support query is traced by. */
   ref?: string | null;
   status?: string;
+  reversal?: { staffName: string; reason: string; at: string; restocked: boolean };
   walletId?: string;
   /**
    * The tag this moved on, as it was AT THE TIME. Null when the wallet had no

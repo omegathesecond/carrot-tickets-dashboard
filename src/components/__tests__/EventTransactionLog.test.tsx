@@ -34,6 +34,18 @@ function renderLog() {
 }
 
 describe('EventTransactionLog', () => {
+  it('shows who reversed a sale, why, and whether items were returned', async () => {
+    getTransactions.mockResolvedValue({
+      transactions: [{ ...TOPUP, type: 'purchase', status: 'reversed', reversal: {
+        staffName: 'Vendor Z', reason: 'Wrong amount entered', at: '2026-08-19T18:00:00Z', restocked: true,
+      } }], page: 1, limit: 50, hasMore: false,
+    });
+    renderLog();
+    await waitFor(() => expect(screen.getByText('reversed')).toBeDefined());
+    expect(screen.getByText(/Reversed by Vendor Z/)).toBeDefined();
+    expect(screen.getByText(/Wrong amount entered.*Items returned to stock/)).toBeDefined();
+  });
+
   it('shows the reference, tag and status a support query is traced by', async () => {
     getTransactions.mockResolvedValue({ transactions: [TOPUP], page: 1, limit: 50, hasMore: false });
 

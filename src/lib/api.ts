@@ -2244,7 +2244,7 @@ export interface TagBinding {
 
 export interface TagMovement {
   purchaseChargeAmount?: number;
-  kind: 'topup' | 'spend' | 'cashout';
+  kind: 'topup' | 'spend' | 'cashout' | 'reversal';
   amount: number;
   at: string;
   label: string;

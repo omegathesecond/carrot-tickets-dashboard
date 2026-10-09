@@ -37,6 +37,17 @@ function renderSheet() {
 }
 
 describe('TagDetailSheet', () => {
+  it('shows a reversed sale as money returned to the band', async () => {
+    detail.mockResolvedValue({ ...DETAIL, movements: [{
+      kind: 'reversal', amount: 2500, at: '2026-08-01T20:00:00Z', label: 'Sale reversed by Vendor Z: Wrong amount',
+    }] });
+    renderSheet();
+    await waitFor(() => expect(screen.getByText('Sale reversed by Vendor Z: Wrong amount')).toBeDefined());
+    const row = screen.getByText('Sale reversed by Vendor Z: Wrong amount').parentElement!;
+    expect(row.querySelector('svg')?.classList.contains('text-green-600')).toBe(true);
+    expect(row.textContent?.replace(/\s/g, '')).toContain(fmtR(2500).replace(/\s/g, ''));
+  });
+
   it('shows the holder and the balance', async () => {
     detail.mockResolvedValue(DETAIL);
     renderSheet();

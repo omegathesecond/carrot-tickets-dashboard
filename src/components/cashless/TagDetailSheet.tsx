@@ -169,7 +169,7 @@ export function TagDetailSheet({
                 <p className="text-sm text-muted-foreground">Nothing yet.</p>
               ) : data.movements.map((m: TagMovement, i) => (
                 <div key={i} className="flex items-center gap-2 text-sm border-b border-slate-100 pb-2">
-                  {m.kind === 'topup'
+                  {m.kind === 'topup' || m.kind === 'reversal'
                     ? <ArrowDownCircle className="h-4 w-4 text-green-600 shrink-0" />
                     : <ArrowUpCircle className="h-4 w-4 text-orange-600 shrink-0" />}
                   <span className="flex-1">{m.label}{m.kind === 'spend' && m.purchaseChargeAmount !== undefined && <span className="block text-xs text-muted-foreground">Organizer charge {fmtR(m.purchaseChargeAmount)}</span>}</span>
