@@ -12,6 +12,8 @@ const recipients = args.flatMap((value,i) => value === '--notify-to' ? [args[i+1
 if (!recipients.length) recipients.push(...JSON.parse(readFileSync(new URL('./release-notifications.json',import.meta.url),'utf8')).recipients);
 const apiDir = option('--api-dir');
 const posDir = option('--build-pos-dir');
+const notesFile = option('--notes-file');
+const releaseNotes = notesFile ? readFileSync(resolve(notesFile),'utf8').trim() : '';
 if (!recipients.length || recipients.some(to => !to || !(/^\+\d{8,15}$/.test(to) || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to))) || !apiDir) {
   throw new Error('Supply valid notification recipients and --api-dir (built Carrot API repository)');
 }
@@ -28,10 +30,10 @@ if(messagingUrl)process.env.YEBOLINK_API_URL = messagingUrl;
 // Reuse the product's existing messaging client, sender identity and envelope.
 const {YeboLinkClient} = await import(pathToFileURL(resolve(apiDir,'dist/services/yebolink.client.js')));
 const notify = async (stage,result,detail) => {
-  const text = `Carrot POS ${stage}: ${result}. ${detail}`;
+  const text = `Carrot POS ${stage}: ${result}. ${detail}${releaseNotes ? '\n\nChanges made:\n'+releaseNotes : ''}`;
   await notifyRecipients(recipients, async to => {
     const sent = to.includes('@')
-    ? await YeboLinkClient.sendEmail(to,`Carrot POS ${stage}: ${result}`,`<p>${text.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</p>`)
+    ? await YeboLinkClient.sendEmail(to,`Carrot POS ${stage}: ${result}`,`<p>${text.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])).replaceAll('\n','<br/>')}</p>`)
     : await YeboLinkClient.sendSMS(to,text);
   if(!sent.messageId)throw new Error('Release notification returned no message ID');
     console.log(`Release notification accepted for ${to}: ${sent.messageId} (${sent.status})`);
