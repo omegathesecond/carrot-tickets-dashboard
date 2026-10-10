@@ -1,3 +1,4 @@
+import { EventResourceActions } from '@/components/EventResourceActions';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -24,13 +25,13 @@ const DEFAULT_FORM: AddForm = { name: '', commissionPercent: '0' };
  * eventId, so this panel takes the event it lives under rather than asking the
  * organizer to pick one. The API enforces ownership of that event on every call.
  */
-export function EventStallsPanel({ eventId }: { eventId: string }) {
+export function EventStallsPanel({ eventId, canDelete = false }: { eventId: string; canDelete?: boolean }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [form, setForm] = useState<AddForm>(DEFAULT_FORM);
 
-  const { data: stalls = [], isLoading } = useQuery({
+  const { data: stalls = [], isLoading, isError, error } = useQuery({
     queryKey: ['merchants', eventId],
     queryFn: () => apiClient.merchants.list(eventId),
     enabled: !!eventId,
@@ -111,6 +112,8 @@ export function EventStallsPanel({ eventId }: { eventId: string }) {
             <Card key={i}><CardContent className="h-40 animate-pulse bg-slate-100/60 rounded-xl" /></Card>
           ))}
         </div>
+      ) : isError ? (
+        <p className="text-sm text-red-600">Could not load stalls{error instanceof Error ? ` — ${error.message}` : ''}.</p>
       ) : stalls.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center text-center py-14 gap-3">
@@ -148,7 +151,11 @@ export function EventStallsPanel({ eventId }: { eventId: string }) {
 
                   <ViewAffordance label="View stall" />
 
-                  <div className="mt-auto">
+                  <div className="mt-auto space-y-2">
+                    <EventResourceActions kind="stall" initial={{ name: v.name, commissionPercent: String(v.commissionPercent) }}
+                    canDelete={canDelete} queryKey={['merchants', eventId]}
+                    onSave={(values) => apiClient.merchants.update(v._id, { name: values.name, commissionPercent: Number(values.commissionPercent) })}
+                    onDelete={() => apiClient.merchants.delete(v._id)} />
                     <Button variant="outline" size="sm" disabled={pendingActiveId === v._id}
                       onClick={(e) => { e.stopPropagation(); setActive.mutate({ id: v._id, isActive: !active }); }}
                       className={active

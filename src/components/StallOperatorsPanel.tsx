@@ -1,3 +1,4 @@
+import { EventResourceActions } from '@/components/EventResourceActions';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -19,7 +20,7 @@ type Credentials = { title: string; loginCode?: string; pin: string };
  * already loads under MANAGE_ACCESS, so no separate permission gate is
  * needed here.
  */
-export function StallOperatorsPanel({ merchantId, stallName }: { merchantId: string; stallName: string }) {
+export function StallOperatorsPanel({ merchantId, stallName, canDelete = false }: { merchantId: string; stallName: string; canDelete?: boolean }) {
   const qc = useQueryClient();
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState<{ fullName: string; phoneNumber: string; grants: OperatorGrant[] }>(
@@ -129,6 +130,11 @@ export function StallOperatorsPanel({ merchantId, stallName }: { merchantId: str
                   </Button>
                 </div>
               </div>
+              <EventResourceActions kind="till staff" initial={{ name: op.fullName, phoneNumber: op.phoneNumber ?? '' }}
+                    canDelete={canDelete} queryKey={['merchantOperators', merchantId]}
+                    onSave={(values) => apiClient.merchantOperators.update(op._id, { fullName: values.name, phoneNumber: values.phoneNumber })}
+                    onReveal={() => apiClient.merchantOperators.revealPin(op._id)}
+                    onDelete={() => apiClient.merchantOperators.delete(op._id)} />
               <OperatorGrantsField
                 population="merchant"
                 idPrefix={`stall-op-${op._id}`}

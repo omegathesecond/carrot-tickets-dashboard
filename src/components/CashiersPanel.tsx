@@ -1,3 +1,4 @@
+import { EventResourceActions } from '@/components/EventResourceActions';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -29,7 +30,7 @@ const DEFAULT_FORM: AddForm = { fullName: '', phoneNumber: '', grants: [] };
  * loads under canManageAccess, so no separate permission gate is needed
  * here — mirrors StallOperatorsPanel's shape.
  */
-export function CashiersPanel({ eventId }: { eventId: string }) {
+export function CashiersPanel({ eventId, canDelete = false }: { eventId: string; canDelete?: boolean }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -209,6 +210,11 @@ export function CashiersPanel({ eventId }: { eventId: string }) {
                 <ViewAffordance label="View activity" />
 
                 <div className="mt-auto grid grid-cols-2 gap-2">
+                  <div className="col-span-2"><EventResourceActions kind="cashier" initial={{ name: c.fullName, phoneNumber: c.phoneNumber ?? '' }}
+                    canDelete={canDelete} queryKey={['cashiers', eventId]}
+                    onSave={(values) => apiClient.cashiers.update(c._id, { fullName: values.name, phoneNumber: values.phoneNumber })}
+                    onReveal={() => apiClient.cashiers.revealPin(c._id)}
+                    onDelete={() => apiClient.cashiers.delete(c._id)} /></div>
                   <Button variant="outline" size="sm"
                     disabled={setTagDesk.isPending && setTagDesk.variables?.id === c._id}
                     onClick={(e) => {

@@ -1,3 +1,4 @@
+import { EventResourceActions } from '@/components/EventResourceActions';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -24,7 +25,7 @@ import { EventTablesPanel } from '@/components/EventTablesPanel';
  * watching the floor is why an organizer opens this area during service, and
  * putting the staff list in front of it meant a click every single time.
  */
-export function WaitersPanel({ eventId }: { eventId: string }) {
+export function WaitersPanel({ eventId, canDelete = false }: { eventId: string; canDelete?: boolean }) {
   return (
     <Tabs defaultValue="tables" className="space-y-4">
       <TabsList>
@@ -35,7 +36,7 @@ export function WaitersPanel({ eventId }: { eventId: string }) {
         <EventTablesPanel eventId={eventId} />
       </TabsContent>
       <TabsContent value="waiters">
-        <WaiterStaffList eventId={eventId} />
+        <WaiterStaffList eventId={eventId} canDelete={canDelete} />
       </TabsContent>
     </Tabs>
   );
@@ -57,7 +58,7 @@ const DEFAULT_FORM: AddForm = { fullName: '', phoneNumber: '' };
  * hired for exactly one event and the event is immutable at the API, so this
  * panel takes the event it lives under rather than asking which one.
  */
-function WaiterStaffList({ eventId }: { eventId: string }) {
+function WaiterStaffList({ eventId, canDelete = false }: { eventId: string; canDelete?: boolean }) {
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [form, setForm] = useState<AddForm>(DEFAULT_FORM);
@@ -223,6 +224,11 @@ function WaiterStaffList({ eventId }: { eventId: string }) {
                 </div>
 
                 <div className="mt-auto grid grid-cols-2 gap-2">
+                  <div className="col-span-2"><EventResourceActions kind="waiter" initial={{ name: w.fullName, phoneNumber: w.phoneNumber ?? '' }}
+                    canDelete={canDelete} queryKey={['waiters', eventId]}
+                    onSave={(values) => apiClient.waiters.update(w._id, { fullName: values.name, phoneNumber: values.phoneNumber })}
+                    onReveal={() => apiClient.waiters.revealPin(w._id)}
+                    onDelete={() => apiClient.waiters.delete(w._id)} /></div>
                   <Button variant="outline" size="sm"
                     disabled={pendingSettleId === w._id}
                     onClick={() => setSettling.mutate({ id: w._id, on: !(w.grants ?? []).includes('settle_tables') })}

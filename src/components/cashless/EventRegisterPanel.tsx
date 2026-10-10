@@ -1,3 +1,4 @@
+import { EventResourceActions } from '@/components/EventResourceActions';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -34,7 +35,7 @@ const DEFAULT_FORM: AddForm = { fullName: '', phoneNumber: '' };
  * The tags these accounts register TO the event live in EventTagRegisterPanel,
  * a sibling sub-tab rather than a section nested in here — see EventCashlessTab.
  */
-export function EventRegisterPanel({ eventId }: { eventId: string }) {
+export function EventRegisterPanel({ eventId, canDelete = false }: { eventId: string; canDelete?: boolean }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -201,6 +202,11 @@ export function EventRegisterPanel({ eventId }: { eventId: string }) {
                   <ViewAffordance label="View activity" />
 
                   <div className="mt-auto grid grid-cols-2 gap-2">
+                  <div className="col-span-2"><EventResourceActions kind="register account" initial={{ name: op.fullName, phoneNumber: op.phoneNumber ?? '' }}
+                    canDelete={canDelete} queryKey={['gate-operators']}
+                    onSave={(values) => apiClient.gateOperators.update(op._id, { fullName: values.name, phoneNumber: values.phoneNumber })}
+                    onReveal={() => apiClient.gateOperators.revealPin(op._id)}
+                    onDelete={() => apiClient.gateOperators.delete(op._id)} /></div>
                     <Button variant="outline" size="sm" disabled={pendingResetId === op._id}
                       onClick={(e) => { e.stopPropagation(); resetPin.mutate(op._id); }}>
                       <KeyRound className="h-4 w-4 mr-1.5" /> Reset PIN
