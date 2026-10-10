@@ -19,60 +19,13 @@ const STATUS_META: Record<TagStatus, { label: string; className: string }> = {
   closed: { label: 'Closed', className: 'bg-slate-100 text-slate-700' },
 };
 
-type TagListParams = { status?: TagStatus; q?: string };
-type TagPage = {
-  tags: TagRow[];
-  hasMore: boolean;
-  nextCursor: string | null;
-  /** Funded-only scan bookkeeping; absent on a plain server page. */
-  scanned?: number;
-  truncated?: boolean;
-};
-
-/** The tags endpoint clamps limit to 200, so asking for more just wastes a round trip. */
-const SCAN_PAGE_SIZE = 200;
-/** 25 x 200 = 5,000 tags. Past that we say the list is partial rather than imply it is whole. */
-const SCAN_MAX_PAGES = 25;
-
 /**
- * "Funded only" has no server-side equivalent. The tags endpoint sorts by _id —
- * newest tag registered first — and offers no balance filter and no balance
- * sort, so at an event that pre-registers plastic in bulk the handful of tags
- * actually holding money end up scattered across every page (at the Bikers
- * Rally: 11 funded tags among 496, spread over 10 pages, with exactly one on
- * page 1). Walk the cursor ourselves, keep what has a balance, sort by it.
- *
- * The scan is capped, and hitting the cap is REPORTED rather than quietly
- * dropping the rest: a partial "who is holding your money" list that looks
- * complete is worse than no list at all.
+ * The tags endpoint clamps `limit` to 200, and this screen has no pager. Asking
+ * for the ceiling on the funded view keeps every tag holding money on screen at
+ * any event up to that many — and because the SERVER does the balance sort, a
+ * cut at 200 is the 200 biggest balances rather than an arbitrary slice.
  */
-async function fetchFundedTags(eventId: string, params: TagListParams): Promise<TagPage> {
-  const funded: TagRow[] = [];
-  let cursor: string | undefined;
-  let scanned = 0;
-
-  for (let page = 0; page < SCAN_MAX_PAGES; page++) {
-    const res = await apiClient.tags.list(eventId, {
-      ...params,
-      limit: SCAN_PAGE_SIZE,
-      ...(cursor ? { cursor } : {}),
-    });
-    scanned += res.tags.length;
-    for (const t of res.tags) if (t.balance > 0) funded.push(t);
-
-    if (!res.hasMore || !res.nextCursor) {
-      return { tags: byBalanceDesc(funded), hasMore: false, nextCursor: null, scanned, truncated: false };
-    }
-    cursor = res.nextCursor;
-  }
-
-  return { tags: byBalanceDesc(funded), hasMore: false, nextCursor: null, scanned, truncated: true };
-}
-
-/** Biggest balance first — the cash-out queue reads top-down. */
-function byBalanceDesc(rows: TagRow[]): TagRow[] {
-  return [...rows].sort((a, b) => b.balance - a.balance);
-}
+const FUNDED_LIMIT = 200;
 
 /**
  * The tags issued at one cashless event. A "tag" is really the wallet behind
@@ -93,15 +46,17 @@ export function EventTagsPanel({ eventId }: { eventId: string }) {
     queryFn: () => apiClient.tags.summary(eventId),
   });
 
-  const { data: page, isLoading } = useQuery<TagPage>({
+  const { data: page, isLoading } = useQuery({
     queryKey: ['tags', eventId, status, q, fundedOnly],
-    queryFn: () => {
-      const params: TagListParams = {
+    queryFn: () =>
+      apiClient.tags.list(eventId, {
         ...(status !== 'all' ? { status } : {}),
         ...(q.trim() ? { q: q.trim() } : {}),
-      };
-      return fundedOnly ? fetchFundedTags(eventId, params) : apiClient.tags.list(eventId, params);
-    },
+        // Filtered and ordered SERVER-SIDE. This screen used to walk the cursor
+        // and sift the pages itself, which meant dragging thousands of rows over
+        // the wire to display the handful holding money.
+        ...(fundedOnly ? { funded: true, sort: 'balance' as const, limit: FUNDED_LIMIT } : {}),
+      }),
   });
 
   return (
@@ -136,19 +91,10 @@ export function EventTagsPanel({ eventId }: { eventId: string }) {
         </div>
       </div>
 
-      {fundedOnly && page?.truncated && (
-        <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          Showing funded tags from the {(page.scanned ?? 0).toLocaleString()} most recently registered only —
-          there are older tags this scan did not reach. Search a tag UID to look one up directly.
-        </p>
-      )}
-
       <Card>
         <CardContent className="pt-6 overflow-x-auto">
           {isLoading ? (
-            <p className="py-8 text-center text-muted-foreground">
-              {fundedOnly ? 'Scanning every tag…' : 'Loading tags…'}
-            </p>
+            <p className="py-8 text-center text-muted-foreground">Loading tags…</p>
           ) : !page?.tags.length ? (
             <p className="py-8 text-center text-muted-foreground">
               {!fundedOnly
