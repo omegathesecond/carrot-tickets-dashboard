@@ -77,3 +77,12 @@ it('offers collection only to money-desk staff and preserves existing grants', (
   fireEvent.click(screen.getByRole('switch', { name: /collects cash from cashiers/i }));
   expect(onChange).toHaveBeenCalledWith(['issue_tags', 'collect_cash']);
 });
+
+it('configures cash, card and withdrawals independently without dropping collector or tag grants',()=>{
+  const {onChange} = renderField(['topup_cash','issue_tags','collect_cash'],'cashier');
+  expect(screen.getByRole('switch',{name:/reload bands with cash/i}).dataset.state).toBe('checked');
+  expect(screen.getByRole('switch',{name:/reload bands with card/i}).dataset.state).toBe('unchecked');
+  expect(screen.getByRole('switch',{name:/withdraw cash from bands/i}).dataset.state).toBe('unchecked');
+  fireEvent.click(screen.getByRole('switch',{name:/reload bands with card/i}));
+  expect(onChange).toHaveBeenCalledWith(['topup_cash','issue_tags','collect_cash','topup_card']);
+});

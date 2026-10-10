@@ -2141,6 +2141,9 @@ export type OperatorPopulation = 'gate' | 'cashier' | 'merchant' | 'waiter';
  * server drops any value it doesn't recognise.
  */
 export type OperatorGrant =
+  | 'topup_cash'
+  | 'topup_card'
+  | 'withdraw_cash'
   | 'collect_cash'
   | 'issue_tags'
   | 'manage_stock'
@@ -2151,6 +2154,9 @@ export const OPERATOR_GRANT_LABELS: Record<
   OperatorGrant,
   { label: string; hint: string; appliesTo: OperatorPopulation[] }
 > = {
+  topup_cash: { label: 'Reload bands with cash', hint: 'Accept notes / coins and record cash reloads', appliesTo: ['cashier'] },
+  topup_card: { label: 'Reload bands with card / POS', hint: 'Record payments approved on the separate card machine', appliesTo: ['cashier'] },
+  withdraw_cash: { label: 'Withdraw cash from bands', hint: 'Debit the band and hand cash back to the customer', appliesTo: ['cashier'] },
   collect_cash: { label: 'Collects cash from cashiers', hint: 'Record cash pickups; the cashier must confirm each handover in the POS', appliesTo: ['cashier'] },
   issue_tags: {
     label: 'Works the Register desk',

@@ -62,7 +62,11 @@ export function CashierDetailPage() {
               </Badge>
             </div>
 
-            {canManageAccess(user) && <OperatorGrantsField population="cashier" value={data.cashier.grants ?? []} disabled={grantsMutation.isPending} onChange={(grants) => grantsMutation.mutate(grants)} />}
+            {canManageAccess(user) && <div className="space-y-3">
+              <h2 className="font-semibold">Cashier permissions</h2>
+              <p className="text-sm text-muted-foreground">Enable only their assigned duties. Cash reloads, card reloads, withdrawals and collecting cash are separate permissions. Changes apply to API requests immediately.</p>
+              <OperatorGrantsField population="cashier" value={data.cashier.grants ?? []} disabled={grantsMutation.isPending} onChange={(grants) => grantsMutation.mutate(grants)} />
+            </div>}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <Card><CardContent className="pt-6">
                 <div className="flex items-center gap-1.5 text-xs font-medium text-green-600"><ArrowUpCircle className="h-4 w-4" /> Cash top-ups</div>

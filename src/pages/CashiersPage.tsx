@@ -97,7 +97,7 @@ export function CashiersPage() {
                 <span className="hidden sm:inline">Add cashier</span>
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-h-[90vh] overflow-y-auto">
               <DialogHeader><DialogTitle>Add cashier</DialogTitle></DialogHeader>
               <form
                 onSubmit={(e) => { e.preventDefault(); if (isFormValid) createCashier.mutate(); }}
