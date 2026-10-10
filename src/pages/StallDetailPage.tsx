@@ -9,6 +9,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { TransactionDetailDialog, type TxnDetail } from '@/components/TransactionDetailDialog';
 import { StallOperatorsPanel } from '@/components/StallOperatorsPanel';
+import { Input } from '@/components/ui/input';
+import { matchesSearch } from '@/lib/search';
 
 const fmtR = (c: number) => `R${((c ?? 0) / 100).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtTime = (iso: string) => {
@@ -29,12 +31,14 @@ export function StallDetailPage() {
   const { id = '', merchantId = '' } = useParams();
   const navigate = useNavigate();
   const [selected, setSelected] = useState<TxnDetail | null>(null);
+  const [search, setSearch] = useState('');
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['stall-detail', merchantId],
     queryFn: () => apiClient.merchants.transactions(merchantId),
     retry: false,
   });
+  const visibleTransactions = data?.transactions.filter((t) => matchesSearch(search, t.id, t.bandUid)) ?? [];
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -93,11 +97,15 @@ export function StallDetailPage() {
             <Card>
               <CardContent className="pt-6">
                 <h2 className="text-base font-semibold mb-3">Charges</h2>
+                <Input type="search" aria-label="Search recent charges" placeholder="Search recent charges by band or reference…"
+                  value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-sm mb-3" />
                 {data.transactions.length === 0 ? (
                   <p className="text-sm text-muted-foreground py-4">No charges yet.</p>
+                ) : visibleTransactions.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4">No recent charges match your search.</p>
                 ) : (
                   <div className="divide-y">
-                    {data.transactions.map((t) => (
+                    {visibleTransactions.map((t) => (
                       <div
                         key={t.id}
                         className="flex items-center gap-3 py-3 cursor-pointer hover:bg-slate-50 -mx-2 px-2 rounded"

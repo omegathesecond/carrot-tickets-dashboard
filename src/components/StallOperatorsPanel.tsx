@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { OperatorCredentialsDialog } from '@/components/OperatorCredentialsDialog';
 import { OperatorGrantsField } from '@/components/OperatorGrantsField';
+import { matchesSearch } from '@/lib/search';
 
 type Credentials = { title: string; loginCode?: string; pin: string };
 
@@ -23,6 +24,7 @@ type Credentials = { title: string; loginCode?: string; pin: string };
 export function StallOperatorsPanel({ merchantId, stallName, canDelete = false }: { merchantId: string; stallName: string; canDelete?: boolean }) {
   const qc = useQueryClient();
   const [adding, setAdding] = useState(false);
+  const [search, setSearch] = useState('');
   const [form, setForm] = useState<{ fullName: string; phoneNumber: string; grants: OperatorGrant[] }>(
     { fullName: '', phoneNumber: '', grants: [] },
   );
@@ -71,6 +73,7 @@ export function StallOperatorsPanel({ merchantId, stallName, canDelete = false }
   });
 
   const operators = data?.operators ?? [];
+  const visibleOperators = operators.filter((op) => matchesSearch(search, op.fullName, op.loginCode, op.phoneNumber));
   // Per-row pending ids — a mutation in flight for one operator must not
   // disable the same action on every other row (mirrors EventStallsPanel's
   // pendingActiveId in this same commit).
@@ -90,6 +93,9 @@ export function StallOperatorsPanel({ merchantId, stallName, canDelete = false }
         <Button size="sm" onClick={() => setAdding(true)}>Add person</Button>
       </div>
 
+      <Input type="search" aria-label="Search till staff" placeholder="Search till staff by name, User ID or phone…"
+        value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-sm" />
+
       {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
       {isError && (
         <p className="text-sm text-red-600 py-4">
@@ -102,9 +108,13 @@ export function StallOperatorsPanel({ merchantId, stallName, canDelete = false }
         </p>
       )}
 
-      {!isError && operators.length > 0 && (
+      {!isLoading && !isError && operators.length > 0 && visibleOperators.length === 0 && (
+        <p className="text-sm text-muted-foreground py-4">No till staff match your search.</p>
+      )}
+
+      {!isError && visibleOperators.length > 0 && (
         <ul className="divide-y rounded-md border">
-          {operators.map((op) => (
+          {visibleOperators.map((op) => (
             <li key={op._id} className="flex flex-col gap-3 p-3">
               <div className="flex items-center justify-between gap-4">
                 <div className="min-w-0">

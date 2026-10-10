@@ -12,6 +12,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ViewAffordance } from '@/components/ViewAffordance';
+import { matchesSearch } from '@/lib/search';
 
 const initialsOf = (name: string) =>
   name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
@@ -30,6 +31,7 @@ export function EventStallsPanel({ eventId, canDelete = false }: { eventId: stri
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [form, setForm] = useState<AddForm>(DEFAULT_FORM);
+  const [search, setSearch] = useState('');
 
   const { data: stalls = [], isLoading, isError, error } = useQuery({
     queryKey: ['merchants', eventId],
@@ -65,6 +67,7 @@ export function EventStallsPanel({ eventId, canDelete = false }: { eventId: stri
 
   const pendingActiveId = setActive.isPending ? setActive.variables?.id : undefined;
   const isFormValid = form.name.trim().length > 0;
+  const visibleStalls = stalls.filter((stall) => matchesSearch(search, stall.name));
 
   return (
     <div className="space-y-4">
@@ -106,6 +109,9 @@ export function EventStallsPanel({ eventId, canDelete = false }: { eventId: stri
         </Dialog>
       </div>
 
+      <Input type="search" aria-label="Search stalls" placeholder="Search stalls…"
+        value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-sm" />
+
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {[0, 1, 2].map((i) => (
@@ -130,9 +136,11 @@ export function EventStallsPanel({ eventId, canDelete = false }: { eventId: stri
             </Button>
           </CardContent>
         </Card>
+      ) : visibleStalls.length === 0 ? (
+        <p className="text-sm text-muted-foreground py-4">No stalls match your search.</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {stalls.map((v: MerchantRow) => {
+          {visibleStalls.map((v: MerchantRow) => {
             const active = v.status === 'active';
             return (
               <Card key={v._id} onClick={() => navigate(`/events/${eventId}/stalls/${v._id}`)}

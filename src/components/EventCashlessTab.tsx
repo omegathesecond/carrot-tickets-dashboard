@@ -26,6 +26,8 @@ import { CashiersPanel } from '@/components/CashiersPanel';
 import { WaitersPanel } from '@/components/WaitersPanel';
 import { useAuth } from '@/contexts/AuthContext';
 import { canManageAccess, canManageStock, canIssueTags, canViewEventFinancials } from '@/lib/permissions';
+import { Input } from '@/components/ui/input';
+import { matchesSearch } from '@/lib/search';
 
 /** Cashless wallet amounts move in ZAR cents on the wire. */
 const fmtR = (cents: number) => `R${((cents ?? 0) / 100).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -282,6 +284,8 @@ function StallTakings({
   eventId, summary, onManage,
 }: { eventId: string; summary: CashlessSummary; onManage?: (() => void) | undefined }) {
   const navigate = useNavigate();
+  const [search, setSearch] = useState('');
+  const visibleStalls = summary.vendors.filter((stall) => matchesSearch(search, stall.name));
   return (
     <Card>
       <CardContent className="pt-6 space-y-4">
@@ -293,8 +297,12 @@ function StallTakings({
             </button>
           </div>
         )}
+        <Input type="search" aria-label="Search stall takings" placeholder="Search stalls…"
+          value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-sm" />
         {summary.vendors.length === 0 ? (
           <p className="text-sm text-muted-foreground py-4">No stall charges yet.</p>
+        ) : visibleStalls.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-4">No stalls match your search.</p>
         ) : (
           <div className="overflow-x-auto">
             <Table>
@@ -308,7 +316,7 @@ function StallTakings({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {summary.vendors.map((v) => (
+                {visibleStalls.map((v) => (
                   <TableRow
                     key={v.merchantId}
                     className="cursor-pointer hover:bg-slate-50"
