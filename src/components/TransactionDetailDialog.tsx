@@ -1,3 +1,4 @@
+import type { DeskTopupMethod } from '@/lib/deskPaymentMethod';
 import { deskPaymentMethodLabel } from '@/lib/deskPaymentMethod';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
@@ -16,7 +17,7 @@ const bandRef = (uid?: string) => (uid ? uid.toUpperCase() : '—');
 export interface TxnDetail {
   id: string;
   type: 'topup' | 'withdrawal' | 'purchase';
-  method?: 'cash' | 'card' | 'office_cash';
+  method?: DeskTopupMethod | 'office_cash';
   amount: number;
   at: string;
   actorName?: string;

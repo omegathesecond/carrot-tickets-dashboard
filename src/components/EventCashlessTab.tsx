@@ -126,7 +126,7 @@ export function EventCashlessTab({ eventId }: Props) {
       </div>
 
       <div className="text-sm text-muted-foreground">
-        Cash top-ups: {fmtR(s.cashTopups)} · Card top-ups: {fmtR(s.cardTopups)} · {s.walletsFunded} wallet{s.walletsFunded === 1 ? '' : 's'} funded · {fmtR(s.fees)} platform fees collected
+        Cash top-ups: {fmtR(s.cashTopups)} · Card top-ups: {fmtR(s.cardTopups)} · DeltaPay top-ups: {fmtR(s.deltapayTopups)} · Mobile Money top-ups: {fmtR(s.mobileMoneyTopups)} · {s.walletsFunded} wallet{s.walletsFunded === 1 ? '' : 's'} funded · {fmtR(s.fees)} platform fees collected
       </div>
 
       <EventTransactionLog eventId={eventId} />
@@ -250,6 +250,8 @@ function CashierActivity({ summary, onManage }: { summary: CashlessSummary; onMa
                   <TableHead>Cashier</TableHead>
                   <TableHead className="text-right">Cash top-ups</TableHead>
                   <TableHead className="text-right">Card top-ups</TableHead>
+                  <TableHead className="text-right">DeltaPay top-ups</TableHead>
+                  <TableHead className="text-right">Mobile Money top-ups</TableHead>
                   <TableHead className="text-right">Cashed out</TableHead>
                   <TableHead className="text-right">Transactions</TableHead>
                 </TableRow>
@@ -264,6 +266,8 @@ function CashierActivity({ summary, onManage }: { summary: CashlessSummary; onMa
                     <TableCell className="font-medium text-orange-700">{c.name}</TableCell>
                     <TableCell className="text-right text-green-700">{fmtR(c.cashTopups)}</TableCell>
                     <TableCell className="text-right">{fmtR(c.cardTopups)}</TableCell>
+                    <TableCell className="text-right">{fmtR(c.deltapayTopups)}</TableCell>
+                    <TableCell className="text-right">{fmtR(c.mobileMoneyTopups)}</TableCell>
                     <TableCell className="text-right text-orange-700">{fmtR(c.withdrawn)}</TableCell>
                     <TableCell className="text-right">{c.txnCount}</TableCell>
                   </TableRow>
