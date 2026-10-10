@@ -49,6 +49,12 @@ try {
     const built=JSON.parse(readFileSync(metadataPath,'utf8'));
     apkPath=resolve(posDir,`release/carrot-pos-v${built.version}+${built.buildNumber}.apk`);
     await notify('build','success',`Signed POS ${built.version}+${built.buildNumber}`);
+    // Build separately when a coordinated API rollout must finish before
+    // the new APK becomes available to field devices.
+    if(args.includes('--build-only')) {
+      console.log(JSON.stringify({buildOnly:true,...built}));
+      process.exit(0);
+    }
   }
   stage='publication';
   if(!apkPath || !metadataPath)throw new Error('Supply --apk and --metadata, or explicitly request --build-pos-dir');
