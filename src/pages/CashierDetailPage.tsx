@@ -64,10 +64,10 @@ export function CashierDetailPage() {
 
             {canManageAccess(user) && <div className="space-y-3">
               <h2 className="font-semibold">Cashier permissions</h2>
-              <p className="text-sm text-muted-foreground">Enable only their assigned duties. Cash reloads, card reloads, withdrawals and collecting cash are separate permissions. Changes apply to API requests immediately.</p>
+              <p className="text-sm text-muted-foreground">Enable only their assigned duties. Cash, card / POS, DeltaPay and Mobile Money reloads, withdrawals and collecting cash are separate permissions. Changes apply to API requests immediately.</p>
               <OperatorGrantsField population="cashier" value={data.cashier.grants ?? []} disabled={grantsMutation.isPending} onChange={(grants) => grantsMutation.mutate(grants)} />
             </div>}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
               <Card><CardContent className="pt-6">
                 <div className="flex items-center gap-1.5 text-xs font-medium text-green-600"><ArrowUpCircle className="h-4 w-4" /> Cash top-ups</div>
                 <div className="text-2xl font-bold mt-1">{fmtR(data.summary.cashTopups)}</div>
@@ -76,6 +76,7 @@ export function CashierDetailPage() {
                 <div className="text-xs font-medium text-slate-500">Card top-ups</div>
                 <div className="text-2xl font-bold mt-1">{fmtR(data.summary.cardTopups)}</div>
               </CardContent></Card>
+              {([['DeltaPay top-ups', data.summary.deltapayTopups], ['Mobile Money top-ups', data.summary.mobileMoneyTopups]] as const).map(([label, amount]) => <Card key={label}><CardContent className="pt-6"><div className="text-xs font-medium text-slate-500">{label}</div><div className="text-2xl font-bold mt-1">{fmtR(amount)}</div></CardContent></Card>)}
               <Card><CardContent className="pt-6">
                 <div className="flex items-center gap-1.5 text-xs font-medium text-orange-600"><ArrowDownCircle className="h-4 w-4" /> Cashed out</div>
                 <div className="text-2xl font-bold mt-1">{fmtR(data.summary.withdrawn)}</div>

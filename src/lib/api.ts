@@ -1,3 +1,4 @@
+import type { DeskTopupMethod, DeskTopupTotals } from '@/lib/deskPaymentMethod';
 import type {
   LoginCredentials,
   RegisterData,
@@ -2179,6 +2180,8 @@ export type OperatorPopulation = 'gate' | 'cashier' | 'merchant' | 'waiter';
 export type OperatorGrant =
   | 'topup_cash'
   | 'topup_card'
+  | 'topup_deltapay'
+  | 'topup_mobile_money'
   | 'withdraw_cash'
   | 'collect_cash'
   | 'issue_tags'
@@ -2192,6 +2195,8 @@ export const OPERATOR_GRANT_LABELS: Record<
 > = {
   topup_cash: { label: 'Reload bands with cash', hint: 'Accept notes / coins and record cash reloads', appliesTo: ['cashier'] },
   topup_card: { label: 'Reload bands with card / POS', hint: 'Record payments approved on the separate card machine', appliesTo: ['cashier'] },
+  topup_deltapay: { label: 'Reload bands with DeltaPay', hint: 'Record DeltaPay payments confirmed on a separate device', appliesTo: ['cashier'] },
+  topup_mobile_money: { label: 'Reload bands with Mobile Money', hint: 'Record Mobile Money payments confirmed on a separate device', appliesTo: ['cashier'] },
   withdraw_cash: { label: 'Withdraw cash from bands', hint: 'Debit the band and hand cash back to the customer', appliesTo: ['cashier'] },
   collect_cash: { label: 'Collects cash from cashiers', hint: 'Record cash pickups; the cashier must confirm each handover in the POS', appliesTo: ['cashier'] },
   issue_tags: {
@@ -2382,7 +2387,7 @@ export interface IssuedCashierCredentials {
 export interface CashierDeskTxn {
   id: string;
   type: 'topup' | 'withdrawal';
-  method: 'cash' | 'card';
+  method: DeskTopupMethod;
   amount: number; // cents
   status: string;
   at: string; // ISO
@@ -2391,7 +2396,7 @@ export interface CashierDeskTxn {
 export interface CashierDetail {
   cashier: CashierRow;
   transactions: CashierDeskTxn[];
-  summary: { cashTopups: number; cardTopups: number; toppedUp: number; withdrawn: number; net: number; count: number };
+  summary: DeskTopupTotals & { toppedUp: number; withdrawn: number; net: number; count: number };
 }
 
 // ── Waiters (organizer floor staff) ────────────────────────────────────────
@@ -2868,9 +2873,9 @@ export interface CashCollectionRow {
   status: 'pending' | 'confirmed' | 'rejected' | 'cancelled';
   createdAt: string; resolvedAt?: string; resolvedBy?: string;
 }
-export interface CashControlReport {
-  currency: 'SZL' | 'ZAR'; cashTopups: number; cardTopups: number; cashOnHand: number; collectorHeld: number; pendingCount: number;
-  cashiers: { id: string; fullName: string; isActive: boolean; cashTopups: number; cardTopups: number; cashWithdrawals: number; collected: number; cashOnHand: number }[];
+export interface CashControlReport extends DeskTopupTotals {
+  currency: 'SZL' | 'ZAR'; cashOnHand: number; collectorHeld: number; pendingCount: number;
+  cashiers: (DeskTopupTotals & { id: string; fullName: string; isActive: boolean; cashWithdrawals: number; collected: number; cashOnHand: number })[];
   collectors: { id: string; fullName: string; held: number }[];
   collections: CashCollectionRow[];
 }

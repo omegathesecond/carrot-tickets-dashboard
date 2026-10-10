@@ -86,3 +86,14 @@ it('configures cash, card and withdrawals independently without dropping collect
   fireEvent.click(screen.getByRole('switch',{name:/reload bands with card/i}));
   expect(onChange).toHaveBeenCalledWith(['topup_cash','issue_tags','collect_cash','topup_card']);
 });
+
+it.each([
+  ['DeltaPay', 'topup_deltapay'],
+  ['Mobile Money', 'topup_mobile_money'],
+] as const)('grants %s independently from cash/card and preserves existing duties', (label, grant) => {
+  const { onChange } = renderField(['topup_cash', 'topup_card', 'collect_cash'], 'cashier');
+  const control = screen.getByRole('switch', { name: new RegExp(`reload bands with ${label}`, 'i') });
+  expect(control.dataset.state).toBe('unchecked');
+  fireEvent.click(control);
+  expect(onChange).toHaveBeenCalledWith(['topup_cash', 'topup_card', 'collect_cash', grant]);
+});
