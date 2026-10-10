@@ -137,7 +137,7 @@ export function EventCashlessTab({ eventId }: Props) {
     <Tabs value={stallsView} onValueChange={setStallsView} className="space-y-4">
       <TabsList>
         <TabsTrigger value="takings">Stall takings</TabsTrigger>
-        <TabsTrigger value="manage">Add stall</TabsTrigger>
+        <TabsTrigger value="manage">Manage stalls</TabsTrigger>
       </TabsList>
       <TabsContent value="takings">
         {summaryBody((s) => (
@@ -145,7 +145,7 @@ export function EventCashlessTab({ eventId }: Props) {
         ))}
       </TabsContent>
       <TabsContent value="manage">
-        <EventStallsPanel eventId={eventId} />
+        <EventStallsPanel eventId={eventId} canDelete={!!user?.isSuperAdmin} />
       </TabsContent>
     </Tabs>
   );
@@ -158,7 +158,7 @@ export function EventCashlessTab({ eventId }: Props) {
     >
       <TabsList>
         {showTagRegister && <TabsTrigger value="tags">Registered tags</TabsTrigger>}
-        <TabsTrigger value="accounts">Add account</TabsTrigger>
+        <TabsTrigger value="accounts">Manage accounts</TabsTrigger>
       </TabsList>
       {showTagRegister && (
         <TabsContent value="tags">
@@ -166,7 +166,7 @@ export function EventCashlessTab({ eventId }: Props) {
         </TabsContent>
       )}
       <TabsContent value="accounts">
-        <EventRegisterPanel eventId={eventId} />
+        <EventRegisterPanel eventId={eventId} canDelete={!!user?.isSuperAdmin} />
       </TabsContent>
     </Tabs>
   );
@@ -175,13 +175,13 @@ export function EventCashlessTab({ eventId }: Props) {
     <Tabs value={cashiersView} onValueChange={setCashiersView} className="space-y-4">
       <TabsList>
         <TabsTrigger value="activity">Cashier activity</TabsTrigger>
-        <TabsTrigger value="manage">Add cashier</TabsTrigger>
+        <TabsTrigger value="manage">Manage cashiers</TabsTrigger>
       </TabsList>
       <TabsContent value="activity">
         {summaryBody((s) => <CashierActivity summary={s} onManage={() => setCashiersView('manage')} />)}
       </TabsContent>
       <TabsContent value="manage">
-        <CashiersPanel eventId={eventId} />
+        <CashiersPanel eventId={eventId} canDelete={!!user?.isSuperAdmin} />
       </TabsContent>
     </Tabs>
   );
@@ -216,7 +216,7 @@ export function EventCashlessTab({ eventId }: Props) {
       {showCashiers && <TabsContent value="cashiers">{cashiersBody}</TabsContent>}
       {showWaiters && (
         <TabsContent value="waiters">
-          <WaitersPanel eventId={eventId} />
+          <WaitersPanel eventId={eventId} canDelete={!!user?.isSuperAdmin} />
         </TabsContent>
       )}
       <TabsContent value="balances">

@@ -1,3 +1,4 @@
+import { useAuth } from '@/contexts/AuthContext';
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -24,6 +25,7 @@ const bandRef = (uid: string) => (!uid ? '—' : `••${(uid.length > 6 ? uid.
  * back link, honest about where this stall lives.
  */
 export function StallDetailPage() {
+  const { user } = useAuth();
   const { id = '', merchantId = '' } = useParams();
   const navigate = useNavigate();
   const [selected, setSelected] = useState<TxnDetail | null>(null);
@@ -84,7 +86,7 @@ export function StallDetailPage() {
 
             <Card>
               <CardContent className="pt-6">
-                <StallOperatorsPanel merchantId={merchantId} stallName={data.merchant.name} />
+                <StallOperatorsPanel merchantId={merchantId} stallName={data.merchant.name} canDelete={!!user?.isSuperAdmin} />
               </CardContent>
             </Card>
 

@@ -100,7 +100,7 @@ describe('WaitersPanel', () => {
     // A fresh dialog replaces the hire form, showing the one-time credentials.
     expect(await screen.findByText('ZYXWVU')).toBeTruthy();
     expect(screen.getByText('445566')).toBeTruthy();
-    expect(screen.getByText(/shown once/i)).toBeTruthy();
+    expect(screen.getByText(/Keep it confidential/i)).toBeTruthy();
   });
 
   it('turns settling on for a waiter who cannot yet settle, calling setGrants with settle_tables', async () => {

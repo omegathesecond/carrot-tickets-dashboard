@@ -94,7 +94,7 @@ export function OperatorCredentialsDialog({
 
     const warn = doc.createElement('div');
     warn.className = 'warn';
-    setText(warn, 'Keep confidential — do not share. PIN can only be reset, not recovered.');
+    setText(warn, 'Keep confidential — do not share.');
     doc.body.appendChild(warn);
 
     w.focus();
@@ -119,7 +119,7 @@ export function OperatorCredentialsDialog({
             <p className="text-3xl font-bold font-mono tracking-widest text-slate-900">{pin}</p>
           </div>
           <p className="text-xs text-red-600">
-            Shown once. Keep it confidential — the PIN can be reset but never recovered.
+            Keep it confidential — do not share this PIN.
           </p>
         </div>
         <DialogFooter className="gap-2 sm:gap-2">

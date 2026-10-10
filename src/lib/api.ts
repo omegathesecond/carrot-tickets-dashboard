@@ -1290,6 +1290,15 @@ export class ApiClient {
   };
 
   gateOperators = {
+    revealPin: async (id: string): Promise<{ loginCode: string; pin: string }> =>
+      this.request(`/tickets/gate-operators/${id}/reveal-pin`, { method: 'POST' }),
+
+    delete: async (id: string): Promise<{ deleted: boolean }> =>
+      this.request(`/tickets/gate-operators/${id}`, { method: 'DELETE' }),
+
+    update: async (id: string, data: { fullName: string; phoneNumber: string }): Promise<GateOperatorRow> =>
+      this.request(`/tickets/gate-operators/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+
     list: async (): Promise<GateOperatorRow[]> =>
       this.request<GateOperatorRow[]>(`/tickets/gate-operators`),
 
@@ -1347,6 +1356,15 @@ export class ApiClient {
   cashCollections = { report: (eventId: string) => this.request<CashControlReport>(`/tickets/events/${eventId}/cash-collections`) };
 
   cashiers = {
+    revealPin: async (id: string): Promise<{ loginCode: string; pin: string }> =>
+      this.request(`/tickets/cashiers/${id}/reveal-pin`, { method: 'POST' }),
+
+    delete: async (id: string): Promise<{ deleted: boolean }> =>
+      this.request(`/tickets/cashiers/${id}`, { method: 'DELETE' }),
+
+    update: async (id: string, data: { fullName: string; phoneNumber: string }): Promise<CashierRow> =>
+      this.request(`/tickets/cashiers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+
     /** Omit eventId for the unscoped list (super-admin platform page). */
     list: async (eventId?: string): Promise<CashierRow[]> =>
       this.request<CashierRow[]>(`/tickets/cashiers${eventId ? `?eventId=${eventId}` : ''}`),
@@ -1394,6 +1412,15 @@ export class ApiClient {
   // is no platform scope — and settling a table (taking final payment) is a
   // separate grant, off by default, turned on per person via setGrants.
   waiters = {
+    revealPin: async (id: string): Promise<{ loginCode: string; pin: string }> =>
+      this.request(`/tickets/waiters/${id}/reveal-pin`, { method: 'POST' }),
+
+    delete: async (id: string): Promise<{ deleted: boolean }> =>
+      this.request(`/tickets/waiters/${id}`, { method: 'DELETE' }),
+
+    update: async (id: string, data: { fullName: string; phoneNumber: string }): Promise<WaiterRow> =>
+      this.request(`/tickets/waiters/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+
     list: async (eventId: string): Promise<WaiterRow[]> =>
       this.request<WaiterRow[]>(`/tickets/waiters?eventId=${eventId}`),
 
@@ -1430,6 +1457,9 @@ export class ApiClient {
   // A stall holds no credentials of its own (see MerchantOperator below) —
   // create/update just return the merchant record.
   merchants = {
+    delete: async (id: string): Promise<{ deleted: boolean }> =>
+      this.request(`/tickets/merchants/${id}`, { method: 'DELETE' }),
+
     list: async (eventId: string): Promise<MerchantRow[]> =>
       this.request<MerchantRow[]>(`/tickets/merchants?eventId=${eventId}`),
 
@@ -1460,6 +1490,12 @@ export class ApiClient {
   // with their own loginCode + PIN so a charge names a human (MANAGE_ACCESS;
   // ownership is enforced server-side off the stall's event, never the body).
   merchantOperators = {
+    revealPin: async (id: string): Promise<{ loginCode: string; pin: string }> =>
+      this.request(`/tickets/merchant-operators/${id}/reveal-pin`, { method: 'POST' }),
+
+    delete: async (id: string): Promise<{ deleted: boolean }> =>
+      this.request(`/tickets/merchant-operators/${id}`, { method: 'DELETE' }),
+
     list: async (merchantId: string): Promise<{ operators: MerchantOperatorRow[] }> =>
       this.request<{ operators: MerchantOperatorRow[] }>(`/tickets/merchants/${merchantId}/operators`),
 
@@ -1474,7 +1510,7 @@ export class ApiClient {
 
     update: async (
       id: string,
-      data: { fullName?: string; isActive?: boolean; grants?: OperatorGrant[] },
+      data: { fullName?: string; phoneNumber?: string; isActive?: boolean; grants?: OperatorGrant[] },
     ): Promise<{ operator: MerchantOperatorRow }> =>
       this.request<{ operator: MerchantOperatorRow }>(`/tickets/merchant-operators/${id}`, {
         method: 'PATCH',

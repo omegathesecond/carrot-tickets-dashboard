@@ -98,7 +98,7 @@ describe('EventCashlessTab main tabs', () => {
   it('opens the Cashiers sub-tab named in the URL', () => {
     renderTab(SUPER_ADMIN, '/events/e1?tab=cashless&sub=cashiers');
     expect(screen.getByRole('tab', { name: 'Cashier activity' })).toBeDefined();
-    expect(screen.getByRole('tab', { name: 'Add cashier' })).toBeDefined();
+    expect(screen.getByRole('tab', { name: 'Manage cashiers' })).toBeDefined();
   });
 
   it('opens the Catalogue sub-tab named in the URL', () => {
@@ -148,10 +148,10 @@ describe('EventCashlessTab main tabs', () => {
 });
 
 describe('EventCashlessTab Register tab', () => {
-  it('opens on Registered tags, with Add account alongside it', async () => {
+  it('opens on Registered tags, with Manage accounts alongside it', async () => {
     renderTab(SUPER_ADMIN, '/events/e1?tab=cashless&sub=register');
     expect(await screen.findByRole('tab', { name: 'Registered tags' })).toBeDefined();
-    const addAccount = screen.getByRole('tab', { name: 'Add account' });
+    const addAccount = screen.getByRole('tab', { name: 'Manage accounts' });
     expect(addAccount).toBeDefined();
     expect(screen.queryByText('register-pane')).toBeNull();
 
@@ -165,7 +165,7 @@ describe('EventCashlessTab Register tab', () => {
     // the pane could only ever produce "Could not load the tag register".
     renderTab(DESK_MANAGER, '/events/e1?tab=cashless&sub=register');
 
-    expect(await screen.findByRole('tab', { name: 'Add account' })).toBeDefined();
+    expect(await screen.findByRole('tab', { name: 'Manage accounts' })).toBeDefined();
     expect(screen.queryByRole('tab', { name: 'Registered tags' })).toBeNull();
     expect(screen.queryByText('tags-pane')).toBeNull();
     // …and the pane they CAN use opens instead of an empty tab.
@@ -174,10 +174,10 @@ describe('EventCashlessTab Register tab', () => {
 });
 
 describe('EventCashlessTab Stalls tab', () => {
-  it('opens on Stall takings, with Add stall alongside it', async () => {
+  it('opens on Stall takings, with Manage stalls alongside it', async () => {
     renderTab(SUPER_ADMIN, '/events/e1?tab=cashless&sub=stalls');
     expect(await screen.findByRole('tab', { name: 'Stall takings' })).toBeDefined();
-    const addStall = screen.getByRole('tab', { name: 'Add stall' });
+    const addStall = screen.getByRole('tab', { name: 'Manage stalls' });
     expect(addStall).toBeDefined();
     expect(screen.queryByText('stalls-pane')).toBeNull();
 
@@ -188,10 +188,10 @@ describe('EventCashlessTab Stalls tab', () => {
 });
 
 describe('EventCashlessTab Cashiers tab', () => {
-  it('opens on Cashier activity, with Add cashier alongside it', async () => {
+  it('opens on Cashier activity, with Manage cashiers alongside it', async () => {
     renderTab(SUPER_ADMIN, '/events/e1?tab=cashless&sub=cashiers');
     expect(await screen.findByRole('tab', { name: 'Cashier activity' })).toBeDefined();
-    const addCashier = screen.getByRole('tab', { name: 'Add cashier' });
+    const addCashier = screen.getByRole('tab', { name: 'Manage cashiers' });
     expect(addCashier).toBeDefined();
     expect(screen.queryByText('cashiers-pane')).toBeNull();
 
