@@ -440,9 +440,9 @@ export class ApiClient {
     getEventStockReconciliation: async (id: string): Promise<StockReconciliation> =>
       this.request<StockReconciliation>(`/tickets/events/${id}/stock/reconciliation`),
 
-    /** The same reconciliation as a printable PDF — bytes, so it goes via `fetchPdf`. */
+    /** The same reconciliation as a printable PDF — bytes, so it goes via `fetchBlob`. */
     getEventStockReconciliationPdf: async (id: string): Promise<Blob> =>
-      this.fetchPdf(`/tickets/events/${id}/stock/reconciliation.pdf`, { method: 'GET' }),
+      this.fetchBlob(`/tickets/events/${id}/stock/reconciliation.pdf`, { method: 'GET' }),
 
     getEventStockDashboard: async (id: string): Promise<StockDashboard> =>
       this.request<StockDashboard>(`/tickets/events/${id}/stock/dashboard`),
@@ -2065,48 +2065,37 @@ export class ApiClient {
       // `page`/`limit` are deliberately NOT forwarded: the CSV is the whole
       // result set, not the page on screen.
 
-      const url = `${this.baseUrl}/tickets/export/sales?${query.toString()}`;
-      const headers: Record<string, string> = {};
-      if (this.token) {
-        headers['Authorization'] = `Bearer ${this.token}`;
-      }
-      if (APP_API_KEY) {
-        headers['x-api-key'] = APP_API_KEY;
-      }
-
-      const response = await fetch(url, { headers });
-      if (!response.ok) {
-        throw new Error('Failed to export sales');
-      }
-
-      const blob = await response.blob();
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = downloadUrl;
-      a.download = `sales-export-${new Date().toISOString().split('T')[0]}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(downloadUrl);
+      await this.downloadStatement(`/tickets/export/sales?${query}`, `sales-export-${new Date().toISOString().split('T')[0]}.csv`);
     },
   };
 
+  async downloadStatement(endpoint: string, filename: string): Promise<void> {
+    const blob = await this.fetchBlob(endpoint, { method: 'GET' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    try { link.click(); }
+    finally { link.remove(); window.URL.revokeObjectURL(url); }
+  }
+
   // PDF endpoints return bytes, not JSON, so they bypass `request` (which
   // parses JSON and unwraps the `{success, message, data}` envelope) and
-  // read the body as a Blob via `fetchPdf` instead.
+  // read the body as a Blob via `fetchBlob` instead.
   ticketDocs = {
     ticketPdfBytes: async (ticketId: string): Promise<Blob> =>
-      this.fetchPdf(`/tickets/${ticketId}/pdf/download`, { method: 'GET' }),
+      this.fetchBlob(`/tickets/${ticketId}/pdf/download`, { method: 'GET' }),
 
     ticketBundlePdf: async (ticketIds: string[]): Promise<Blob> =>
-      this.fetchPdf('/tickets/pdf-bundle', {
+      this.fetchBlob('/tickets/pdf-bundle', {
         method: 'POST',
         body: JSON.stringify({ ticketIds }),
       }),
   };
 
   /** Same 401-expired-token detection `request()` uses (around line 144),
-   *  factored out so `fetchPdf` can share the decision without touching
+   *  factored out so `fetchBlob` can share the decision without touching
    *  `request()` itself: expired-token message, not the auth endpoints
    *  (which would recurse), and a refresh token actually on hand to try. */
   private isExpiredTokenResponse(endpoint: string, status: number, errorMessage: string): boolean {
@@ -2119,7 +2108,7 @@ export class ApiClient {
     );
   }
 
-  private async fetchPdf(endpoint: string, options: RequestInit, isRetry = false): Promise<Blob> {
+  private async fetchBlob(endpoint: string, options: RequestInit, isRetry = false): Promise<Blob> {
     const token = this.getToken();
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       ...options,
@@ -2142,7 +2131,7 @@ export class ApiClient {
       if (!isRetry && this.isExpiredTokenResponse(endpoint, response.status, errorMessage)) {
         try {
           await this.handleTokenRefresh();
-          return this.fetchPdf(endpoint, options, true);
+          return this.fetchBlob(endpoint, options, true);
         } catch {
           throw new Error('Session expired. Please log in again.');
         }
