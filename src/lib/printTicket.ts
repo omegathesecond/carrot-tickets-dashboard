@@ -79,6 +79,10 @@ export async function printTicket(
   const html = buildTicketReceiptHtml(sale, tickets, logoDataUrl);
   const printWindow = window.open('', '_blank');
   if (!printWindow) return false;
+  printWindow.onload = () => {
+    printWindow.onafterprint = () => printWindow.close();
+    printWindow.print();
+  };
   printWindow.document.write(html);
   printWindow.document.close();
   return true;
