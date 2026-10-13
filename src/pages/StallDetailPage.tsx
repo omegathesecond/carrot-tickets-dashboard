@@ -1,4 +1,5 @@
 import { useAuth } from '@/contexts/AuthContext';
+import { SalesStatementDownload } from '@/components/SalesStatementDownload';
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -70,6 +71,7 @@ export function StallDetailPage() {
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="col-span-full"><SalesStatementDownload kind="merchant" id={merchantId} name={data.merchant.name} /></div>
               <Card><CardContent className="pt-6">
                 <div className="text-xs font-medium text-slate-500">Charged</div>
                 <div className="text-2xl font-bold mt-1">{fmtR(data.summary.totalCharged)}</div>

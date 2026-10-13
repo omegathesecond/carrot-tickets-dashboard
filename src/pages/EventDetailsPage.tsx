@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { SalesStatementDownload } from '@/components/SalesStatementDownload';
 import { useParams, useNavigate, useLocation, Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
@@ -609,6 +610,7 @@ export function EventDetailsPage() {
 
               {/* Actions — a separate row from the event info above, with its own spacing */}
               <div className="flex flex-wrap gap-2 border-t pt-3">
+                {event.ticketing === 'carrot' && <SalesStatementDownload kind="event" id={id!} name={event.name} />}
                 {isPublished ? (
                   // Pull a live event back to draft. Organizers are blocked once
                   // tickets have sold; admins can override (handled server-side).
