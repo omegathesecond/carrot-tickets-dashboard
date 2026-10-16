@@ -175,6 +175,7 @@ export interface Event {
 }
 
 export interface TicketType {
+  isAllocation?: boolean;
   _id: string;
   name: string; // e.g., "VIP", "General", "Early Bird"
   price: number;

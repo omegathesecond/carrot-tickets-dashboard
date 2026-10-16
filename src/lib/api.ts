@@ -1,3 +1,4 @@
+import type { EventCoupon, CreateCouponsInput } from '@/types/eventCoupon';
 import type { DeskTopupMethod, DeskTopupTotals } from '@/lib/deskPaymentMethod';
 import type {
   LoginCredentials,
@@ -1970,6 +1971,12 @@ export class ApiClient {
         method: 'DELETE',
       });
     },
+  };
+
+  coupons = {
+    list: (eventId: string, page = 1) => this.request<{ coupons: EventCoupon[]; total: number; page: number }>(`/tickets/events/${eventId}/coupons?page=${page}`),
+    create: (eventId: string, input: CreateCouponsInput) => this.request<{ coupons: EventCoupon[] }>(`/tickets/events/${eventId}/coupons`, { method: 'POST', body: JSON.stringify(input) }),
+    disable: (eventId: string, couponId: string) => this.request(`/tickets/events/${eventId}/coupons/${couponId}/disable`, { method: 'POST' }),
   };
 
   // Share&Earn endpoints — organizer dashboard (spec §1/§10). See EventShareEarnTab.

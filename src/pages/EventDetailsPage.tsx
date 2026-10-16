@@ -1,3 +1,5 @@
+import { hasPermission, TicketsPermission } from '@/lib/permissions';
+import { EventCouponsTab } from '@/components/EventCouponsTab';
 import { useState, useEffect, useRef } from 'react';
 import { SalesStatementDownload } from '@/components/SalesStatementDownload';
 import { useParams, useNavigate, useLocation, Link, useSearchParams } from 'react-router-dom';
@@ -485,6 +487,7 @@ export function EventDetailsPage() {
     { key: 'financials', label: 'Financials', icon: Coins, show: canSeeFinancials },
     { key: 'analytics', label: 'Analytics', icon: BarChart3, show: true },
     { key: 'vote', label: 'Attendance', icon: AttendanceStatusIcon, show: true },
+    { key: 'coupons', label: 'Coupons', icon: Gift, show: hasPermission(user, TicketsPermission.EDIT_EVENT) && event.ticketing !== 'external' },
     { key: 'share-earn', label: 'Share&Earn', icon: Gift, show: true },
     { key: 'creator', label: 'Creator', icon: UserCircle, show: true },
     { key: 'cashless', label: 'Cashless', icon: CreditCard, show: !!event.cashless },
@@ -1355,6 +1358,10 @@ export function EventDetailsPage() {
         </TabsContent>
 
         {/* Share&Earn Tab */}
+        {hasPermission(user, TicketsPermission.EDIT_EVENT) && event.ticketing !== 'external' && <TabsContent value="coupons" className="mt-6">
+          <EventCouponsTab key={id} eventId={id!} event={event} />
+        </TabsContent>}
+
         <TabsContent value="share-earn" className="mt-6">
           {event && <EventShareEarnTab eventId={id!} event={event} />}
         </TabsContent>
