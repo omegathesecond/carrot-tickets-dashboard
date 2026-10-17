@@ -53,6 +53,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const initializingRef = useRef(false);
   const initializedRef = useRef(false);
+  // Token renewal stays in the same session; login/logout invalidates pending work.
+  const sessionGenerationRef = useRef(0);
 
   useEffect(() => {
     if (initializingRef.current || initializedRef.current) {
@@ -63,6 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initializingRef.current = true;
 
     const initAuth = async () => {
+      const generation = sessionGenerationRef.current;
       const token = localStorage.getItem('keshless_tickets_token');
       console.log('[AuthContext] Initializing auth, token exists:', !!token);
 
@@ -77,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             role: userData.role,
           });
 
-          if (localStorage.getItem('keshless_tickets_token') === token) setUser(userData);
+          if (sessionGenerationRef.current === generation) setUser(userData);
         } catch (error: any) {
           console.error('[AuthContext] Failed to fetch user data:', error.message);
 
@@ -85,13 +88,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               error.message?.includes('Unauthorized') || error.message?.includes('Forbidden')) {
             console.warn('[AuthContext] Authentication failed - token is invalid or expired');
 
-            const currentToken = localStorage.getItem('keshless_tickets_token');
-            if (currentToken === token) {
+            if (sessionGenerationRef.current === generation) {
               console.warn('[AuthContext] Removing invalid token');
               localStorage.removeItem('keshless_tickets_token');
               localStorage.removeItem('keshless_tickets_refresh_token');
             } else {
-              console.warn('[AuthContext] Token already changed, not removing');
+              console.warn('[AuthContext] Session already changed, not removing credentials');
             }
           } else {
             console.warn('[AuthContext] Network or temporary error, keeping token for retry on next load');
@@ -122,6 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       await new Promise<void>((resolve) => {
+        sessionGenerationRef.current += 1;
         setUser(response.user);
         setTimeout(() => {
           console.log('[AuthContext] User state updated, auth should be active');
@@ -145,6 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       await new Promise<void>((resolve) => {
+        sessionGenerationRef.current += 1;
         setUser(response.user);
         setTimeout(() => resolve(), 50);
       });
@@ -166,6 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       await new Promise<void>((resolve) => {
+        sessionGenerationRef.current += 1;
         setUser(response.user);
         setTimeout(() => resolve(), 50);
       });
@@ -178,6 +183,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const synchronize = () => {
       if (!localStorage.getItem('keshless_tickets_token')) {
+        sessionGenerationRef.current += 1;
         setUser(null);
         queryClient.clear();
       }
@@ -201,6 +207,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       toast.error(error instanceof Error ? `Logout failed: ${error.message}` : 'Logout failed. Please try again.');
       return;
     }
+    sessionGenerationRef.current += 1;
     setUser(null);
     await queryClient.cancelQueries();
     queryClient.clear();

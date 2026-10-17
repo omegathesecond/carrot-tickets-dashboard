@@ -38,3 +38,34 @@ it('drops shared authentication and cached data when another tab logs out', asyn
   expect(result.current.isAuthenticated).toBe(false);
   expect(client.getQueryData(['private'])).toBeUndefined();
 });
+
+it('accepts the organizer response when getMe renews an expired access token', async () => {
+  localStorage.setItem('keshless_tickets_token', 'expired');
+  vi.mocked(apiClient.auth.getMe).mockImplementation(async () => {
+    localStorage.setItem('keshless_tickets_token', 'renewed');
+    return { _id: 'organizer', userType: 'vendor' } as any;
+  });
+  const client = new QueryClient();
+  const wrapper = ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={client}><AuthProvider>{children}</AuthProvider></QueryClientProvider>;
+  const { result } = renderHook(useAuth, { wrapper });
+  await waitFor(() => expect(result.current.isLoading).toBe(false));
+  expect(result.current.isAuthenticated).toBe(true);
+  expect(result.current.user?._id).toBe('organizer');
+  expect(localStorage.getItem('keshless_tickets_token')).toBe('renewed');
+});
+
+it('ignores a pending getMe response after another tab logs out', async () => {
+  localStorage.setItem('keshless_tickets_token', 'access');
+  let resolveUser!: (user: any) => void;
+  vi.mocked(apiClient.auth.getMe).mockImplementation(() => new Promise(resolve => { resolveUser = resolve; }));
+  const client = new QueryClient();
+  const wrapper = ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={client}><AuthProvider>{children}</AuthProvider></QueryClientProvider>;
+  const { result } = renderHook(useAuth, { wrapper });
+  act(() => {
+    localStorage.removeItem('keshless_tickets_token');
+    window.dispatchEvent(new StorageEvent('storage', { key: 'keshless_tickets_token' }));
+  });
+  await act(async () => resolveUser({ _id: 'organizer', userType: 'vendor' }));
+  await waitFor(() => expect(result.current.isLoading).toBe(false));
+  expect(result.current.isAuthenticated).toBe(false);
+});
