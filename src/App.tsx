@@ -1,3 +1,4 @@
+import { MarketplacePage } from '@/pages/MarketplacePage';
 import { BrowserRouter as Router, Routes, Route, Outlet } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
@@ -87,6 +88,7 @@ function App() {
                 >
                   <Route index element={<DashboardPage />} />
                   <Route path="events" element={<EventsPage />} />
+                  <Route path="marketplace" element={<MarketplacePage />} />
                   <Route path="events/:id" element={<EventDetailsPage />} />
                   <Route path="updates" element={<UpdatesPage />} />
                   <Route path="sell-tickets" element={<TicketSalesPage />} />
