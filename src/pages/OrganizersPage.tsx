@@ -299,7 +299,7 @@ export function OrganizersPage() {
                         <div className="font-medium">{o.businessName}</div>
                         {o.operatorType === 'services' ? (
                           <Badge variant="outline" className="mt-1 bg-purple-100 text-purple-800 border-purple-200">
-                            Service · {o.serviceCategory ? humanize(o.serviceCategory) : '—'}
+                            Service · {o.serviceCategories ? o.serviceCategories.map(humanize).join(', ') : '—'}
                           </Badge>
                         ) : (
                           <div className="text-xs text-slate-500 capitalize">
