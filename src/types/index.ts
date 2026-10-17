@@ -826,7 +826,7 @@ export interface Organizer {
   primaryContact: string | null;
   businessType: string | null;
   operatorType?: string;
-  serviceCategory?: string;
+  serviceCategories?: string[];
   verificationStatus: OrganizerVerificationStatus;
   verifiedAt: string | null;
   rejectionReason: string | null;
