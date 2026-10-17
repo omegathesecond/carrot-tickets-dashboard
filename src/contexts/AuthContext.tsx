@@ -1,5 +1,8 @@
 import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from 'react';
 import { apiClient } from '@/lib/api';
+import { useQueryClient } from '@tanstack/react-query';
+import { LANDING_URL } from '@/lib/constants';
+import { toast } from 'sonner';
 import type { AuthUser, LoginCredentials, RegisterData, ResetPasswordData } from '@/types';
 
 interface AuthContextType {
@@ -45,6 +48,7 @@ async function retryWithBackoff<T>(
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const initializingRef = useRef(false);
@@ -73,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             role: userData.role,
           });
 
-          setUser(userData);
+          if (localStorage.getItem('keshless_tickets_token') === token) setUser(userData);
         } catch (error: any) {
           console.error('[AuthContext] Failed to fetch user data:', error.message);
 
@@ -171,26 +175,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  useEffect(() => {
+    const synchronize = () => {
+      if (!localStorage.getItem('keshless_tickets_token')) {
+        setUser(null);
+        queryClient.clear();
+      }
+    };
+    const restore = (event: PageTransitionEvent) => {
+      // Revalidate server credentials before rendering a restored history entry.
+      if (event.persisted) window.location.reload();
+    };
+    window.addEventListener('storage', synchronize);
+    window.addEventListener('pageshow', restore);
+    return () => {
+      window.removeEventListener('storage', synchronize);
+      window.removeEventListener('pageshow', restore);
+    };
+  }, [queryClient]);
+
   const logout = async () => {
     try {
-      console.log('[AuthContext] Logging out...');
       await apiClient.auth.logout();
-      setUser(null);
-      console.log('[AuthContext] Logout successful, redirecting to login');
-
-      if (typeof window !== 'undefined') {
-        window.location.href = '/login';
-      }
-    } catch (error: any) {
-      console.error('[AuthContext] Logout failed:', error.message);
-
-      setUser(null);
-      apiClient.clearToken();
-
-      if (typeof window !== 'undefined') {
-        window.location.href = '/login';
-      }
+    } catch (error) {
+      toast.error(error instanceof Error ? `Logout failed: ${error.message}` : 'Logout failed. Please try again.');
+      return;
     }
+    setUser(null);
+    await queryClient.cancelQueries();
+    queryClient.clear();
+    if (user?.userType !== 'vendor') {
+      window.location.replace('/login');
+      return;
+    }
+    const destination = new URL(LANDING_URL);
+    destination.searchParams.set('organizerLoggedOut', '1');
+    window.location.replace(destination.toString());
   };
 
   return (
