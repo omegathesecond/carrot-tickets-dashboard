@@ -5,6 +5,7 @@ import { TicketSuccessDialog } from '@/components/TicketSuccessDialog';
 import { MAX_BUNDLE_TICKETS } from '@/lib/ticketDownloads';
 import { MAX_RECIPIENT_ROWS } from '@/lib/ticketRecipients';
 import type { SaleData } from '@/lib/saleData';
+import { stubPhoneInput } from '@/test/stubPhoneInput';
 
 // jsdom implements neither; saveBlob only needs them to exist.
 beforeAll(() => {
@@ -14,7 +15,7 @@ beforeAll(() => {
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 const saleData: SaleData = {
   saleId: 's1', eventName: 'Gig', ticketTypeName: '2 × General',
@@ -106,7 +107,9 @@ describe('TicketSuccessDialog — row cap agrees with the till (I5)', () => {
   });
 
   it('renders rows right up to the shared limit', () => {
+    stubPhoneInput();
     render(<TicketSuccessDialog {...props} saleData={saleOf(MAX_RECIPIENT_ROWS)} perTicket={rails()} />);
+    expect(screen.getAllByLabelText(/^Recipient name for TKT-/)).toHaveLength(MAX_RECIPIENT_ROWS);
     expect(screen.getByLabelText(`Recipient name for TKT-${MAX_RECIPIENT_ROWS}`)).toBeTruthy();
   });
 });
