@@ -14,7 +14,7 @@ export function prepareRelease(metadata, apk, previous, migrate = false) {
     if (!(migrate && same) && (buildNumber <= previous.buildNumber || changed < 0 || parts[changed] < old[changed])) throw new Error('Release version and build number must both increase');
   }
   const key = `pos/releases/carrot-pos-v${version}-${buildNumber}-${sha256.slice(0, 12)}.apk`;
-  return {key, record: {version, buildNumber, sha256, commit, apkUrl: `https://cdn.carrottickets.com/${key}`}};
+  return {key, record: {version, buildNumber, sha256, commit, publishedAt: new Date().toISOString(), apkUrl: `https://cdn.carrottickets.com/${key}`}};
 }
 export async function putObject(token, key, body, type, cacheControl, disposition) {
   const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${R2_ACCOUNT}/r2/buckets/${R2_BUCKET}/objects/${key}`, {
@@ -24,8 +24,14 @@ export async function putObject(token, key, body, type, cacheControl, dispositio
   if (!response.ok) throw new Error(`R2 upload failed (${response.status})`);
   await response.arrayBuffer();
 }
+export function releaseFilename(record) {
+  const date = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Africa/Mbabane', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date(record.publishedAt));
+  return `carrot-pos-v${record.version}+${record.buildNumber}-${date}.apk`;
+}
 export async function uploadApk(token, release, apk) {
-  await putObject(token, release.key, apk, 'application/vnd.android.package-archive', 'public, max-age=31536000, immutable', `attachment; filename="carrot-pos-v${release.record.version}.apk"`);
+  await putObject(token, release.key, apk, 'application/vnd.android.package-archive', 'public, max-age=31536000, immutable', `attachment; filename="${releaseFilename(release.record)}"`);
   const response = await fetch(release.record.apkUrl, {method: 'HEAD', signal: AbortSignal.timeout(30000)});
   const etag = response.headers.get('etag')?.replaceAll('"', '');
   if (!response.ok || Number(response.headers.get('content-length')) !== apk.length ||
