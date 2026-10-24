@@ -2701,9 +2701,17 @@ export interface ReconRow {
   expectedClosing: number;
   physicalCount: number | null;
   variance: number | null;
+  regularUnits: number;
+  specialUnits: number;
+  specialBundles: number;
+  unclassifiedUnits: number;
+  refundedNotRestockedUnits: number;
+  regularValue: number;
+  discountAmount: number;
+  salesRevenue: number;
 }
 export interface StockReconciliation {
-  event: { id: string; name: string };
+  event: { id: string; name: string; currency: 'SZL' | 'ZAR' };
   perBar: ReconRow[];
   byProduct: ReconRow[];
   total: Omit<ReconRow, 'merchantId' | 'merchantName' | 'productId' | 'productName'>;
