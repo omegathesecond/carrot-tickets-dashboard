@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TicketSalesPage } from '@/pages/TicketSalesPage';
 import { apiClient } from '@/lib/api';
 import { MAX_RECIPIENT_ROWS } from '@/lib/ticketRecipients';
+import { stubPhoneInput } from '@/test/stubPhoneInput';
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -114,7 +115,7 @@ beforeEach(() => {
     tickets: [{ ticketId: 'TIX-1' }, { ticketId: 'TIX-2' }, { ticketId: 'TIX-3' }],
   } as never);
 });
-afterEach(() => { cleanup(); vi.clearAllMocks(); dialogProps.length = 0; });
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.clearAllMocks(); dialogProps.length = 0; });
 
 describe('TicketSalesPage — box-office basket', () => {
   it('offers a quantity per tier once an event is chosen', async () => {
@@ -555,6 +556,7 @@ describe('TicketSalesPage — minted recipients reach the dialog (I1)', () => {
 
 describe('TicketSalesPage — row cap agrees with the dialog (I5)', () => {
   it('caps the assign panel at the shared limit', async () => {
+    stubPhoneInput();
     // A tier with more headroom than the cap.
     vi.mocked(apiClient.events.getEvents).mockResolvedValue({
       data: [{ ...EVENT, ticketTypes: [{ _id: 't1', name: 'General', price: 100, available: 500, isSoldOut: false }] }],
@@ -565,6 +567,7 @@ describe('TicketSalesPage — row cap agrees with the dialog (I5)', () => {
     fireEvent.change(await screen.findByLabelText('Quantity for General'), { target: { value: '120' } });
     openAssign();
 
+    expect(screen.getAllByLabelText(/^Recipient \d+ name$/)).toHaveLength(MAX_RECIPIENT_ROWS);
     expect(screen.getByLabelText(`Recipient ${MAX_RECIPIENT_ROWS} name`)).toBeTruthy();
     expect(screen.queryByLabelText(`Recipient ${MAX_RECIPIENT_ROWS + 1} name`)).toBeNull();
     expect(screen.getByText(/showing the first 100 tickets/i)).toBeTruthy();

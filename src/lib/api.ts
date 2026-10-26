@@ -134,6 +134,10 @@ export class ApiClient {
     return refreshToken;
   }
 
+  marketplace<T>(path: string, options?: RequestInit): Promise<T> {
+    return this.request<T>('/marketplace' + path, options);
+  }
+
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
