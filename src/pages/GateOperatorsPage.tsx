@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { CalendarRange, KeyRound, Plus, Power, UserPlus } from 'lucide-react';
@@ -51,9 +51,12 @@ const DEFAULT_FORM: AddForm = {
 export function GateOperatorsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const vendorId = searchParams.get('vendorId') || undefined;
+  const eventId = searchParams.get('eventId') || undefined;
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [form, setForm] = useState<AddForm>(DEFAULT_FORM);
+  const [form, setForm] = useState<AddForm>({ ...DEFAULT_FORM, vendorId: vendorId ?? '', eventIds: eventId ? [eventId] : [] });
   const [issued, setIssued] = useState<{ title: string; loginCode?: string; pin: string } | null>(null);
   const [editingEvents, setEditingEvents] = useState<GateOperatorRow | null>(null);
 
@@ -67,9 +70,10 @@ export function GateOperatorsPage() {
     onError: (e: Error) => toast.error(e.message || 'Failed to update permissions'),
   });
 
-  const { data: operators = [], isLoading } = useQuery({
-    queryKey: ['gate-operators'],
-    queryFn: () => apiClient.gateOperators.list(),
+  const { data: operators = [], isLoading, isError, error } = useQuery({
+    queryKey: ['gate-operators', user?._id, vendorId, eventId],
+    queryFn: () => apiClient.gateOperators.list({ vendorId, eventId }),
+    enabled: !!user,
   });
 
   const createOperator = useMutation({
@@ -95,7 +99,7 @@ export function GateOperatorsPage() {
       toast.success('Gate operator created');
       setIssued({ title: 'Gate operator created', loginCode: res.loginCode, pin: res.pin });
       setIsAddOpen(false);
-      setForm(DEFAULT_FORM);
+      setForm({ ...DEFAULT_FORM, vendorId: vendorId ?? '', eventIds: eventId ? [eventId] : [] });
     },
     onError: (e: any) => toast.error(e.message || 'Failed to create operator'),
   });
@@ -185,6 +189,7 @@ export function GateOperatorsPage() {
                       <Label htmlFor="go-scope">Scope</Label>
                       <Select
                         value={form.scope}
+                        disabled={!!vendorId}
                         onValueChange={(v) =>
                           setForm((f) => ({ ...f, scope: v as 'platform' | 'organizer', vendorId: '' }))
                         }
@@ -202,6 +207,7 @@ export function GateOperatorsPage() {
                         <Input
                           id="go-vendor"
                           value={form.vendorId}
+                          readOnly={!!vendorId}
                           required
                           className="h-12"
                           placeholder="e.g. 6642abc..."
@@ -247,7 +253,9 @@ export function GateOperatorsPage() {
           </Dialog>
         </div>
 
-        {isLoading ? (
+        {isError ? (
+          <p role="alert" className="text-red-600">{error.message || 'Failed to load gate operators'}</p>
+        ) : isLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {[0, 1, 2].map((i) => (
               <Card key={i}><CardContent className="h-40 animate-pulse bg-slate-100/60 rounded-xl" /></Card>
@@ -276,7 +284,7 @@ export function GateOperatorsPage() {
             {operators.map((op: GateOperatorRow) => (
               <Card
                 key={op._id}
-                onClick={() => navigate(`/gate-operators/${op._id}`)}
+                onClick={() => navigate(`/gate-operators/${op._id}${searchParams.size ? `?${searchParams}` : ''}`)}
                 className={`group transition hover:shadow-md cursor-pointer ${op.isActive ? '' : 'opacity-75'}`}
               >
                 <CardContent className="pt-5 flex flex-col gap-4 h-full">

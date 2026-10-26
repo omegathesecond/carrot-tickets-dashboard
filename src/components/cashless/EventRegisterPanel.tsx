@@ -1,3 +1,4 @@
+import { useAuth } from '@/contexts/AuthContext';
 import { EventResourceActions } from '@/components/EventResourceActions';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -36,6 +37,7 @@ const DEFAULT_FORM: AddForm = { fullName: '', phoneNumber: '' };
  * a sibling sub-tab rather than a section nested in here — see EventCashlessTab.
  */
 export function EventRegisterPanel({ eventId, canDelete = false }: { eventId: string; canDelete?: boolean }) {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -43,8 +45,8 @@ export function EventRegisterPanel({ eventId, canDelete = false }: { eventId: st
   const [issued, setIssued] = useState<{ title: string; loginCode?: string; pin: string } | null>(null);
 
   const { data: operators = [], isLoading: loadingOperators, isError: operatorsFailed, error: operatorsError } = useQuery({
-    queryKey: ['gate-operators'],
-    queryFn: () => apiClient.gateOperators.list(),
+    queryKey: ['gate-operators', user?._id, eventId],
+    queryFn: () => apiClient.gateOperators.list({ eventId }),
   });
 
   // An empty eventIds means "every event of this organizer" (see GateOperatorRow),

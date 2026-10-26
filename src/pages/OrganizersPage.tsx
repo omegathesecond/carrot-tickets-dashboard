@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { Building2, BadgeCheck, Clock3, Ban } from 'lucide-react';
 import { toast } from 'sonner';
@@ -333,6 +334,9 @@ export function OrganizersPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            <DropdownMenuItem asChild>
+                              <Link to={`/gate-operators?vendorId=${encodeURIComponent(o.id)}`}>Gate Operators</Link>
+                            </DropdownMenuItem>
                             {o.verificationStatus !== 'verified' && (
                               <DropdownMenuItem onClick={() => setVerificationStatus(o, 'verified')}>
                                 Verify
