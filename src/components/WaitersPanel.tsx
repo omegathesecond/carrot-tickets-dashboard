@@ -52,7 +52,7 @@ const DEFAULT_FORM: AddForm = { fullName: '', phoneNumber: '' };
  * The organizer's floor staff for ONE event — waiters open a table and add
  * items, each with their own login code + PIN. Settling a table (taking the
  * final payment and closing it out) is a separate, per-person grant that is
- * OFF by default — the API refuses a settle attempt without it — so it is
+ * enabled for new waiters — the API refuses a settle attempt without it — so it is
  * offered here as its own on/off control on the card rather than folded into
  * an edit form, mirroring CashiersPanel's "Tag desk" toggle. A waiter is
  * hired for exactly one event and the event is immutable at the API, so this
