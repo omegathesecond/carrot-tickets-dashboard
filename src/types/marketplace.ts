@@ -29,6 +29,8 @@ export interface Certificate {
   expiresAt?: string;
 }
 export interface Opportunity {
+  eventId?: string | null;
+  posterUrl?: string;
   _id: string;
   organiser: string;
   name: string;

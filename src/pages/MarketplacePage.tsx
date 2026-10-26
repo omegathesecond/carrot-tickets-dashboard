@@ -93,7 +93,7 @@ export function MarketplacePage() {
     void organiser;
     void status;
     // Only send fields defined by the opportunity contract, excluding server metadata.
-    const keys = Object.keys(newOpportunity(options!)).filter(
+    const keys = [...Object.keys(newOpportunity(options!)), 'eventId', 'posterUrl'].filter(
       (k) => !['_id', 'organiser', 'status'].includes(k),
     );
     const payload = Object.fromEntries(
