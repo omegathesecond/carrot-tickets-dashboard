@@ -65,7 +65,7 @@ describe('EventTagRegisterPanel', () => {
     renderPanel();
 
     await waitFor(() => expect(screen.getByText('04a22b1c')).toBeTruthy());
-    expect(screen.getByText('In circulation')).toBeTruthy();
+    expect(screen.getByText('Registered')).toBeTruthy();
     expect(screen.getByText('Retired — snapped')).toBeTruthy();
     expect(screen.getAllByText('Register Rose')).toHaveLength(2);
   });
@@ -165,3 +165,16 @@ describe('handing a registered tag to somebody with no ticket', () => {
     expect(screen.queryByRole('button', { name: /hand out/i })).toBeNull();
   });
 });
+
+
+it('refreshes the circulation list and total after funding is confirmed', async () => {
+  registry.mockReset();
+  registry.mockResolvedValue(EMPTY);
+  renderPanel();
+  await screen.findByText('All (0)');
+  fireEvent.mouseDown(screen.getByRole('tab', { name: 'In circulation (0)' }), { button: 0, ctrlKey: false });
+  await waitFor(() => expect(registry).toHaveBeenCalledWith('e1', { status: 'active' }));
+  registry.mockResolvedValue({ tags: [tag()], total: 1, counts: { active: 1, retired: 0, total: 1 } });
+  await waitFor(() => expect(screen.getByText('In circulation (1)')).toBeTruthy(), { timeout: 7000 });
+  expect(screen.getByText('04a22b1c')).toBeTruthy();
+}, 10000);

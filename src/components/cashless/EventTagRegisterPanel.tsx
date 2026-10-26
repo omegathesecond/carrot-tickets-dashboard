@@ -42,6 +42,7 @@ export function EventTagRegisterPanel({ eventId }: { eventId: string }) {
   const [status, setStatus] = useState<EventTagStatus | 'all'>('all');
 
   const { data, isLoading, isError, error } = useQuery({
+    refetchInterval: 5000,
     queryKey: ['event-tag-registry', eventId, q, status],
     queryFn: () => apiClient.tags.registry(eventId, {
       ...(q.trim() ? { q: q.trim() } : {}),
@@ -168,6 +169,10 @@ export function EventTagRegisterPanel({ eventId }: { eventId: string }) {
         </div>
       </div>
 
+      {status === 'active' && (
+        <p className="text-sm text-muted-foreground">Funded tags currently in circulation. Updates automatically every 5 seconds.</p>
+      )}
+
       <Card>
         <CardContent className="pt-6">
           {isLoading ? (
@@ -217,7 +222,7 @@ export function EventTagRegisterPanel({ eventId }: { eventId: string }) {
                       <TableCell className="text-muted-foreground whitespace-nowrap">{fmtWhen(t.registeredAt)}</TableCell>
                       <TableCell>
                         {t.status === 'active' ? (
-                          <Badge variant="secondary" className="bg-green-100 text-green-800">In circulation</Badge>
+                          <Badge variant="secondary" className="bg-green-100 text-green-800">Registered</Badge>
                         ) : (
                           <Badge variant="secondary" className="bg-slate-100 text-slate-700">
                             Retired{t.retiredReason ? ` — ${t.retiredReason}` : ''}
