@@ -1441,7 +1441,7 @@ export class ApiClient {
   // Waiters — the organizer's floor staff for ONE event (open a table, add
   // items). Unlike a cashier, a waiter always belongs to an organizer — there
   // is no platform scope — and settling a table (taking final payment) is a
-  // separate grant, off by default, turned on per person via setGrants.
+  // separate grant, on for new waiters, changed per person via setGrants.
   waiters = {
     revealPin: async (id: string): Promise<{ loginCode: string; pin: string }> =>
       this.request(`/tickets/waiters/${id}/reveal-pin`, { method: 'POST' }),
@@ -2236,7 +2236,8 @@ export const OPERATOR_GRANT_LABELS: Record<
     appliesTo: ['merchant'],
   },
   settle_tables: {
-    // Off by default: a waiter can open a table and add items without it,
+    // Granted to new waiters by default; it can be removed per person. A
+    // waiter can still open a table and add items without it,
     // but only someone with this grant may take final payment and close the
     // table out — the API refuses a settle attempt without it.
     label: 'Can settle tables',
