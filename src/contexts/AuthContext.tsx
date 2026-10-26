@@ -1,5 +1,8 @@
 import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from 'react';
 import { apiClient } from '@/lib/api';
+import { useQueryClient } from '@tanstack/react-query';
+import { LANDING_URL } from '@/lib/constants';
+import { toast } from 'sonner';
 import type { AuthUser, LoginCredentials, RegisterData, ResetPasswordData } from '@/types';
 
 interface AuthContextType {
@@ -45,10 +48,13 @@ async function retryWithBackoff<T>(
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const initializingRef = useRef(false);
   const initializedRef = useRef(false);
+  // Token renewal stays in the same session; login/logout invalidates pending work.
+  const sessionGenerationRef = useRef(0);
 
   useEffect(() => {
     if (initializingRef.current || initializedRef.current) {
@@ -59,6 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initializingRef.current = true;
 
     const initAuth = async () => {
+      const generation = sessionGenerationRef.current;
       const token = localStorage.getItem('keshless_tickets_token');
       console.log('[AuthContext] Initializing auth, token exists:', !!token);
 
@@ -73,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             role: userData.role,
           });
 
-          setUser(userData);
+          if (sessionGenerationRef.current === generation) setUser(userData);
         } catch (error: any) {
           console.error('[AuthContext] Failed to fetch user data:', error.message);
 
@@ -81,13 +88,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               error.message?.includes('Unauthorized') || error.message?.includes('Forbidden')) {
             console.warn('[AuthContext] Authentication failed - token is invalid or expired');
 
-            const currentToken = localStorage.getItem('keshless_tickets_token');
-            if (currentToken === token) {
+            if (sessionGenerationRef.current === generation) {
               console.warn('[AuthContext] Removing invalid token');
               localStorage.removeItem('keshless_tickets_token');
               localStorage.removeItem('keshless_tickets_refresh_token');
             } else {
-              console.warn('[AuthContext] Token already changed, not removing');
+              console.warn('[AuthContext] Session already changed, not removing credentials');
             }
           } else {
             console.warn('[AuthContext] Network or temporary error, keeping token for retry on next load');
@@ -118,6 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       await new Promise<void>((resolve) => {
+        sessionGenerationRef.current += 1;
         setUser(response.user);
         setTimeout(() => {
           console.log('[AuthContext] User state updated, auth should be active');
@@ -141,6 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       await new Promise<void>((resolve) => {
+        sessionGenerationRef.current += 1;
         setUser(response.user);
         setTimeout(() => resolve(), 50);
       });
@@ -162,6 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       await new Promise<void>((resolve) => {
+        sessionGenerationRef.current += 1;
         setUser(response.user);
         setTimeout(() => resolve(), 50);
       });
@@ -171,26 +180,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  useEffect(() => {
+    const synchronize = () => {
+      if (!localStorage.getItem('keshless_tickets_token')) {
+        sessionGenerationRef.current += 1;
+        setUser(null);
+        queryClient.clear();
+      }
+    };
+    const restore = (event: PageTransitionEvent) => {
+      // Revalidate server credentials before rendering a restored history entry.
+      if (event.persisted) window.location.reload();
+    };
+    window.addEventListener('storage', synchronize);
+    window.addEventListener('pageshow', restore);
+    return () => {
+      window.removeEventListener('storage', synchronize);
+      window.removeEventListener('pageshow', restore);
+    };
+  }, [queryClient]);
+
   const logout = async () => {
     try {
-      console.log('[AuthContext] Logging out...');
       await apiClient.auth.logout();
-      setUser(null);
-      console.log('[AuthContext] Logout successful, redirecting to login');
-
-      if (typeof window !== 'undefined') {
-        window.location.href = '/login';
-      }
-    } catch (error: any) {
-      console.error('[AuthContext] Logout failed:', error.message);
-
-      setUser(null);
-      apiClient.clearToken();
-
-      if (typeof window !== 'undefined') {
-        window.location.href = '/login';
-      }
+    } catch (error) {
+      toast.error(error instanceof Error ? `Logout failed: ${error.message}` : 'Logout failed. Please try again.');
+      return;
     }
+    sessionGenerationRef.current += 1;
+    setUser(null);
+    await queryClient.cancelQueries();
+    queryClient.clear();
+    if (user?.userType !== 'vendor') {
+      window.location.replace('/login');
+      return;
+    }
+    const destination = new URL(LANDING_URL);
+    destination.searchParams.set('organizerLoggedOut', '1');
+    window.location.replace(destination.toString());
   };
 
   return (

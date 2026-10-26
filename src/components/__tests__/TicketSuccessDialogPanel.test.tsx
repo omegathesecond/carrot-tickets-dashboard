@@ -96,12 +96,14 @@ describe('TicketSuccessDialog — row cap agrees with the till (I5)', () => {
   // Dropping to chips at 20 left a 50-ticket sale's recipients with no send
   // and no download button at all.
   it('still renders a row per ticket well above 20', () => {
+    stubPhoneInput();
     render(<TicketSuccessDialog {...props} saleData={saleOf(50)} perTicket={rails()} />);
     expect(screen.getByLabelText('Recipient name for TKT-21')).toBeTruthy();
     expect(screen.getByLabelText('Recipient name for TKT-50')).toBeTruthy();
   });
 
   it('scrolls the long list rather than dropping it', () => {
+    stubPhoneInput();
     render(<TicketSuccessDialog {...props} saleData={saleOf(50)} perTicket={rails()} />);
     expect(screen.getByTestId('recipient-rows').className).toContain('overflow-y-auto');
   });

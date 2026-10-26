@@ -43,6 +43,7 @@ export function EditorCanvas({ template, state, dispatch, zoom }: {
   const h = template.bandHeightMm * pxPerMm;
   const trRef = useRef<Konva.Transformer>(null);
   const stageRef = useRef<Konva.Stage>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
 
   // Attach the transformer to the selected node.
   useEffect(() => {
@@ -52,6 +53,29 @@ export function EditorCanvas({ template, state, dispatch, zoom }: {
     tr.nodes(node ? [node] : []);
     tr.getLayer()?.batchDraw();
   }, [state.selectedId, state.elements]);
+
+  // New artwork starts at the band's origin. Keep the selected layer in
+  // view even when the user has scrolled along a zoomed-in wristband.
+  useEffect(() => {
+    const viewport = viewportRef.current, stage = stageRef.current;
+    if (!viewport || !stage || !state.selectedId) return;
+    const node = findNodeById(stage, state.selectedId);
+    if (!node) return;
+    const bounds = node.getClientRect({ relativeTo: stage });
+    const origin = stage.container().getBoundingClientRect();
+    const view = viewport.getBoundingClientRect();
+    const padding = 24;
+    const left = origin.left + bounds.x, top = origin.top + bounds.y;
+    const right = left + bounds.width, bottom = top + bounds.height;
+    viewport.scrollBy({
+      left: left < view.left + padding || bounds.width > viewport.clientWidth - 2 * padding
+        ? left - view.left - padding
+        : right > view.right - padding ? right - view.right + padding : 0,
+      top: top < view.top + padding || bounds.height > viewport.clientHeight - 2 * padding
+        ? top - view.top - padding
+        : bottom > view.bottom - padding ? bottom - view.bottom + padding : 0,
+    });
+  }, [state.selectedId, zoom]);
 
   const select = (id: string | null) => dispatch({ type: 'select', id });
 
@@ -117,8 +141,9 @@ export function EditorCanvas({ template, state, dispatch, zoom }: {
   const selectedLocked = !!state.elements.find((e) => e.id === state.selectedId)?.locked;
 
   return (
-    <div className="flex items-center justify-center overflow-auto rounded-lg bg-slate-100 p-6">
-      <Stage ref={stageRef} width={w} height={h} onMouseDown={onStageMouseDown} className="shadow-md">
+    <div ref={viewportRef} className="flex items-center overflow-auto rounded-lg bg-slate-100 p-6">
+      {/* Auto margins center a band that fits; overflow starts at its reachable left edge. */}
+      <Stage ref={stageRef} width={w} height={h} onMouseDown={onStageMouseDown} className="mx-auto shrink-0 shadow-md">
         <Layer>
           {/* Band background — clicking it (not an element) deselects. */}
           <Rect

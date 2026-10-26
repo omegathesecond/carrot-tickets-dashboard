@@ -41,7 +41,16 @@ export function GetPosAppPage() {
             <CardTitle className="text-lg">Download for Android</CardTitle>
             <CardDescription>
               Sell tickets, scan entries and run cashless top-ups on an Android phone or ZCS handheld.
-              {release && !error && <>Version {release.version}.</>}
+              {release && !error && (
+                <span className="mt-2 block font-medium text-slate-700">
+                  Version {release.version} (build {release.buildNumber}) · Released{' '}
+                  <time dateTime={release.publishedAt}>
+                    {new Intl.DateTimeFormat('en-GB', {
+                      day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Africa/Mbabane',
+                    }).format(new Date(release.publishedAt))}
+                  </time>
+                </span>
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

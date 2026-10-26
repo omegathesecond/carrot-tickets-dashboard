@@ -44,7 +44,7 @@ const servicesOrganizer: Organizer = {
   primaryContact: null,
   businessType: null,
   operatorType: 'services',
-  serviceCategory: 'beauty_and_wellness',
+  serviceCategories: ['beauty_and_wellness'],
   verificationStatus: 'pending',
   verifiedAt: null,
   rejectionReason: null,

@@ -193,6 +193,7 @@ export class ApiClient {
           (errorMessage.includes('Token has expired') || errorMessage.includes('expired')) &&
           !endpoint.includes('/tickets/auth/refresh') &&
           !endpoint.includes('/tickets/auth/login') &&
+          !endpoint.includes('/tickets/auth/logout') &&
           this.getRefreshToken()
         ) {
           console.log('[ApiClient] Token expired, attempting refresh...');
@@ -288,7 +289,9 @@ export class ApiClient {
         const tokenData = data.data || data;
 
         console.log('[ApiClient] Token refresh successful');
-        this.setToken(tokenData.accessToken, tokenData.refreshToken);
+        if (this.getRefreshToken() === refreshToken) {
+          this.setToken(tokenData.accessToken, tokenData.refreshToken);
+        }
 
         this.isRefreshing = false;
         this.refreshPromise = null;
@@ -368,6 +371,8 @@ export class ApiClient {
     },
 
     logout: async (): Promise<void> => {
+      // Finish any rotation first so logout revokes the current credential.
+      if (this.refreshPromise) await this.refreshPromise;
       const refreshToken = this.getRefreshToken();
       await this.request(`/tickets/auth/logout`, {
         method: 'POST',
@@ -2115,6 +2120,7 @@ export class ApiClient {
       (errorMessage.includes('Token has expired') || errorMessage.includes('expired')) &&
       !endpoint.includes('/tickets/auth/refresh') &&
       !endpoint.includes('/tickets/auth/login') &&
+      !endpoint.includes('/tickets/auth/logout') &&
       !!this.getRefreshToken()
     );
   }
@@ -2699,9 +2705,17 @@ export interface ReconRow {
   expectedClosing: number;
   physicalCount: number | null;
   variance: number | null;
+  regularUnits: number;
+  specialUnits: number;
+  specialBundles: number;
+  unclassifiedUnits: number;
+  refundedNotRestockedUnits: number;
+  regularValue: number;
+  discountAmount: number;
+  salesRevenue: number;
 }
 export interface StockReconciliation {
-  event: { id: string; name: string };
+  event: { id: string; name: string; currency: 'SZL' | 'ZAR' };
   perBar: ReconRow[];
   byProduct: ReconRow[];
   total: Omit<ReconRow, 'merchantId' | 'merchantName' | 'productId' | 'productName'>;

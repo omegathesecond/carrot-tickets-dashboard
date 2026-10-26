@@ -43,6 +43,8 @@ vi.mock('@/lib/ticketDownloads', async (importOriginal) => {
 vi.mock('sonner', () => ({ toast: { error: (...a: unknown[]) => toastError(...a) } }));
 
 function renderReport() {
+  const pricing = { regularUnits: 4, specialUnits: 6, specialBundles: 1, unclassifiedUnits: 0,
+    refundedNotRestockedUnits: 0, regularValue: 35000, discountAmount: 2000, salesRevenue: 33000 };
   getEventStockBoard.mockResolvedValue({ event: { id: 'e1', name: 'Event' }, perBar: [], byProduct: [] });
   getEventStockDashboard.mockResolvedValue({
     event: { id: 'e1', name: 'Event' },
@@ -51,14 +53,16 @@ function renderReport() {
     peakTimes: [], variances: [], totalShrinkageUnits: 0, predictedStockOut: [], noRecentSales: 0,
   });
   getEventStockReconciliation.mockResolvedValue({
-    event: { id: 'e1', name: 'Ocean Summer Vibes' },
+    event: { id: 'e1', name: 'Ocean Summer Vibes', currency: 'SZL' },
     perBar: [],
     byProduct: [{
+      ...pricing,
       productId: 'p1', productName: 'Castle Lite', opening: 10, added: 5,
       transferIn: 0, transferOut: 0, sold: 3, countAdjust: 0, spoilage: 0,
       manual: 0, expectedClosing: 12, physicalCount: 11, variance: -1,
     }],
     total: {
+      ...pricing,
       opening: 10, added: 5, transferIn: 0, transferOut: 0, sold: 3, countAdjust: 0,
       spoilage: 0, manual: 0, expectedClosing: 12, physicalCount: 11, variance: -1,
     },
@@ -88,6 +92,18 @@ const downloadButton = () => screen.getByRole('button', { name: /download pdf/i 
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe('the reconciliation can be downloaded as a PDF', () => {
+  it('shows the saved special-price audit and event currency alongside stock reconciliation', async () => {
+    renderReport();
+    openReconciliation();
+    await screen.findByText('Sales pricing audit');
+    expect(screen.getByText('Regular units')).toBeDefined();
+    expect(screen.getByText('Special units')).toBeDefined();
+    expect(screen.getByText('E350.00')).toBeDefined();
+    expect(screen.getByText('E20.00')).toBeDefined();
+    expect(screen.getByText('E330.00')).toBeDefined();
+    expect(screen.getByText('Refunded, not returned')).toBeDefined();
+  });
+
   it('fetches the PDF and hands it to the browser', async () => {
     const blob = new Blob(['%PDF-'], { type: 'application/pdf' });
     getEventStockReconciliationPdf.mockResolvedValue(blob);
