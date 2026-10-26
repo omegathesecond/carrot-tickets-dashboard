@@ -487,7 +487,7 @@ export function EventDetailsPage() {
     { key: 'overview', label: 'Overview', icon: Calendar, show: true },
     { key: 'financials', label: 'Financials', icon: Coins, show: canSeeFinancials },
     { key: 'analytics', label: 'Analytics', icon: BarChart3, show: true },
-    { key: 'vote', label: 'Attendance', icon: AttendanceStatusIcon, show: true },
+    { key: 'vote', label: 'Ask Your Fans', icon: AttendanceStatusIcon, show: true },
     { key: 'coupons', label: 'Coupons', icon: Gift, show: hasPermission(user, TicketsPermission.EDIT_EVENT) && event.ticketing !== 'external' },
     { key: 'share-earn', label: 'Share&Earn', icon: Gift, show: true },
     { key: 'creator', label: 'Creator', icon: UserCircle, show: true },

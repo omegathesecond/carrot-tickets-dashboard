@@ -1983,6 +1983,9 @@ export class ApiClient {
   // activation, genuine stats/results/song-suggestions once open, and
   // discussion moderation). See EventVoteTab.
   vote = {
+    saveQuestions: async (eventId: string, questions: VotePreview['settings']): Promise<VotePreview> => {
+      return this.request<VotePreview>(`/tickets/events/${eventId}/vote/questions`, { method: 'PUT', body: JSON.stringify({ questions }) });
+    },
     getPreview: async (eventId: string): Promise<VotePreview> => {
       return this.request<VotePreview>(`/tickets/events/${eventId}/vote/preview`);
     },
