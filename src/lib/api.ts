@@ -1,3 +1,4 @@
+import type { PayoutBank, EventPayoutRequest, EventPayoutOverview, PayoutStatus } from '@/types/eventPayout';
 import type { EventCoupon, CreateCouponsInput } from '@/types/eventCoupon';
 import type { DeskTopupMethod, DeskTopupTotals } from '@/lib/deskPaymentMethod';
 import type {
@@ -1022,6 +1023,21 @@ export class ApiClient {
   };
 
   // Reseller admin endpoints (super-admin only)
+  payoutRequests = {
+    overview: (eventId: string) => this.request<EventPayoutOverview>(`/payout-requests/events/${eventId}`),
+    bank: () => this.request<PayoutBank | null>('/payout-requests/bank'),
+    forgetBank: () => this.request('/payout-requests/bank', { method: 'DELETE' }),
+    request: (eventId: string, data: { bank?: PayoutBank; useSaved?: boolean; saveBank?: boolean; bankVersion?: string; expectedAmount: number }) =>
+      this.request<EventPayoutRequest>(`/payout-requests/events/${eventId}`, { method: 'POST', body: JSON.stringify(data) }),
+    list: (search: string, status: string, page: number) => {
+      const query = new URLSearchParams({ search, page: String(page), ...(status ? { status } : {}) });
+      return this.request<{ items: EventPayoutRequest[]; total: number; page: number }>(`/payout-requests?${query}`);
+    },
+    detail: (id: string) => this.request<EventPayoutRequest>(`/payout-requests/${id}`),
+    decide: (id: string, data: { status: PayoutStatus; note?: string; paidAt?: string; paymentReference?: string; paymentCompleted?: boolean }) =>
+      this.request<EventPayoutRequest>(`/payout-requests/${id}/status`, { method: 'POST', body: JSON.stringify(data) }),
+  };
+
   resellerAdmin = {
     listResellers: async (): Promise<Reseller[]> =>
       this.request<Reseller[]>(`/admin/resellers`),

@@ -1,3 +1,4 @@
+import { EventPayoutPanel } from '@/components/EventPayoutPanel';
 import { hasPermission, TicketsPermission } from '@/lib/permissions';
 import { EventCouponsTab } from '@/components/EventCouponsTab';
 import { useState, useEffect, useRef } from 'react';
@@ -1345,6 +1346,7 @@ export function EventDetailsPage() {
         {canSeeFinancials && (
           <TabsContent value="financials" className="mt-6">
             <EventFinancialsTab eventId={id!} />
+            {user?.userType === 'vendor' && !isAdmin && <EventPayoutPanel eventId={id!} />}
           </TabsContent>
         )}
 
