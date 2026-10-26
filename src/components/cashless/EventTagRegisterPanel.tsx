@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Nfc, Plus, Search, Trash2, HandCoins } from 'lucide-react';
+import { Nfc, Plus, Search, Trash2, HandCoins, RotateCcw } from 'lucide-react';
 import { apiClient, type EventTagRow, type EventTagStatus } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -95,6 +95,15 @@ export function EventTagRegisterPanel({ eventId }: { eventId: string }) {
     mutationFn: (bandUid: string) => apiClient.tags.retire(eventId, bandUid, 'Retired from the dashboard'),
     onSuccess: () => { invalidate(); toast.success('Tag retired — it will no longer work at this event'); },
     onError: (e: Error) => toast.error(e.message || 'Failed to retire the tag'),
+  });
+
+  const unretire = useMutation({
+    mutationFn: (bandUid: string) => apiClient.tags.register(eventId, bandUid),
+    onSuccess: () => {
+      invalidate();
+      toast.success('Tag unretired — hand it out again before loading funds');
+    },
+    onError: (e: Error) => toast.error(e.message || 'Failed to unretire the tag'),
   });
 
   const counts = data?.counts;
@@ -230,6 +239,14 @@ export function EventTagRegisterPanel({ eventId }: { eventId: string }) {
                         )}
                       </TableCell>
                       <TableCell className="text-right">
+                        {t.status === 'retired' && (
+                          <Button variant="outline" size="sm"
+                            disabled={unretire.isPending}
+                            onClick={() => unretire.mutate(t.bandUid)}>
+                            <RotateCcw className="h-4 w-4 mr-1.5" />
+                            {unretire.isPending && unretire.variables === t.bandUid ? 'Unretiring…' : 'Unretire'}
+                          </Button>
+                        )}
                         {t.status === 'active' && (
                           <div className="flex items-center justify-end gap-2">
                             <Button variant="outline" size="sm"
