@@ -1,3 +1,4 @@
+import { FanQuestionEditor } from './FanQuestionEditor';
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
@@ -17,7 +18,7 @@ interface EventVoteTabProps {
   eventId: string;
 }
 
-const KIND_LABEL: Record<VoteQuestionKind, string> = {
+const KIND_LABEL: Partial<Record<VoteQuestionKind, string>> = {
   attending_with: 'Attending With',
   busy: 'Crowd',
   bump_into: 'Bump Into',
@@ -112,7 +113,7 @@ export function EventVoteTab({ eventId }: EventVoteTabProps) {
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
   const [removeTarget, setRemoveTarget] = useState<string | null>(null);
 
-  const { data: preview, isLoading: previewLoading } = useQuery({
+  const { data: preview, isLoading: previewLoading, error: previewError } = useQuery({
     queryKey: ['votePreview', eventId],
     queryFn: () => apiClient.vote.getPreview(eventId),
     enabled: !!eventId,
@@ -152,6 +153,8 @@ export function EventVoteTab({ eventId }: EventVoteTabProps) {
     return <div className="p-8 text-center text-slate-500">Loading Attendance Status…</div>;
   }
 
+  if (previewError) return <p role="alert" className="p-6 text-red-700">{previewError.message || 'Could not load fan questions.'}</p>;
+
   const window_ = summary?.window ?? preview?.window;
 
   return (
@@ -161,7 +164,7 @@ export function EventVoteTab({ eventId }: EventVoteTabProps) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <AttendanceStatusIcon className="h-5 w-5 text-orange-600" />
-            Attendance Status
+            Ask Your Fans
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -194,6 +197,9 @@ export function EventVoteTab({ eventId }: EventVoteTabProps) {
         </CardContent>
       </Card>
 
+      {preview && hasPermission(user, TicketsPermission.EDIT_EVENT) && (
+        <FanQuestionEditor key={eventId} eventId={eventId} settings={preview.settings} />
+      )}
       {/* Preview (before activation) */}
       {!hasOpened && (
         <Card>
@@ -202,15 +208,13 @@ export function EventVoteTab({ eventId }: EventVoteTabProps) {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-xs text-slate-500">
-              Based on this event's current details — not live yet. Keep refining the lineup / outfit
-              theme options (on the event creation form) up until Attendance Status opens; questions and options are
-              frozen the moment they go live and won't update after that.
+              These selected questions will appear in the event’s attendance section when it opens.
             </p>
             {preview && preview.questions.length > 0 ? (
               preview.questions.map((q) => (
                 <div key={q.kind} className="rounded-lg border border-slate-200 p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <Badge variant="outline">{KIND_LABEL[q.kind]}</Badge>
+                    <Badge variant="outline">{KIND_LABEL[q.kind] ?? 'Custom'}</Badge>
                     <span className="font-medium text-slate-900">{q.prompt}</span>
                   </div>
                   {q.options.length > 0 ? (
@@ -245,7 +249,7 @@ export function EventVoteTab({ eventId }: EventVoteTabProps) {
                   <CardHeader>
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <CardTitle className="flex items-center gap-2 text-base">
-                        <Badge variant="outline">{KIND_LABEL[q.kind]}</Badge>
+                        <Badge variant="outline">{KIND_LABEL[q.kind] ?? 'Custom'}</Badge>
                         {q.prompt}
                       </CardTitle>
                       <span className="text-sm text-slate-600">{q.totalVotes} response{q.totalVotes === 1 ? '' : 's'}</span>

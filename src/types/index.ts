@@ -233,7 +233,7 @@ export interface EventFormData {
 // The client removed the standalone "Are you planning to attend?" question
 // entirely — the api no longer materializes or returns it — so 'attend' is
 // not a member of this union.
-export type VoteQuestionKind = 'artist' | 'song' | 'outfit' | 'attending_with' | 'busy' | 'bump_into' | 'cup';
+export type VoteQuestionKind = 'artist' | 'song' | 'outfit' | 'attending_with' | 'busy' | 'bump_into' | 'cup' | `custom_${string}`;
 
 export interface VoteWindow {
   opensAt: string | null;
@@ -247,7 +247,10 @@ export interface VoteOption {
   label: string;
 }
 
+export interface FanQuestion { kind: VoteQuestionKind; prompt: string; enabled: boolean; options: VoteOption[] }
+
 export interface VotePreview {
+  settings: FanQuestion[];
   eventId: string;
   window: VoteWindow;
   questions: Array<{ kind: VoteQuestionKind; prompt: string; order: number; options: VoteOption[] }>;
