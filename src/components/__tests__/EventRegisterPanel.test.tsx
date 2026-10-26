@@ -12,13 +12,14 @@ const createOperator = vi.fn();
 vi.mock('@/lib/api', () => ({
   apiClient: {
     gateOperators: {
-      list: () => listOperators(),
+      list: (...args: unknown[]) => listOperators(...args),
       create: (...a: unknown[]) => createOperator(...a),
       resetPin: vi.fn(),
       setActive: vi.fn(),
     },
   },
 }));
+vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: { _id: 'organizer-a' } }) }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
 
 const operator = (over: Record<string, unknown> = {}) => ({
@@ -49,6 +50,7 @@ describe('EventRegisterPanel', () => {
 
     await waitFor(() => expect(screen.getByText('Register Rose')).toBeDefined());
     expect(screen.queryByText('Just A Scanner')).toBeNull();
+    expect(listOperators).toHaveBeenCalledWith({ eventId: 'e1' });
   });
 
   it('leaves out a register account assigned to a different event', async () => {

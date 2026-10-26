@@ -1326,8 +1326,12 @@ export class ApiClient {
     update: async (id: string, data: { fullName: string; phoneNumber: string }): Promise<GateOperatorRow> =>
       this.request(`/tickets/gate-operators/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
-    list: async (): Promise<GateOperatorRow[]> =>
-      this.request<GateOperatorRow[]>(`/tickets/gate-operators`),
+    list: async (params?: { vendorId?: string; eventId?: string }): Promise<GateOperatorRow[]> => {
+      const query = new URLSearchParams();
+      if (params?.vendorId) query.set('vendorId', params.vendorId);
+      if (params?.eventId) query.set('eventId', params.eventId);
+      return this.request<GateOperatorRow[]>(`/tickets/gate-operators${query.size ? `?${query}` : ''}`);
+    },
 
     create: async (data: {
       fullName: string;

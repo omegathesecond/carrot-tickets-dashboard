@@ -1,4 +1,5 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, CheckCircle2, Loader2, Nfc, ScanLine, XCircle } from 'lucide-react';
 import { apiClient, type OperatorScanRow } from '@/lib/api';
@@ -32,19 +33,22 @@ const RESULT_META: Record<string, { label: string; className: string }> = {
  * only guess at from the total headcount.
  */
 export function GateOperatorDetailPage() {
+  const { user } = useAuth();
   const { id = '' } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['gate-operator-activity', id],
+    queryKey: ['gate-operator-activity', user?._id, id],
     queryFn: () => apiClient.gateOperators.activity(id),
     retry: false,
+    enabled: !!user,
   });
 
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        <Button variant="ghost" size="sm" className="text-slate-500" onClick={() => navigate('/gate-operators')}>
+        <Button variant="ghost" size="sm" className="text-slate-500" onClick={() => navigate(`/gate-operators${searchParams.size ? `?${searchParams}` : ''}`)}>
           <ArrowLeft className="h-4 w-4 mr-1.5" /> Gate Operators
         </Button>
 
