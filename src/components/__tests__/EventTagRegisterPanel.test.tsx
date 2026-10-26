@@ -177,4 +177,7 @@ it('refreshes the circulation list and total after funding is confirmed', async 
   registry.mockResolvedValue({ tags: [tag()], total: 1, counts: { active: 1, retired: 0, total: 1 } });
   await waitFor(() => expect(screen.getByText('In circulation (1)')).toBeTruthy(), { timeout: 7000 });
   expect(screen.getByText('04a22b1c')).toBeTruthy();
-}, 10000);
+  registry.mockResolvedValue(EMPTY);
+  await waitFor(() => expect(screen.getByText('In circulation (0)')).toBeTruthy(), { timeout: 7000 });
+  expect(screen.queryByText('04a22b1c')).toBeNull();
+}, 20000);
