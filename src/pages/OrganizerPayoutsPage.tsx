@@ -1,3 +1,4 @@
+import { Guarantees } from '@/components/Guarantees';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
@@ -21,6 +22,7 @@ import {
 } from '@/components/ui/dialog';
 
 export function OrganizerPayoutsPage() {
+  const [showGuarantees, setShowGuarantees] = useState(false);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
@@ -72,6 +74,7 @@ export function OrganizerPayoutsPage() {
           Review event proceeds, bank details and payment history.
         </p>
       </div>
+      <details className="bg-white border rounded-lg p-4" onToggle={e => setShowGuarantees(e.currentTarget.open)}><summary className="font-semibold cursor-pointer">Guarantee requests — admin review</summary><div className="mt-4">{showGuarantees && <Guarantees admin />}</div></details>
       <div className="flex flex-wrap gap-4">
         <div className="space-y-1 flex-1 min-w-48">
           <Label htmlFor="payout-search">Search</Label>

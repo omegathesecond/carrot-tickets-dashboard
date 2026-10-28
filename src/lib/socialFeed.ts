@@ -26,7 +26,7 @@ export const SOCIAL_SSO_URL = `${LANDING_URL}/brand/sso`;
  */
 export function shouldLandOnSocialFeed(user: AuthUser | null | undefined): boolean {
   if (!user) return false;
-  if (user.isSuperAdmin) return false;
+  if (user.isSuperAdmin || user.operatorType === 'services') return false;
   return canManageEvents(user);
 }
 

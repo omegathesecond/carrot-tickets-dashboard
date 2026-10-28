@@ -1,3 +1,5 @@
+import { useAuth } from '@/contexts/AuthContext';
+import { Guarantees } from '@/components/Guarantees';
 import { MarketplacePage } from '@/pages/MarketplacePage';
 import { BrowserRouter as Router, Routes, Route, Outlet } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -67,6 +69,11 @@ const queryClient = new QueryClient({
   },
 });
 
+function DashboardHome() {
+  const { user } = useAuth();
+  return user?.operatorType === 'services' ? <div className="p-6 max-w-6xl"><Guarantees /></div> : <DashboardPage />;
+}
+
 function App() {
   return (
     <ErrorBoundary>
@@ -86,8 +93,9 @@ function App() {
                     </ProtectedRoute>
                   }
                 >
-                  <Route index element={<DashboardPage />} />
+                  <Route index element={<DashboardHome />} />
                   <Route path="events" element={<EventsPage />} />
+                  <Route path="provider/guarantees" element={<div className="p-6 max-w-6xl"><Guarantees /></div>} />
                   <Route path="marketplace" element={<MarketplacePage />} />
                   <Route path="events/:id" element={<EventDetailsPage />} />
                   <Route path="updates" element={<UpdatesPage />} />

@@ -79,6 +79,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   // and scanning permissions, so the Events and Entry Scan tabs are hidden —
   // their job is only to sell tickets. Full vendor accounts keep every tab.
   const navigation: NavigationItem[] = [
+    { name: 'Guarantees', href: '/provider/guarantees', icon: ShieldCheck, show: user?.userType === 'vendor' && user?.operatorType === 'services' },
     { name: 'Marketplace', href: '/marketplace', icon: ShoppingCart, show: user?.userType === 'vendor' },
     {
       name: 'Dashboard',

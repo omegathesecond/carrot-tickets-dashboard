@@ -1,3 +1,4 @@
+import type { GuaranteeRequest, GuaranteeInput } from '@/types/guarantee';
 import type { PayoutBank, EventPayoutRequest, EventPayoutOverview, PayoutStatus } from '@/types/eventPayout';
 import type { EventCoupon, CreateCouponsInput } from '@/types/eventCoupon';
 import type { DeskTopupMethod, DeskTopupTotals } from '@/lib/deskPaymentMethod';
@@ -139,13 +140,35 @@ export class ApiClient {
     return this.request<T>('/marketplace' + path, options);
   }
 
+  guarantees = {
+    providers: () => this.request<{ _id: string; businessName: string }[]>('/guarantees/providers'),
+    list: (eventId?: string, admin = false) => this.request<GuaranteeRequest[]>(eventId ? `/guarantees/events/${eventId}` : admin ? '/guarantees/admin' : '/guarantees/provider'),
+    submit: (eventId: string, input: GuaranteeInput, requestId?: string) => this.request<GuaranteeRequest>(`/guarantees/events/${eventId}${requestId ? `/${requestId}` : ''}`, { method: requestId ? 'PUT' : 'POST', body: JSON.stringify(input) }),
+    respond: (id: string, status: string, note: string, admin = false) => this.request<GuaranteeRequest>(`/guarantees/${id}/${admin ? 'status' : 'response'}`, { method: 'POST', body: JSON.stringify({ status, note }) }),
+    attach: (id: string, file: File) => {
+      const body = new FormData(); body.append('agreement', file);
+      return this.request(`/guarantees/${id}/agreement`, { method: 'POST', body });
+    },
+    agreement: async (id: string) => {
+      const headers: Record<string, string> = {};
+      const token = this.getToken();
+      if (token) headers.Authorization = `Bearer ${token}`;
+      if (APP_API_KEY) headers['x-api-key'] = APP_API_KEY;
+      const response = await fetch(`${this.baseUrl}/guarantees/${id}/agreement`, { headers });
+      if (!response.ok) throw new Error((await response.json()).message || 'Could not download agreement');
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a'); link.href = url; link.download = 'agreement.pdf'; link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    },
+  };
+
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
+      ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
       ...options.headers as Record<string, string>,
     };
 
