@@ -19,26 +19,31 @@ export function Guarantees({ eventId, admin = false }: { eventId?: string; admin
   const list = useQuery({ queryKey: ['guarantees', eventId, admin], queryFn: () => apiClient.guarantees.list(eventId, admin), enabled: owner || admin });
   const providers = useQuery({ queryKey: ['guarantee-providers'], queryFn: () => apiClient.guarantees.providers(), enabled: organizer });
   const financials = useQuery({ queryKey: ['event-financials', eventId], queryFn: () => apiClient.analytics.getEventFinancials(eventId!), enabled: organizer });
-  const available = financials.data?.custody.availableNow;
+  const available = financials.data?.custody?.availableNow;
+  const balanceAvailable = typeof available === 'number' && Number.isFinite(available);
+  const balanceBlocked = financials.isPending || financials.isError || !balanceAvailable || available! <= 0 || form.amount > available!;
   const refresh = () => client.invalidateQueries({ queryKey: ['guarantees'] });
   const submit = useMutation({
     mutationFn: () => apiClient.guarantees.submit(eventId!, form, editing?._id),
     onSuccess: () => { toast.success('Guarantee request saved'); setEditing(null); setForm({ providerId: '', amount: 0, description: '', expectedPaymentDate: '' }); void refresh(); },
     onError: (e: Error) => { toast.error(e.message); void financials.refetch(); },
   });
+  const submissionBlocked = submit.isPending || providers.isPending || providers.isError || balanceBlocked;
   if (!owner && !admin) return <p role="alert">Guarantees are available to account owners only.</p>;
   return <div className="space-y-6">
     <div><h2 className="text-2xl font-bold">{eventId ? 'Guarantee' : 'Guarantees'}</h2><p className="text-slate-600 mt-2">Track requests for goods and services. Provider acceptance is not Carrot approval. No funds are reserved or moved. Payment remains subject to Carrot’s existing admin approval and payment process.</p></div>
     {organizer && <Card><CardHeader><CardTitle>{editing ? 'Edit request' : 'Request a guarantee'}</CardTitle></CardHeader><CardContent>
-      {financials.isPending ? <p>Loading Financials balance…</p> : financials.isError ? <p role="alert" className="text-red-700">Balance unavailable: {financials.error.message}. Submission is blocked. <Button variant="outline" onClick={() => void financials.refetch()}>Retry</Button></p> : <p className="mb-4">Available ticket-sales balance: {financials.data?.currency} {available?.toFixed(2)}</p>}
+      {financials.isPending ? <p>Loading Financials balance…</p> : financials.isError || !balanceAvailable ? <p role="alert" className="text-red-700">Balance unavailable: {financials.isError ? financials.error.message : 'Financials did not return a valid available ticket-sales balance'}. You cannot submit a request until the balance is available. <Button type="button" variant="outline" disabled={financials.isFetching} onClick={() => void financials.refetch()}>{financials.isFetching ? 'Retrying balance…' : 'Retry balance'}</Button></p> : <p className="mb-4">Available ticket-sales balance: {financials.data?.currency} {available!.toFixed(2)}</p>}
+      {balanceAvailable && !financials.isError && available! <= 0 && <p role="status">No ticket-sales balance is currently available. You can submit a request when Financials shows an available balance above zero.</p>}
+      {balanceAvailable && !financials.isError && available! > 0 && form.amount > available! && <p role="alert">The requested amount exceeds the available ticket-sales balance. Enter an amount of {financials.data?.currency} {available!.toFixed(2)} or less.</p>}
       {providers.isError && <p role="alert">Providers unavailable: {providers.error.message} <Button variant="outline" onClick={() => void providers.refetch()}>Retry</Button></p>}
-      <form className="grid gap-4 md:grid-cols-2" onSubmit={e => { e.preventDefault(); submit.mutate(); }}>
+      <form className="grid gap-4 md:grid-cols-2" onSubmit={e => { e.preventDefault(); if (!submissionBlocked) submit.mutate(); }}>
         <div><Label htmlFor="guarantee-provider">Service provider</Label><select id="guarantee-provider" className="w-full rounded-md border p-2 bg-white" required value={form.providerId} onChange={e => setForm({ ...form, providerId: e.target.value })}><option value="">Select a provider</option>{providers.data?.map(p => <option key={p._id} value={p._id}>{p.businessName}</option>)}</select></div>
-        <div><Label htmlFor="guarantee-amount">Amount</Label><Input id="guarantee-amount" type="number" min="0.01" step="0.01" max={available} required value={form.amount || ''} onChange={e => setForm({ ...form, amount: Number(e.target.value) })}/></div>
+        <div><Label htmlFor="guarantee-amount">Amount</Label><Input id="guarantee-amount" type="number" min="0.01" step="0.01" max={balanceAvailable ? available : undefined} required value={form.amount || ''} onChange={e => setForm({ ...form, amount: Number(e.target.value) })}/></div>
         <div className="md:col-span-2"><Label htmlFor="guarantee-description">Goods or services</Label><textarea id="guarantee-description" className="w-full rounded-md border p-2" maxLength={4000} required value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}/></div>
         <div><Label htmlFor="guarantee-date">Expected payment date</Label><Input id="guarantee-date" type="date" required value={form.expectedPaymentDate} onChange={e => setForm({ ...form, expectedPaymentDate: e.target.value })}/></div>
         <p className="text-sm text-slate-600">Changing the provider removes any existing agreement. After saving, you can attach a signed PDF agreement to the request below. Only you, the selected provider and Carrot admins can download it.</p>
-        <div className="flex gap-2"><Button disabled={submit.isPending || providers.isPending || providers.isError || financials.isPending || financials.isError || !Number.isFinite(available) || form.amount > available! || available! <= 0}>{submit.isPending ? 'Saving…' : editing ? 'Save changes' : 'Submit request'}</Button>{editing && <Button type="button" variant="outline" onClick={() => setEditing(null)}>Cancel editing</Button>}</div>
+        <div className="flex gap-2"><Button disabled={submissionBlocked}>{submit.isPending ? 'Saving…' : editing ? 'Save changes' : 'Submit request'}</Button>{editing && <Button type="button" variant="outline" onClick={() => setEditing(null)}>Cancel editing</Button>}</div>
       </form>
     </CardContent></Card>}
     {list.isPending && <p>Loading requests…</p>}
