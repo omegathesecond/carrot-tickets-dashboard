@@ -54,3 +54,35 @@ it('removes edit and withdraw actions after the provider responds', async () => 
   expect(screen.queryByRole('button', { name: 'Edit request' })).toBeNull();
   expect(screen.queryByRole('button', { name: 'Withdraw' })).toBeNull();
 });
+it.each([undefined, null, NaN, Infinity, -Infinity])('explains an invalid balance (%s) and recovers by retrying', async availableNow => {
+  vi.mocked(apiClient.analytics.getEventFinancials).mockResolvedValueOnce({ currency: 'SZL', custody: { availableNow } } as any);
+  show({ eventId: 'e1' });
+  expect(await screen.findByRole('alert')).toHaveProperty('textContent', expect.stringContaining('You cannot submit a request until the balance is available'));
+  const button = screen.getByRole('button', { name: 'Submit request' }) as HTMLButtonElement;
+  expect(button.disabled).toBe(true);
+  expect(screen.queryByText(/Available ticket-sales balance:/)).toBeNull();
+  fireEvent.submit(button.closest('form')!);
+  expect(apiClient.guarantees.submit).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Retry balance' }));
+  await screen.findByText('Available ticket-sales balance: SZL 100.00');
+  expect(button.disabled).toBe(false);
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(apiClient.analytics.getEventFinancials).toHaveBeenCalledTimes(2);
+});
+it('explains a zero balance and prevents submission', async () => {
+  vi.mocked(apiClient.analytics.getEventFinancials).mockResolvedValue({ currency: 'SZL', custody: { availableNow: 0 } } as any);
+  show({ eventId: 'e1' });
+  await screen.findByText(/No ticket-sales balance is currently available/);
+  expect((screen.getByRole('button', { name: 'Submit request' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(apiClient.guarantees.submit).not.toHaveBeenCalled();
+});
+it('explains when the requested amount exceeds the balance', async () => {
+  show({ eventId: 'e1' });
+  await screen.findByText('Available ticket-sales balance: SZL 100.00');
+  fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '101' } });
+  expect(await screen.findByRole('alert')).toHaveProperty('textContent', expect.stringContaining('exceeds the available ticket-sales balance'));
+  const button = screen.getByRole('button', { name: 'Submit request' }) as HTMLButtonElement;
+  expect(button.disabled).toBe(true);
+  fireEvent.submit(button.closest('form')!);
+  expect(apiClient.guarantees.submit).not.toHaveBeenCalled();
+});
