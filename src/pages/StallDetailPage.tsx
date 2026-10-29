@@ -81,7 +81,7 @@ export function StallDetailPage() {
             </div>
 
             <div className={showCommission ? 'grid grid-cols-2 sm:grid-cols-4 gap-4' : 'grid grid-cols-2 gap-4'}>
-              <div className="col-span-full"><SalesStatementDownload kind="merchant" id={merchantId} name={data.merchant.name} /></div>
+              {scope.kind === 'event' && <div className="col-span-full"><SalesStatementDownload kind="merchant" id={merchantId} name={data.merchant.name} /></div>}
               <Card><CardContent className="pt-6">
                 <div className="text-xs font-medium text-slate-500">Charged</div>
                 <div className="text-2xl font-bold mt-1">{fmtR(data.summary.totalCharged)}</div>

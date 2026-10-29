@@ -170,7 +170,7 @@ export function EventStallsPanel({ scope, canDelete = false }: { scope: StockSco
                   <ViewAffordance label="View stall" />
 
                   <div className="mt-auto space-y-2">
-                    <EventResourceActions kind="stall" initial={{ name: v.name, commissionPercent: String(v.commissionPercent) }}
+                    <EventResourceActions kind="stall" initial={{ name: v.name, ...(scope.kind === 'event' ? { commissionPercent: String(v.commissionPercent) } : {}) }}
                     canDelete={scope.kind === 'event' && canDelete} queryKey={['merchants', scopeKey(scope)]}
                     onSave={(values) => apiClient.merchants.update(scope, v._id, { name: values.name, commissionPercent: Number(values.commissionPercent) })}
                     onDelete={() => apiClient.merchants.delete(v._id)} />

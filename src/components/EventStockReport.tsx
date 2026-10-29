@@ -328,7 +328,7 @@ function ReconciliationSection({ scope, currency }: { scope: StockScope; currenc
               </TableBody>
             </Table>
           </div>
-          {data && <SalesPricingAudit data={data} currency={currency} />}
+          {data && scope.kind === 'event' && <SalesPricingAudit data={data} currency={currency} />}
         </SectionState>
       </CardContent>
     </Card>
