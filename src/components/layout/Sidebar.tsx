@@ -80,7 +80,6 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   // their job is only to sell tickets. Full vendor accounts keep every tab.
   const navigation: NavigationItem[] = [
     { name: 'Guarantees', href: '/provider/guarantees', icon: ShieldCheck, show: user?.userType === 'vendor' && user?.operatorType === 'services' },
-    { name: 'Marketplace', href: '/marketplace', icon: ShoppingCart, show: user?.userType === 'vendor' },
     {
       name: 'Dashboard',
       href: homePath,
@@ -93,6 +92,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       icon: Calendar,
       show: canManageEvents(user),
     },
+    { name: 'Marketplace', href: '/marketplace', icon: ShoppingCart, show: user?.userType === 'vendor' },
     {
       name: 'Updates',
       href: '/updates',
