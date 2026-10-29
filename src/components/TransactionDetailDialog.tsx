@@ -1,3 +1,5 @@
+import type { DeskTopupMethod } from '@/lib/deskPaymentMethod';
+import { deskPaymentMethodLabel } from '@/lib/deskPaymentMethod';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 
@@ -15,11 +17,13 @@ const bandRef = (uid?: string) => (uid ? uid.toUpperCase() : '—');
 export interface TxnDetail {
   id: string;
   type: 'topup' | 'withdrawal' | 'purchase';
+  method?: DeskTopupMethod | 'office_cash';
   amount: number;
   at: string;
   actorName?: string;
   actorType?: string;
   bandUid?: string;
+  purchaseChargeAmount?: number;
   fee?: number;
   netAmount?: number;
   status?: string;
@@ -66,8 +70,10 @@ export function TransactionDetailDialog({ txn, onClose }: { txn: TxnDetail | nul
             {txn.actorName && (
               <Row label={ACTOR_LABEL[txn.actorType ?? ''] ?? 'By'} value={txn.actorName} />
             )}
+            {txn.type !== 'purchase' && <Row label="Payment" value={deskPaymentMethodLabel(txn.method)} />}
             {txn.type === 'purchase' && (
               <>
+                <Row label="Organizer purchase charge" value={fmtR(txn.purchaseChargeAmount)} />
                 <Row label="Vendor net" value={fmtR(txn.netAmount)} />
                 <Row label="Commission" value={fmtR(txn.fee)} />
               </>

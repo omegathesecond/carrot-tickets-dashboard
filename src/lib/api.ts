@@ -1,3 +1,7 @@
+import type { GuaranteeRequest, GuaranteeInput } from '@/types/guarantee';
+import type { PayoutBank, EventPayoutRequest, EventPayoutOverview, PayoutStatus } from '@/types/eventPayout';
+import type { EventCoupon, CreateCouponsInput } from '@/types/eventCoupon';
+import type { DeskTopupMethod, DeskTopupTotals } from '@/lib/deskPaymentMethod';
 import type {
   LoginCredentials,
   RegisterData,
@@ -144,13 +148,39 @@ export class ApiClient {
     return refreshToken;
   }
 
+  marketplace<T>(path: string, options?: RequestInit): Promise<T> {
+    return this.request<T>('/marketplace' + path, options);
+  }
+
+  guarantees = {
+    providers: () => this.request<{ _id: string; businessName: string }[]>('/guarantees/providers'),
+    list: (eventId?: string, admin = false) => this.request<GuaranteeRequest[]>(eventId ? `/guarantees/events/${eventId}` : admin ? '/guarantees/admin' : '/guarantees/provider'),
+    submit: (eventId: string, input: GuaranteeInput, requestId?: string) => this.request<GuaranteeRequest>(`/guarantees/events/${eventId}${requestId ? `/${requestId}` : ''}`, { method: requestId ? 'PUT' : 'POST', body: JSON.stringify(input) }),
+    respond: (id: string, status: string, note: string, admin = false) => this.request<GuaranteeRequest>(`/guarantees/${id}/${admin ? 'status' : 'response'}`, { method: 'POST', body: JSON.stringify({ status, note }) }),
+    attach: (id: string, file: File) => {
+      const body = new FormData(); body.append('agreement', file);
+      return this.request(`/guarantees/${id}/agreement`, { method: 'POST', body });
+    },
+    agreement: async (id: string) => {
+      const headers: Record<string, string> = {};
+      const token = this.getToken();
+      if (token) headers.Authorization = `Bearer ${token}`;
+      if (APP_API_KEY) headers['x-api-key'] = APP_API_KEY;
+      const response = await fetch(`${this.baseUrl}/guarantees/${id}/agreement`, { headers });
+      if (!response.ok) throw new Error((await response.json()).message || 'Could not download agreement');
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a'); link.href = url; link.download = 'agreement.pdf'; link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    },
+  };
+
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
+      ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
       ...options.headers as Record<string, string>,
     };
 
@@ -199,6 +229,7 @@ export class ApiClient {
           (errorMessage.includes('Token has expired') || errorMessage.includes('expired')) &&
           !endpoint.includes('/tickets/auth/refresh') &&
           !endpoint.includes('/tickets/auth/login') &&
+          !endpoint.includes('/tickets/auth/logout') &&
           this.getRefreshToken()
         ) {
           console.log('[ApiClient] Token expired, attempting refresh...');
@@ -294,7 +325,9 @@ export class ApiClient {
         const tokenData = data.data || data;
 
         console.log('[ApiClient] Token refresh successful');
-        this.setToken(tokenData.accessToken, tokenData.refreshToken);
+        if (this.getRefreshToken() === refreshToken) {
+          this.setToken(tokenData.accessToken, tokenData.refreshToken);
+        }
 
         this.isRefreshing = false;
         this.refreshPromise = null;
@@ -374,6 +407,8 @@ export class ApiClient {
     },
 
     logout: async (): Promise<void> => {
+      // Finish any rotation first so logout revokes the current credential.
+      if (this.refreshPromise) await this.refreshPromise;
       const refreshToken = this.getRefreshToken();
       await this.request(`/tickets/auth/logout`, {
         method: 'POST',
@@ -994,6 +1029,21 @@ export class ApiClient {
   };
 
   // Reseller admin endpoints (super-admin only)
+  payoutRequests = {
+    overview: (eventId: string) => this.request<EventPayoutOverview>(`/payout-requests/events/${eventId}`),
+    bank: () => this.request<PayoutBank | null>('/payout-requests/bank'),
+    forgetBank: () => this.request('/payout-requests/bank', { method: 'DELETE' }),
+    request: (eventId: string, data: { bank?: PayoutBank; useSaved?: boolean; saveBank?: boolean; bankVersion?: string; expectedAmount: number }) =>
+      this.request<EventPayoutRequest>(`/payout-requests/events/${eventId}`, { method: 'POST', body: JSON.stringify(data) }),
+    list: (search: string, status: string, page: number) => {
+      const query = new URLSearchParams({ search, page: String(page), ...(status ? { status } : {}) });
+      return this.request<{ items: EventPayoutRequest[]; total: number; page: number }>(`/payout-requests?${query}`);
+    },
+    detail: (id: string) => this.request<EventPayoutRequest>(`/payout-requests/${id}`),
+    decide: (id: string, data: { status: PayoutStatus; note?: string; paidAt?: string; paymentReference?: string; paymentCompleted?: boolean }) =>
+      this.request<EventPayoutRequest>(`/payout-requests/${id}/status`, { method: 'POST', body: JSON.stringify(data) }),
+  };
+
   resellerAdmin = {
     listResellers: async (): Promise<Reseller[]> =>
       this.request<Reseller[]>(`/admin/resellers`),
@@ -1273,8 +1323,21 @@ export class ApiClient {
   };
 
   gateOperators = {
-    list: async (): Promise<GateOperatorRow[]> =>
-      this.request<GateOperatorRow[]>(`/tickets/gate-operators`),
+    revealPin: async (id: string): Promise<{ loginCode: string; pin: string }> =>
+      this.request(`/tickets/gate-operators/${id}/reveal-pin`, { method: 'POST' }),
+
+    delete: async (id: string): Promise<{ deleted: boolean }> =>
+      this.request(`/tickets/gate-operators/${id}`, { method: 'DELETE' }),
+
+    update: async (id: string, data: { fullName: string; phoneNumber: string }): Promise<GateOperatorRow> =>
+      this.request(`/tickets/gate-operators/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+
+    list: async (params?: { vendorId?: string; eventId?: string }): Promise<GateOperatorRow[]> => {
+      const query = new URLSearchParams();
+      if (params?.vendorId) query.set('vendorId', params.vendorId);
+      if (params?.eventId) query.set('eventId', params.eventId);
+      return this.request<GateOperatorRow[]>(`/tickets/gate-operators${query.size ? `?${query}` : ''}`);
+    },
 
     create: async (data: {
       fullName: string;
@@ -1327,7 +1390,18 @@ export class ApiClient {
   // Cashiers — the organizer's in-venue money desk staff (top-up + cash-out).
   // A cashier belongs to exactly ONE event (immutable at the API), unlike
   // GateOperator/ResellerOperator's multi-event `eventIds` set.
+  cashCollections = { report: (eventId: string) => this.request<CashControlReport>(`/tickets/events/${eventId}/cash-collections`) };
+
   cashiers = {
+    revealPin: async (id: string): Promise<{ loginCode: string; pin: string }> =>
+      this.request(`/tickets/cashiers/${id}/reveal-pin`, { method: 'POST' }),
+
+    delete: async (id: string): Promise<{ deleted: boolean }> =>
+      this.request(`/tickets/cashiers/${id}`, { method: 'DELETE' }),
+
+    update: async (id: string, data: { fullName: string; phoneNumber: string }): Promise<CashierRow> =>
+      this.request(`/tickets/cashiers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+
     /** Omit eventId for the unscoped list (super-admin platform page). */
     list: async (eventId?: string): Promise<CashierRow[]> =>
       this.request<CashierRow[]>(`/tickets/cashiers${eventId ? `?eventId=${eventId}` : ''}`),
@@ -1373,8 +1447,17 @@ export class ApiClient {
   // Waiters — the organizer's floor staff for ONE event (open a table, add
   // items). Unlike a cashier, a waiter always belongs to an organizer — there
   // is no platform scope — and settling a table (taking final payment) is a
-  // separate grant, off by default, turned on per person via setGrants.
+  // separate grant, on for new waiters, changed per person via setGrants.
   waiters = {
+    revealPin: async (id: string): Promise<{ loginCode: string; pin: string }> =>
+      this.request(`/tickets/waiters/${id}/reveal-pin`, { method: 'POST' }),
+
+    delete: async (id: string): Promise<{ deleted: boolean }> =>
+      this.request(`/tickets/waiters/${id}`, { method: 'DELETE' }),
+
+    update: async (id: string, data: { fullName: string; phoneNumber: string }): Promise<WaiterRow> =>
+      this.request(`/tickets/waiters/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+
     list: async (eventId: string): Promise<WaiterRow[]> =>
       this.request<WaiterRow[]>(`/tickets/waiters?eventId=${eventId}`),
 
@@ -1412,6 +1495,9 @@ export class ApiClient {
   // A stall holds no credentials of its own (see MerchantOperator below) —
   // create/update just return the merchant record.
   merchants = {
+    delete: async (id: string): Promise<{ deleted: boolean }> =>
+      this.request(`/tickets/merchants/${id}`, { method: 'DELETE' }),
+
     /** The stalls in one scope (event: ?eventId=; venue: the vendor's own). */
     list: async (scope: StockScope): Promise<MerchantRow[]> =>
       this.request<MerchantRow[]>(
@@ -1451,6 +1537,12 @@ export class ApiClient {
   // with their own loginCode + PIN so a charge names a human (MANAGE_ACCESS;
   // ownership is enforced server-side off the stall's event, never the body).
   merchantOperators = {
+    revealPin: async (id: string): Promise<{ loginCode: string; pin: string }> =>
+      this.request(`/tickets/merchant-operators/${id}/reveal-pin`, { method: 'POST' }),
+
+    delete: async (id: string): Promise<{ deleted: boolean }> =>
+      this.request(`/tickets/merchant-operators/${id}`, { method: 'DELETE' }),
+
     list: async (scope: StockScope, merchantId: string): Promise<{ operators: MerchantOperatorRow[] }> =>
       this.request<{ operators: MerchantOperatorRow[] }>(
         `${stallsBase(scope)}/${merchantId}/operators`,
@@ -1472,7 +1564,7 @@ export class ApiClient {
     update: async (
       scope: StockScope,
       id: string,
-      data: { fullName?: string; isActive?: boolean; grants?: OperatorGrant[] },
+      data: { fullName?: string; phoneNumber?: string; isActive?: boolean; grants?: OperatorGrant[] },
     ): Promise<{ operator: MerchantOperatorRow }> =>
       this.request<{ operator: MerchantOperatorRow }>(
         `${operatorsBase(scope)}/${id}`,
@@ -1575,9 +1667,9 @@ export class ApiClient {
     reconciliation: async (scope: StockScope, range?: { from: string; to: string }): Promise<StockReconciliation> =>
       this.request<StockReconciliation>(`${stockBase(scope)}/stock/reconciliation${rangeQuery(scope, range)}`),
 
-    /** The same reconciliation as a printable PDF — bytes, so it goes via `fetchPdf`. */
+    /** The same reconciliation as a printable PDF — bytes, so it goes via `fetchBlob`. */
     reconciliationPdf: async (scope: StockScope, range?: { from: string; to: string }): Promise<Blob> =>
-      this.fetchPdf(`${stockBase(scope)}/stock/reconciliation.pdf${rangeQuery(scope, range)}`, { method: 'GET' }),
+      this.fetchBlob(`${stockBase(scope)}/stock/reconciliation.pdf${rangeQuery(scope, range)}`, { method: 'GET' }),
 
     dashboard: async (scope: StockScope): Promise<StockDashboard> =>
       this.request<StockDashboard>(`${stockBase(scope)}/stock/dashboard`),
@@ -1979,6 +2071,9 @@ export class ApiClient {
   // activation, genuine stats/results/song-suggestions once open, and
   // discussion moderation). See EventVoteTab.
   vote = {
+    saveQuestions: async (eventId: string, questions: VotePreview['settings']): Promise<VotePreview> => {
+      return this.request<VotePreview>(`/tickets/events/${eventId}/vote/questions`, { method: 'PUT', body: JSON.stringify({ questions }) });
+    },
     getPreview: async (eventId: string): Promise<VotePreview> => {
       return this.request<VotePreview>(`/tickets/events/${eventId}/vote/preview`);
     },
@@ -1996,6 +2091,12 @@ export class ApiClient {
         method: 'DELETE',
       });
     },
+  };
+
+  coupons = {
+    list: (eventId: string, page = 1) => this.request<{ coupons: EventCoupon[]; total: number; page: number }>(`/tickets/events/${eventId}/coupons?page=${page}`),
+    create: (eventId: string, input: CreateCouponsInput) => this.request<{ coupons: EventCoupon[] }>(`/tickets/events/${eventId}/coupons`, { method: 'POST', body: JSON.stringify(input) }),
+    disable: (eventId: string, couponId: string) => this.request(`/tickets/events/${eventId}/coupons/${couponId}/disable`, { method: 'POST' }),
   };
 
   // Share&Earn endpoints — organizer dashboard (spec §1/§10). See EventShareEarnTab.
@@ -2091,48 +2192,37 @@ export class ApiClient {
       // `page`/`limit` are deliberately NOT forwarded: the CSV is the whole
       // result set, not the page on screen.
 
-      const url = `${this.baseUrl}/tickets/export/sales?${query.toString()}`;
-      const headers: Record<string, string> = {};
-      if (this.token) {
-        headers['Authorization'] = `Bearer ${this.token}`;
-      }
-      if (APP_API_KEY) {
-        headers['x-api-key'] = APP_API_KEY;
-      }
-
-      const response = await fetch(url, { headers });
-      if (!response.ok) {
-        throw new Error('Failed to export sales');
-      }
-
-      const blob = await response.blob();
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = downloadUrl;
-      a.download = `sales-export-${new Date().toISOString().split('T')[0]}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(downloadUrl);
+      await this.downloadStatement(`/tickets/export/sales?${query}`, `sales-export-${new Date().toISOString().split('T')[0]}.csv`);
     },
   };
 
+  async downloadStatement(endpoint: string, filename: string): Promise<void> {
+    const blob = await this.fetchBlob(endpoint, { method: 'GET' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    try { link.click(); }
+    finally { link.remove(); window.URL.revokeObjectURL(url); }
+  }
+
   // PDF endpoints return bytes, not JSON, so they bypass `request` (which
   // parses JSON and unwraps the `{success, message, data}` envelope) and
-  // read the body as a Blob via `fetchPdf` instead.
+  // read the body as a Blob via `fetchBlob` instead.
   ticketDocs = {
     ticketPdfBytes: async (ticketId: string): Promise<Blob> =>
-      this.fetchPdf(`/tickets/${ticketId}/pdf/download`, { method: 'GET' }),
+      this.fetchBlob(`/tickets/${ticketId}/pdf/download`, { method: 'GET' }),
 
     ticketBundlePdf: async (ticketIds: string[]): Promise<Blob> =>
-      this.fetchPdf('/tickets/pdf-bundle', {
+      this.fetchBlob('/tickets/pdf-bundle', {
         method: 'POST',
         body: JSON.stringify({ ticketIds }),
       }),
   };
 
   /** Same 401-expired-token detection `request()` uses (around line 144),
-   *  factored out so `fetchPdf` can share the decision without touching
+   *  factored out so `fetchBlob` can share the decision without touching
    *  `request()` itself: expired-token message, not the auth endpoints
    *  (which would recurse), and a refresh token actually on hand to try. */
   private isExpiredTokenResponse(endpoint: string, status: number, errorMessage: string): boolean {
@@ -2141,11 +2231,12 @@ export class ApiClient {
       (errorMessage.includes('Token has expired') || errorMessage.includes('expired')) &&
       !endpoint.includes('/tickets/auth/refresh') &&
       !endpoint.includes('/tickets/auth/login') &&
+      !endpoint.includes('/tickets/auth/logout') &&
       !!this.getRefreshToken()
     );
   }
 
-  private async fetchPdf(endpoint: string, options: RequestInit, isRetry = false): Promise<Blob> {
+  private async fetchBlob(endpoint: string, options: RequestInit, isRetry = false): Promise<Blob> {
     const token = this.getToken();
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       ...options,
@@ -2168,7 +2259,7 @@ export class ApiClient {
       if (!isRetry && this.isExpiredTokenResponse(endpoint, response.status, errorMessage)) {
         try {
           await this.handleTokenRefresh();
-          return this.fetchPdf(endpoint, options, true);
+          return this.fetchBlob(endpoint, options, true);
         } catch {
           throw new Error('Session expired. Please log in again.');
         }
@@ -2204,6 +2295,12 @@ export type OperatorPopulation = 'gate' | 'cashier' | 'merchant' | 'waiter';
  * server drops any value it doesn't recognise.
  */
 export type OperatorGrant =
+  | 'topup_cash'
+  | 'topup_card'
+  | 'topup_deltapay'
+  | 'topup_mobile_money'
+  | 'withdraw_cash'
+  | 'collect_cash'
   | 'issue_tags'
   | 'manage_stock'
   | 'settle_tables'
@@ -2213,6 +2310,12 @@ export const OPERATOR_GRANT_LABELS: Record<
   OperatorGrant,
   { label: string; hint: string; appliesTo: OperatorPopulation[] }
 > = {
+  topup_cash: { label: 'Reload bands with cash', hint: 'Accept notes / coins and record cash reloads', appliesTo: ['cashier'] },
+  topup_card: { label: 'Reload bands with card / POS', hint: 'Record payments approved on the separate card machine', appliesTo: ['cashier'] },
+  topup_deltapay: { label: 'Reload bands with DeltaPay', hint: 'Record DeltaPay payments confirmed on a separate device', appliesTo: ['cashier'] },
+  topup_mobile_money: { label: 'Reload bands with Mobile Money', hint: 'Record Mobile Money payments confirmed on a separate device', appliesTo: ['cashier'] },
+  withdraw_cash: { label: 'Withdraw cash from bands', hint: 'Debit the band and hand cash back to the customer', appliesTo: ['cashier'] },
+  collect_cash: { label: 'Collects cash from cashiers', hint: 'Record cash pickups; the cashier must confirm each handover in the POS', appliesTo: ['cashier'] },
   issue_tags: {
     label: 'Works the Register desk',
     hint: 'Register your tags to an event, and bind one to an attendee\'s ticket',
@@ -2224,7 +2327,8 @@ export const OPERATOR_GRANT_LABELS: Record<
     appliesTo: ['merchant'],
   },
   settle_tables: {
-    // Off by default: a waiter can open a table and add items without it,
+    // Granted to new waiters by default; it can be removed per person. A
+    // waiter can still open a table and add items without it,
     // but only someone with this grant may take final payment and close the
     // table out — the API refuses a settle attempt without it.
     label: 'Can settle tables',
@@ -2304,7 +2408,8 @@ export interface TagBinding {
 }
 
 export interface TagMovement {
-  kind: 'topup' | 'spend' | 'cashout';
+  purchaseChargeAmount?: number;
+  kind: 'topup' | 'spend' | 'cashout' | 'reversal';
   amount: number;
   at: string;
   label: string;
@@ -2400,6 +2505,7 @@ export interface IssuedCashierCredentials {
 export interface CashierDeskTxn {
   id: string;
   type: 'topup' | 'withdrawal';
+  method: DeskTopupMethod;
   amount: number; // cents
   status: string;
   at: string; // ISO
@@ -2408,7 +2514,7 @@ export interface CashierDeskTxn {
 export interface CashierDetail {
   cashier: CashierRow;
   transactions: CashierDeskTxn[];
-  summary: { toppedUp: number; withdrawn: number; net: number; count: number };
+  summary: DeskTopupTotals & { toppedUp: number; withdrawn: number; net: number; count: number };
 }
 
 // ── Waiters (organizer floor staff) ────────────────────────────────────────
@@ -2713,11 +2819,19 @@ export interface ReconRow {
   expectedClosing: number;
   physicalCount: number | null;
   variance: number | null;
+  regularUnits: number;
+  specialUnits: number;
+  specialBundles: number;
+  unclassifiedUnits: number;
+  refundedNotRestockedUnits: number;
+  regularValue: number;
+  discountAmount: number;
+  salesRevenue: number;
 }
 export interface StockReconciliation {
   /** Exactly one: the event, or the venue. */
-  event?: { id: string; name: string };
-  venue?: { id: string; name: string };
+  event?: { id: string; name: string; currency?: 'SZL' | 'ZAR' };
+  venue?: { id: string; name: string; currency?: 'SZL' | 'ZAR' };
   perBar: ReconRow[];
   byProduct: ReconRow[];
   total: Omit<ReconRow, 'merchantId' | 'merchantName' | 'productId' | 'productName'>;
@@ -2768,6 +2882,7 @@ export interface StockMovementsPage {
 export interface MerchantChargeTxn {
   id: string;
   amount: number; // cents
+  purchaseChargeAmount: number;
   fee: number;
   netAmount: number;
   bandUid: string;
@@ -2885,3 +3000,16 @@ export interface ReportAdminView {
 }
 
 export const apiClient = new ApiClient(API_BASE_URL);
+
+export interface CashCollectionRow {
+  _id: string; eventId: string; cashierId: string; collectorId: string;
+  cashierName: string; collectorName: string; amount: number;
+  status: 'pending' | 'confirmed' | 'rejected' | 'cancelled';
+  createdAt: string; resolvedAt?: string; resolvedBy?: string;
+}
+export interface CashControlReport extends DeskTopupTotals {
+  currency: 'SZL' | 'ZAR'; cashOnHand: number; collectorHeld: number; pendingCount: number;
+  cashiers: (DeskTopupTotals & { id: string; fullName: string; isActive: boolean; cashWithdrawals: number; collected: number; cashOnHand: number })[];
+  collectors: { id: string; fullName: string; held: number }[];
+  collections: CashCollectionRow[];
+}

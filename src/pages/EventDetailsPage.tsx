@@ -1,4 +1,9 @@
+import { Guarantees } from '@/components/Guarantees';
+import { EventPayoutPanel } from '@/components/EventPayoutPanel';
+import { hasPermission, TicketsPermission } from '@/lib/permissions';
+import { EventCouponsTab } from '@/components/EventCouponsTab';
 import { useState, useEffect, useRef } from 'react';
+import { SalesStatementDownload } from '@/components/SalesStatementDownload';
 import { useParams, useNavigate, useLocation, Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
@@ -482,8 +487,10 @@ export function EventDetailsPage() {
   const NAV_TABS = [
     { key: 'overview', label: 'Overview', icon: Calendar, show: true },
     { key: 'financials', label: 'Financials', icon: Coins, show: canSeeFinancials },
+    { key: 'guarantee', label: 'Guarantee', icon: Coins, show: user?.userType === 'vendor' && !isAdmin },
     { key: 'analytics', label: 'Analytics', icon: BarChart3, show: true },
-    { key: 'vote', label: 'Attendance', icon: AttendanceStatusIcon, show: true },
+    { key: 'vote', label: 'Ask Your Fans', icon: AttendanceStatusIcon, show: true },
+    { key: 'coupons', label: 'Coupons', icon: Gift, show: hasPermission(user, TicketsPermission.EDIT_EVENT) && event.ticketing !== 'external' },
     { key: 'share-earn', label: 'Share&Earn', icon: Gift, show: true },
     { key: 'creator', label: 'Creator', icon: UserCircle, show: true },
     { key: 'cashless', label: 'Cashless', icon: CreditCard, show: !!event.cashless },
@@ -609,6 +616,7 @@ export function EventDetailsPage() {
 
               {/* Actions — a separate row from the event info above, with its own spacing */}
               <div className="flex flex-wrap gap-2 border-t pt-3">
+                {event.ticketing === 'carrot' && <SalesStatementDownload kind="event" id={id!} name={event.name} />}
                 {isPublished ? (
                   // Pull a live event back to draft. Organizers are blocked once
                   // tickets have sold; admins can override (handled server-side).
@@ -1340,9 +1348,11 @@ export function EventDetailsPage() {
         {canSeeFinancials && (
           <TabsContent value="financials" className="mt-6">
             <EventFinancialsTab eventId={id!} />
+            {user?.userType === 'vendor' && !isAdmin && <EventPayoutPanel eventId={id!} />}
           </TabsContent>
         )}
 
+        {user?.userType === 'vendor' && !isAdmin && <TabsContent value="guarantee" className="mt-6"><Guarantees eventId={id!} /></TabsContent>}
         <TabsContent value="analytics" className="mt-6">
           <EventAnalyticsTab eventId={id!} currency={event.currency ?? 'SZL'} />
         </TabsContent>
@@ -1353,6 +1363,10 @@ export function EventDetailsPage() {
         </TabsContent>
 
         {/* Share&Earn Tab */}
+        {hasPermission(user, TicketsPermission.EDIT_EVENT) && event.ticketing !== 'external' && <TabsContent value="coupons" className="mt-6">
+          <EventCouponsTab key={id} eventId={id!} event={event} />
+        </TabsContent>}
+
         <TabsContent value="share-earn" className="mt-6">
           {event && <EventShareEarnTab eventId={id!} event={event} />}
         </TabsContent>

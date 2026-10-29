@@ -1,3 +1,4 @@
+import { EventCashControl } from '@/components/cashless/EventCashControl';
 import { useState, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -24,7 +25,9 @@ import { StatCard } from '@/components/cashless/StatCard';
 import { CashiersPanel } from '@/components/CashiersPanel';
 import { WaitersPanel } from '@/components/WaitersPanel';
 import { useAuth } from '@/contexts/AuthContext';
-import { canManageAccess, canManageStock, canIssueTags } from '@/lib/permissions';
+import { canManageAccess, canManageStock, canIssueTags, canViewEventFinancials } from '@/lib/permissions';
+import { Input } from '@/components/ui/input';
+import { matchesSearch } from '@/lib/search';
 
 /** Cashless wallet amounts move in ZAR cents on the wire. */
 const fmtR = (cents: number) => `R${((cents ?? 0) / 100).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -50,6 +53,7 @@ export function EventCashlessTab({ eventId }: Props) {
   } = useQuery({
     queryKey: ['event-cashless-summary', eventId],
     queryFn: () => apiClient.events.getEventCashlessSummary(eventId),
+    refetchInterval: 5000,
     retry: false,
   });
 
@@ -115,7 +119,8 @@ export function EventCashlessTab({ eventId }: Props) {
     <div className="space-y-6">
       {/* Totals stay above the log: they are the answer to "how did the night
           go", which the log below is a breakdown of. */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <StatCard icon={<Wallet className="h-4 w-4" />} label="ORGANISER CHARGES" value={fmtR(s.purchaseCharges)} hint="earned from purchases · updates every 5s" tone="orange" />
         <StatCard icon={<CreditCard className="h-4 w-4" />} label="Circulated" value={fmtR(s.circulated)} hint="loaded onto bands" tone="ink" />
         <StatCard icon={<ArrowUpCircle className="h-4 w-4" />} label="Spent" value={fmtR(s.spent)} hint="at stalls" tone="blue" />
         <StatCard icon={<ArrowDownCircle className="h-4 w-4" />} label="Withdrawn" value={fmtR(s.withdrawn)} hint="handed back" tone="orange" />
@@ -123,7 +128,7 @@ export function EventCashlessTab({ eventId }: Props) {
       </div>
 
       <div className="text-sm text-muted-foreground">
-        {s.walletsFunded} wallet{s.walletsFunded === 1 ? '' : 's'} funded · {fmtR(s.fees)} platform fees collected
+        Cash top-ups: {fmtR(s.cashTopups)} · Card top-ups: {fmtR(s.cardTopups)} · DeltaPay top-ups: {fmtR(s.deltapayTopups)} · Mobile Money top-ups: {fmtR(s.mobileMoneyTopups)} · {s.walletsFunded} wallet{s.walletsFunded === 1 ? '' : 's'} funded · {fmtR(s.fees)} platform fees collected
       </div>
 
       <EventTransactionLog eventId={eventId} />
@@ -134,7 +139,7 @@ export function EventCashlessTab({ eventId }: Props) {
     <Tabs value={stallsView} onValueChange={setStallsView} className="space-y-4">
       <TabsList>
         <TabsTrigger value="takings">Stall takings</TabsTrigger>
-        <TabsTrigger value="manage">Add stall</TabsTrigger>
+        <TabsTrigger value="manage">Manage stalls</TabsTrigger>
       </TabsList>
       <TabsContent value="takings">
         {summaryBody((s) => (
@@ -142,7 +147,7 @@ export function EventCashlessTab({ eventId }: Props) {
         ))}
       </TabsContent>
       <TabsContent value="manage">
-        <EventStallsPanel scope={{ kind: 'event', eventId }} />
+        <EventStallsPanel canDelete={!!user?.isSuperAdmin} scope={{ kind: 'event', eventId }} />
       </TabsContent>
     </Tabs>
   );
@@ -155,7 +160,7 @@ export function EventCashlessTab({ eventId }: Props) {
     >
       <TabsList>
         {showTagRegister && <TabsTrigger value="tags">Registered tags</TabsTrigger>}
-        <TabsTrigger value="accounts">Add account</TabsTrigger>
+        <TabsTrigger value="accounts">Manage accounts</TabsTrigger>
       </TabsList>
       {showTagRegister && (
         <TabsContent value="tags">
@@ -163,7 +168,7 @@ export function EventCashlessTab({ eventId }: Props) {
         </TabsContent>
       )}
       <TabsContent value="accounts">
-        <EventRegisterPanel eventId={eventId} />
+        <EventRegisterPanel eventId={eventId} canDelete={!!user?.isSuperAdmin} />
       </TabsContent>
     </Tabs>
   );
@@ -172,13 +177,13 @@ export function EventCashlessTab({ eventId }: Props) {
     <Tabs value={cashiersView} onValueChange={setCashiersView} className="space-y-4">
       <TabsList>
         <TabsTrigger value="activity">Cashier activity</TabsTrigger>
-        <TabsTrigger value="manage">Add cashier</TabsTrigger>
+        <TabsTrigger value="manage">Manage cashiers</TabsTrigger>
       </TabsList>
       <TabsContent value="activity">
         {summaryBody((s) => <CashierActivity summary={s} onManage={() => setCashiersView('manage')} />)}
       </TabsContent>
       <TabsContent value="manage">
-        <CashiersPanel eventId={eventId} />
+        <CashiersPanel eventId={eventId} canDelete={!!user?.isSuperAdmin} />
       </TabsContent>
     </Tabs>
   );
@@ -189,6 +194,7 @@ export function EventCashlessTab({ eventId }: Props) {
         {/* value stays "money": it is the ?sub= deep-link key and the fallback
             target above. Only the label changed. */}
         <TabsTrigger value="money">Transactions</TabsTrigger>
+        {canViewEventFinancials(user) && <TabsTrigger value="cash-control">Cash control</TabsTrigger>}
         {showRegister && <TabsTrigger value="register">Register</TabsTrigger>}
         {showStalls && <TabsTrigger value="stalls">Stalls</TabsTrigger>}
         {showCatalogue && <TabsTrigger value="catalogue">Catalogue</TabsTrigger>}
@@ -197,6 +203,7 @@ export function EventCashlessTab({ eventId }: Props) {
         <TabsTrigger value="balances">Balances</TabsTrigger>
       </TabsList>
       <TabsContent value="money">{moneyBody}</TabsContent>
+      {canViewEventFinancials(user) && <TabsContent value="cash-control"><EventCashControl eventId={eventId} /></TabsContent>}
       {showRegister && (
         <TabsContent value="register">
           {registerBody}
@@ -211,7 +218,7 @@ export function EventCashlessTab({ eventId }: Props) {
       {showCashiers && <TabsContent value="cashiers">{cashiersBody}</TabsContent>}
       {showWaiters && (
         <TabsContent value="waiters">
-          <WaitersPanel eventId={eventId} />
+          <WaitersPanel eventId={eventId} canDelete={!!user?.isSuperAdmin} />
         </TabsContent>
       )}
       <TabsContent value="balances">
@@ -243,7 +250,10 @@ function CashierActivity({ summary, onManage }: { summary: CashlessSummary; onMa
               <TableHeader>
                 <TableRow>
                   <TableHead>Cashier</TableHead>
-                  <TableHead className="text-right">Topped up</TableHead>
+                  <TableHead className="text-right">Cash top-ups</TableHead>
+                  <TableHead className="text-right">Card top-ups</TableHead>
+                  <TableHead className="text-right">DeltaPay top-ups</TableHead>
+                  <TableHead className="text-right">Mobile Money top-ups</TableHead>
                   <TableHead className="text-right">Cashed out</TableHead>
                   <TableHead className="text-right">Transactions</TableHead>
                 </TableRow>
@@ -256,7 +266,10 @@ function CashierActivity({ summary, onManage }: { summary: CashlessSummary; onMa
                     onClick={() => navigate(`/cashiers/${c.cashierId}`)}
                   >
                     <TableCell className="font-medium text-orange-700">{c.name}</TableCell>
-                    <TableCell className="text-right text-green-700">{fmtR(c.toppedUp)}</TableCell>
+                    <TableCell className="text-right text-green-700">{fmtR(c.cashTopups)}</TableCell>
+                    <TableCell className="text-right">{fmtR(c.cardTopups)}</TableCell>
+                    <TableCell className="text-right">{fmtR(c.deltapayTopups)}</TableCell>
+                    <TableCell className="text-right">{fmtR(c.mobileMoneyTopups)}</TableCell>
                     <TableCell className="text-right text-orange-700">{fmtR(c.withdrawn)}</TableCell>
                     <TableCell className="text-right">{c.txnCount}</TableCell>
                   </TableRow>
@@ -275,6 +288,8 @@ function StallTakings({
   eventId, summary, onManage,
 }: { eventId: string; summary: CashlessSummary; onManage?: (() => void) | undefined }) {
   const navigate = useNavigate();
+  const [search, setSearch] = useState('');
+  const visibleStalls = summary.vendors.filter((stall) => matchesSearch(search, stall.name));
   return (
     <Card>
       <CardContent className="pt-6 space-y-4">
@@ -286,8 +301,12 @@ function StallTakings({
             </button>
           </div>
         )}
+        <Input type="search" aria-label="Search stall takings" placeholder="Search stalls…"
+          value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-sm" />
         {summary.vendors.length === 0 ? (
           <p className="text-sm text-muted-foreground py-4">No stall charges yet.</p>
+        ) : visibleStalls.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-4">No stalls match your search.</p>
         ) : (
           <div className="overflow-x-auto">
             <Table>
@@ -301,7 +320,7 @@ function StallTakings({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {summary.vendors.map((v) => (
+                {visibleStalls.map((v) => (
                   <TableRow
                     key={v.merchantId}
                     className="cursor-pointer hover:bg-slate-50"

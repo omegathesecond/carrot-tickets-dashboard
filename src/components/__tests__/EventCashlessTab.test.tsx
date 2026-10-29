@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { EventCashlessTab } from '@/components/EventCashlessTab';
+import { fmtR } from '@/lib/money';
 import type { AuthUser } from '@/types';
 
 afterEach(cleanup);
@@ -97,7 +98,7 @@ describe('EventCashlessTab main tabs', () => {
   it('opens the Cashiers sub-tab named in the URL', () => {
     renderTab(SUPER_ADMIN, '/events/e1?tab=cashless&sub=cashiers');
     expect(screen.getByRole('tab', { name: 'Cashier activity' })).toBeDefined();
-    expect(screen.getByRole('tab', { name: 'Add cashier' })).toBeDefined();
+    expect(screen.getByRole('tab', { name: 'Manage cashiers' })).toBeDefined();
   });
 
   it('opens the Catalogue sub-tab named in the URL', () => {
@@ -147,10 +148,10 @@ describe('EventCashlessTab main tabs', () => {
 });
 
 describe('EventCashlessTab Register tab', () => {
-  it('opens on Registered tags, with Add account alongside it', async () => {
+  it('opens on Registered tags, with Manage accounts alongside it', async () => {
     renderTab(SUPER_ADMIN, '/events/e1?tab=cashless&sub=register');
     expect(await screen.findByRole('tab', { name: 'Registered tags' })).toBeDefined();
-    const addAccount = screen.getByRole('tab', { name: 'Add account' });
+    const addAccount = screen.getByRole('tab', { name: 'Manage accounts' });
     expect(addAccount).toBeDefined();
     expect(screen.queryByText('register-pane')).toBeNull();
 
@@ -164,7 +165,7 @@ describe('EventCashlessTab Register tab', () => {
     // the pane could only ever produce "Could not load the tag register".
     renderTab(DESK_MANAGER, '/events/e1?tab=cashless&sub=register');
 
-    expect(await screen.findByRole('tab', { name: 'Add account' })).toBeDefined();
+    expect(await screen.findByRole('tab', { name: 'Manage accounts' })).toBeDefined();
     expect(screen.queryByRole('tab', { name: 'Registered tags' })).toBeNull();
     expect(screen.queryByText('tags-pane')).toBeNull();
     // …and the pane they CAN use opens instead of an empty tab.
@@ -173,10 +174,10 @@ describe('EventCashlessTab Register tab', () => {
 });
 
 describe('EventCashlessTab Stalls tab', () => {
-  it('opens on Stall takings, with Add stall alongside it', async () => {
+  it('opens on Stall takings, with Manage stalls alongside it', async () => {
     renderTab(SUPER_ADMIN, '/events/e1?tab=cashless&sub=stalls');
     expect(await screen.findByRole('tab', { name: 'Stall takings' })).toBeDefined();
-    const addStall = screen.getByRole('tab', { name: 'Add stall' });
+    const addStall = screen.getByRole('tab', { name: 'Manage stalls' });
     expect(addStall).toBeDefined();
     expect(screen.queryByText('stalls-pane')).toBeNull();
 
@@ -187,10 +188,10 @@ describe('EventCashlessTab Stalls tab', () => {
 });
 
 describe('EventCashlessTab Cashiers tab', () => {
-  it('opens on Cashier activity, with Add cashier alongside it', async () => {
+  it('opens on Cashier activity, with Manage cashiers alongside it', async () => {
     renderTab(SUPER_ADMIN, '/events/e1?tab=cashless&sub=cashiers');
     expect(await screen.findByRole('tab', { name: 'Cashier activity' })).toBeDefined();
-    const addCashier = screen.getByRole('tab', { name: 'Add cashier' });
+    const addCashier = screen.getByRole('tab', { name: 'Manage cashiers' });
     expect(addCashier).toBeDefined();
     expect(screen.queryByText('cashiers-pane')).toBeNull();
 
@@ -207,8 +208,8 @@ describe('EventCashlessTab once the summary has loaded', () => {
   function renderLoaded(url = '/events/e1') {
     authUser.mockReturnValue(SUPER_ADMIN);
     summary.mockResolvedValue({
-      circulated: 164000, spent: 24200, withdrawn: 4000, leftBehind: 135800,
-      fees: 450, walletsFunded: 5, vendors: [], cashiers: [],
+      cashTopups: 5000, cardTopups: 3000, deltapayTopups: 0, mobileMoneyTopups: 0, circulated: 164000, spent: 24200, withdrawn: 4000, leftBehind: 135800,
+      fees: 450, purchaseCharges: 400, walletsFunded: 5, vendors: [], cashiers: [],
     });
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
@@ -238,4 +239,19 @@ describe('EventCashlessTab once the summary has loaded', () => {
     renderLoaded('/events/e1?tab=cashless&sub=cashiers');
     expect(await screen.findByText('No cashier activity yet.')).toBeDefined();
   });
+});
+
+
+describe('organiser charge earnings', () => {
+  it('shows the collected charge total prominently and refreshes new payments', async () => {
+    const data = { cashTopups: 5000, cardTopups: 3000, deltapayTopups: 0, mobileMoneyTopups: 0, circulated: 164000, spent: 24200, withdrawn: 4000, leftBehind: 135800,
+      fees: 450, purchaseCharges: 400, walletsFunded: 5, vendors: [], cashiers: [] };
+    summary.mockResolvedValue(data);
+    renderTab(SUPER_ADMIN);
+    const label = await screen.findByText('ORGANISER CHARGES');
+    const card = label.parentElement!.parentElement!;
+    expect(within(card).getByText(fmtR(400))).toBeDefined();
+    summary.mockResolvedValue({ ...data, purchaseCharges: 800 });
+    expect(await within(card).findByText(fmtR(800), {}, { timeout: 6500 })).toBeDefined();
+  }, 10000);
 });

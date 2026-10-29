@@ -21,6 +21,7 @@ export type StallLevel = {
 const REASON_LABEL: Record<string, string> = {
   receive: 'Received',
   sale: 'Sold',
+  sale_reversal: 'Sale reversed',
   transfer_in: 'Transferred in',
   transfer_out: 'Transferred out',
   count_adjust: 'Stock count',

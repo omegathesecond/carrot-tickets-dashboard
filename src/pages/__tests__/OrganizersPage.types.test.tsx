@@ -49,7 +49,7 @@ const venueSuspended = org({
 // A venue-type account that is also a bus operator: the API never grants it the venue permission.
 const venueTransport = org({ id: 'v-bus', businessName: 'Rolling Bar', type: 'venues', businessType: 'venue', operatorType: 'transport' });
 const glowSpa = org({
-  id: 's1', businessName: 'Glow Spa', type: 'services', operatorType: 'services', serviceCategory: 'beauty_and_wellness',
+  id: 's1', businessName: 'Glow Spa', type: 'services', operatorType: 'services', serviceCategories: ['beauty_and_wellness'],
 });
 const coaches = org({ id: 't1', businessName: 'Sunshine Coaches', type: 'transport', operatorType: 'transport' });
 

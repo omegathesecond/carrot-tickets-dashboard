@@ -7,8 +7,9 @@ import type { Event } from '@/types';
 import type { CalibrationOffset, SheetTemplate } from '@/lib/wristband/templates';
 import { hasVisibleQrElement, unscannableQrElement } from '@/lib/wristband/design';
 import type { EditorState } from '@/lib/wristband/editorState';
-import { planPages, runPrintJob } from '@/lib/wristband/printJob';
-import { openPdf } from '@/lib/wristband/pdf';
+import { planPages, runPrintJob, type PrintFormat } from '@/lib/wristband/printJob';
+import { savePrintExport } from '@/lib/wristband/export';
+import { PRINT_DPI, mmToPrintPx } from '@/lib/wristband/layout';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
@@ -23,7 +24,6 @@ import { ProgressBar, RecentBatches } from './PrintDialogParts';
 type Mode = 'noqr' | 'newbatch' | 'existing';
 type Progress = { done: number; total: number };
 
-const SUCCESS_TOAST = 'PDF ready — print at Actual size with photo quality settings';
 const NO_QR_WARNING = 'This design has no visible QR element — add one in the editor before printing scannable wristbands.';
 
 /**
@@ -45,6 +45,7 @@ export function PrintDialog({ open, onOpenChange, eventId, event, template, stat
 }) {
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<Mode>('noqr');
+  const [format, setFormat] = useState<PrintFormat>('pdf');
   const [progress, setProgress] = useState<Progress | null>(null);
 
   const [sheets, setSheets] = useState(1);
@@ -69,7 +70,14 @@ export function PrintDialog({ open, onOpenChange, eventId, event, template, stat
     enabled: open && mode === 'existing' && !!eventId,
   });
 
-  const busy = progress !== null;
+  const issueMutation = useMutation({
+    mutationFn: (vars: { eventId: string; ticketTypeId: string; quantity: number }) =>
+      apiClient.wristbands.batchIssue(vars),
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to issue batch'),
+  });
+
+  const busy = progress !== null || issueMutation.isPending;
+  const actionLabel = format === 'pdf' ? 'Print PDF' : 'Export PNG';
   // A QR that will not scan is a ticket nobody can use, and batch-issue mints
   // REAL tickets — so colour is checked with the same weight as presence,
   // before anything is issued rather than at the gate.
@@ -79,34 +87,37 @@ export function PrintDialog({ open, onOpenChange, eventId, event, template, stat
     ? `QR colour will not scan — ${unscannable.message}`
     : NO_QR_WARNING;
 
-  /** Plan → render every band → assemble. Throws; callers own the toasting
+  /** Plan → render every band → assemble and save. Throws; callers own the toasting
    *  so each mode can report failure in its own words (e.g. new-batch needs
    *  a distinct "already issued" message, not the generic one). */
-  async function renderPdf(ticketIds: string[] | null, sheetCount = 0): Promise<Uint8Array> {
+  async function renderAndSave(ticketIds: string[] | null, sheetCount = 0): Promise<void> {
     const pages = planPages(ticketIds, sheetCount, template.bandsPerSheet);
     const total = pages.reduce((n, p) => n + p.length, 0);
     setProgress({ done: 0, total });
     try {
-      return await runPrintJob({
-        template, offset, background: state.background,
+      const result = await runPrintJob({
+        format, template, offset, background: state.background,
         elements: state.elements, pages,
         onProgress: (done, tot) => setProgress({ done, total: tot }),
       });
+      const name = (event?.name ?? 'wristbands').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase();
+      await savePrintExport(result, `${name}-${template.pageWidthMm}x${template.pageHeightMm}mm-${PRINT_DPI}dpi`);
+      toast.success(format === 'pdf'
+        ? 'PDF ready — print at Actual size with photo quality settings'
+        : `PNG downloaded at ${PRINT_DPI} DPI — print at Actual size`);
     } finally {
       setProgress(null);
     }
   }
 
-  /** renderPdf + open + generic success/error toasts — the shared path for
+  /** Shared export/error path for
    *  every mode except "new batch", which reports failure differently. */
   async function printAndOpen(ticketIds: string[] | null, sheetCount = 0): Promise<boolean> {
     try {
-      const bytes = await renderPdf(ticketIds, sheetCount);
-      openPdf(bytes);
-      toast.success(SUCCESS_TOAST);
+      await renderAndSave(ticketIds, sheetCount);
       return true;
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to generate PDF');
+      toast.error(err instanceof Error ? err.message : `Failed to generate ${format.toUpperCase()}`);
       return false;
     }
   }
@@ -115,12 +126,6 @@ export function PrintDialog({ open, onOpenChange, eventId, event, template, stat
     if (sheets < 1) { toast.error('Enter at least 1 sheet'); return; }
     await printAndOpen(null, sheets);
   }
-
-  const issueMutation = useMutation({
-    mutationFn: (vars: { eventId: string; ticketTypeId: string; quantity: number }) =>
-      apiClient.wristbands.batchIssue(vars),
-    onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to issue batch'),
-  });
 
   async function handleIssueAndPrint() {
     if (!qrReady) { toast.error(qrProblem); return; }
@@ -135,11 +140,9 @@ export function PrintDialog({ open, onOpenChange, eventId, event, template, stat
     }
     queryClient.invalidateQueries({ queryKey: ['wristband-batches', eventId] });
     try {
-      const bytes = await renderPdf(ticketIds);
-      openPdf(bytes);
-      toast.success(SUCCESS_TOAST);
+      await renderAndSave(ticketIds);
     } catch {
-      toast.error('Batch issued but PDF failed — reprint it from Recent batches below');
+      toast.error(`Batch issued but ${format.toUpperCase()} failed — export it from Recent batches below`);
     }
   }
 
@@ -170,10 +173,27 @@ export function PrintDialog({ open, onOpenChange, eventId, event, template, stat
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Print wristbands</DialogTitle>
-          <DialogDescription>Choose how you want to select tickets to print.</DialogDescription>
+          <DialogDescription>Choose a file format and the wristbands to export.</DialogDescription>
         </DialogHeader>
 
-        <Tabs value={mode} onValueChange={(v) => setMode(v as Mode)}>
+        <div className="space-y-2">
+          <Label htmlFor="wristband-export-format">File format</Label>
+          <Select value={format} onValueChange={(v) => setFormat(v as PrintFormat)} disabled={busy}>
+            <SelectTrigger id="wristband-export-format"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="pdf">PDF</SelectItem>
+              <SelectItem value="png">PNG ({PRINT_DPI} DPI)</SelectItem>
+            </SelectContent>
+          </Select>
+          {format === 'png' && (
+            <p className="text-xs text-muted-foreground">
+              {template.pageWidthMm} × {template.pageHeightMm} mm · {mmToPrintPx(template.pageWidthMm)} × {mmToPrintPx(template.pageHeightMm)} pixels.
+              {' '}One PNG per sheet; multiple sheets download as a ZIP.
+            </p>
+          )}
+        </div>
+
+        <Tabs value={mode} onValueChange={(v) => { if (!busy) setMode(v as Mode); }}>
           <TabsList>
             <TabsTrigger value="noqr">No QR</TabsTrigger>
             <TabsTrigger value="newbatch">New batch</TabsTrigger>
@@ -188,7 +208,7 @@ export function PrintDialog({ open, onOpenChange, eventId, event, template, stat
             </p>
             <DialogFooter>
               <Button disabled={busy} onClick={handlePrintNoQr}>
-                {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Print
+                {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} {actionLabel}
               </Button>
             </DialogFooter>
           </TabsContent>
@@ -219,12 +239,12 @@ export function PrintDialog({ open, onOpenChange, eventId, event, template, stat
                 {qrProblem}
               </p>
             )}
-            <Button disabled={busy || issueMutation.isPending || !qrReady} onClick={handleIssueAndPrint}>
-              {(busy || issueMutation.isPending) && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-              Issue &amp; print
+            <Button disabled={busy || !qrReady} onClick={handleIssueAndPrint}>
+              {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+              {format === 'pdf' ? 'Issue & print PDF' : 'Issue & export PNG'}
             </Button>
 
-            <RecentBatches batches={batchesQuery.data ?? []} busy={busy} qrReady={qrReady} onReprint={handleReprintBatch} />
+            <RecentBatches batches={batchesQuery.data ?? []} busy={busy} qrReady={qrReady} onReprint={handleReprintBatch} actionLabel={actionLabel} />
           </TabsContent>
 
           <TabsContent value="existing" className="space-y-3">
@@ -255,7 +275,7 @@ export function PrintDialog({ open, onOpenChange, eventId, event, template, stat
             )}
             <Button disabled={busy || selectedIds.size === 0 || !qrReady} onClick={handlePrintSelected}>
               {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-              Print{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
+              {actionLabel}{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
             </Button>
           </TabsContent>
         </Tabs>

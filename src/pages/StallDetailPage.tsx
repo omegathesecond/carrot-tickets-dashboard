@@ -1,3 +1,5 @@
+import { useAuth } from '@/contexts/AuthContext';
+import { SalesStatementDownload } from '@/components/SalesStatementDownload';
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -9,6 +11,8 @@ import { Button } from '@/components/ui/button';
 import { TransactionDetailDialog, type TxnDetail } from '@/components/TransactionDetailDialog';
 import { StallOperatorsPanel } from '@/components/StallOperatorsPanel';
 import type { StockScope } from '@/lib/stockScope';
+import { Input } from '@/components/ui/input';
+import { matchesSearch } from '@/lib/search';
 
 const fmtR = (c: number) => `R${((c ?? 0) / 100).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtTime = (iso: string) => {
@@ -27,10 +31,12 @@ const bandRef = (uid: string) => (!uid ? '—' : `••${(uid.length > 6 ? uid.
  * :id, which is how the page knows which scope it is in.
  */
 export function StallDetailPage() {
+  const { user } = useAuth();
   const { id = '', merchantId = '' } = useParams();
   const scope: StockScope = id ? { kind: 'event', eventId: id } : { kind: 'venue' };
   const navigate = useNavigate();
   const [selected, setSelected] = useState<TxnDetail | null>(null);
+  const [search, setSearch] = useState('');
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['stall-detail', merchantId],
@@ -44,6 +50,7 @@ export function StallDetailPage() {
   // API stores 0), so none of its figures — the percentage, the fee, or the
   // net-of-fee amounts — belong on a venue stall's page.
   const showCommission = scope.kind === 'event';
+  const visibleTransactions = data?.transactions.filter((t) => matchesSearch(search, t.id, t.bandUid)) ?? [];
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -74,6 +81,7 @@ export function StallDetailPage() {
             </div>
 
             <div className={showCommission ? 'grid grid-cols-2 sm:grid-cols-4 gap-4' : 'grid grid-cols-2 gap-4'}>
+              <div className="col-span-full"><SalesStatementDownload kind="merchant" id={merchantId} name={data.merchant.name} /></div>
               <Card><CardContent className="pt-6">
                 <div className="text-xs font-medium text-slate-500">Charged</div>
                 <div className="text-2xl font-bold mt-1">{fmtR(data.summary.totalCharged)}</div>
@@ -98,25 +106,29 @@ export function StallDetailPage() {
 
             <Card>
               <CardContent className="pt-6">
-                <StallOperatorsPanel scope={scope} merchantId={merchantId} stallName={data.merchant.name} />
+                <StallOperatorsPanel scope={scope} canDelete={!!user?.isSuperAdmin} merchantId={merchantId} stallName={data.merchant.name} />
               </CardContent>
             </Card>
 
             <Card>
               <CardContent className="pt-6">
                 <h2 className="text-base font-semibold mb-3">Charges</h2>
+                <Input type="search" aria-label="Search recent charges" placeholder="Search recent charges by band or reference…"
+                  value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-sm mb-3" />
                 {data.transactions.length === 0 ? (
                   <p className="text-sm text-muted-foreground py-4">No charges yet.</p>
+                ) : visibleTransactions.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4">No recent charges match your search.</p>
                 ) : (
                   <div className="divide-y">
-                    {data.transactions.map((t) => (
+                    {visibleTransactions.map((t) => (
                       <div
                         key={t.id}
                         className="flex items-center gap-3 py-3 cursor-pointer hover:bg-slate-50 -mx-2 px-2 rounded"
                         onClick={() => setSelected({
                           id: t.id, type: 'purchase', amount: t.amount, at: t.createdAt,
                           actorName: data.merchant.name, actorType: 'Merchant',
-                          bandUid: t.bandUid, fee: t.fee, netAmount: t.netAmount, status: t.status || 'completed',
+                          bandUid: t.bandUid, purchaseChargeAmount: t.purchaseChargeAmount, fee: t.fee, netAmount: t.netAmount, status: t.status || 'completed',
                         })}
                       >
                         <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-blue-700">

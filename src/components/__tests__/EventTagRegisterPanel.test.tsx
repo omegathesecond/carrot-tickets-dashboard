@@ -8,12 +8,14 @@ afterEach(cleanup);
 
 const registry = vi.fn();
 const registerMany = vi.fn();
+const register = vi.fn();
 const retire = vi.fn();
 const issue = vi.fn();
 vi.mock('@/lib/api', () => ({
   apiClient: {
     tags: {
       registry: (...a: unknown[]) => registry(...a),
+      register: (...a: unknown[]) => register(...a),
       registerMany: (...a: unknown[]) => registerMany(...a),
       retire: (...a: unknown[]) => retire(...a),
       issue: (...a: unknown[]) => issue(...a),
@@ -23,11 +25,12 @@ vi.mock('@/lib/api', () => ({
 
 const toastSuccess = vi.fn();
 const toastWarning = vi.fn();
+const toastError = vi.fn();
 vi.mock('sonner', () => ({
   toast: {
     success: (...a: unknown[]) => toastSuccess(...a),
     warning: (...a: unknown[]) => toastWarning(...a),
-    error: vi.fn(),
+    error: (...a: unknown[]) => toastError(...a),
   },
 }));
 
@@ -65,7 +68,7 @@ describe('EventTagRegisterPanel', () => {
     renderPanel();
 
     await waitFor(() => expect(screen.getByText('04a22b1c')).toBeTruthy());
-    expect(screen.getByText('In circulation')).toBeTruthy();
+    expect(screen.getByText('Registered')).toBeTruthy();
     expect(screen.getByText('Retired — snapped')).toBeTruthy();
     expect(screen.getAllByText('Register Rose')).toHaveLength(2);
   });
@@ -111,7 +114,7 @@ describe('EventTagRegisterPanel', () => {
     retire.mockResolvedValue({ bandUid: '04a22b1c', status: 'retired', counts: { active: 0, retired: 1, total: 1 } });
     renderPanel();
 
-    fireEvent.click(await screen.findByRole('button', { name: /retire/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /^retire$/i }));
     await waitFor(() => expect(retire).toHaveBeenCalledWith('e1', '04a22b1c', expect.any(String)));
   });
 
@@ -122,7 +125,7 @@ describe('EventTagRegisterPanel', () => {
     renderPanel();
 
     await waitFor(() => expect(screen.getByText('04a22b1c')).toBeTruthy());
-    expect(screen.queryByRole('button', { name: /retire/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^retire$/i })).toBeNull();
   });
 });
 
@@ -164,4 +167,48 @@ describe('handing a registered tag to somebody with no ticket', () => {
     await screen.findByText('04a22b1c');
     expect(screen.queryByRole('button', { name: /hand out/i })).toBeNull();
   });
+});
+
+
+it('refreshes the circulation list and total after funding is confirmed', async () => {
+  registry.mockReset();
+  registry.mockResolvedValue(EMPTY);
+  renderPanel();
+  await screen.findByText('All (0)');
+  fireEvent.mouseDown(screen.getByRole('tab', { name: 'In circulation (0)' }), { button: 0, ctrlKey: false });
+  await waitFor(() => expect(registry).toHaveBeenCalledWith('e1', { status: 'active' }));
+  registry.mockResolvedValue({ tags: [tag()], total: 1, counts: { active: 1, retired: 0, total: 1 } });
+  await waitFor(() => expect(screen.getByText('In circulation (1)')).toBeTruthy(), { timeout: 7000 });
+  expect(screen.getByText('04a22b1c')).toBeTruthy();
+  registry.mockResolvedValue(EMPTY);
+  await waitFor(() => expect(screen.getByText('In circulation (0)')).toBeTruthy(), { timeout: 7000 });
+  expect(screen.queryByText('04a22b1c')).toBeNull();
+}, 20000);
+
+it('unretires a tag through registration and refreshes the register and counts', async () => {
+  registry.mockResolvedValue({ tags: [tag({ status: 'retired' })], total: 1,
+    counts: { active: 0, retired: 1, total: 1 } });
+  register.mockImplementation(async () => {
+    registry.mockResolvedValue({ tags: [tag()], total: 1,
+      counts: { active: 0, retired: 0, total: 1 } });
+    return { bandUid: '04a22b1c', outcome: 'reactivated' };
+  });
+  renderPanel();
+  fireEvent.click(await screen.findByRole('button', { name: 'Unretire' }));
+  await waitFor(() => expect(register).toHaveBeenCalledWith('e1', '04a22b1c'));
+  await screen.findByRole('button', { name: /hand out/i });
+  expect(screen.queryByRole('button', { name: 'Unretire' })).toBeNull();
+  expect(screen.getByRole('tab', { name: 'Retired (0)' })).toBeTruthy();
+  expect(screen.getByRole('tab', { name: 'In circulation (0)' })).toBeTruthy();
+});
+
+it('surfaces an unretire failure and leaves the tag retired', async () => {
+  registry.mockResolvedValue({ tags: [tag({ status: 'retired' })], total: 1,
+    counts: { active: 0, retired: 1, total: 1 } });
+  register.mockRejectedValue(new Error('Permission denied'));
+  renderPanel();
+  fireEvent.click(await screen.findByRole('button', { name: 'Unretire' }));
+  await waitFor(() => expect(toastError).toHaveBeenCalledWith('Permission denied'));
+  expect(screen.getByRole('tab', { name: 'Retired (1)' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: /hand out/i })).toBeNull();
 });

@@ -34,8 +34,7 @@ function shortRef(saleId: string): string {
 
 /**
  * Build a self-contained HTML document for a 58mm thermal printer. All images
- * (logo + QR) are inline data URLs, so the document needs no network. It calls
- * window.print() on load and closes itself afterwards.
+ * (logo + QR) are inline data URLs, so the document needs no network. The caller prints after the document loads.
  */
 export function buildTicketReceiptHtml(
   sale: SaleData,
@@ -137,10 +136,7 @@ export function buildTicketReceiptHtml(
 
   <div class="foot">Support: ${esc(SUPPORT_EMAIL)}<br/>Thank you &amp; enjoy the event!</div>
 
-  <script>
-    window.onafterprint = function () { window.close(); };
-    window.onload = function () { window.focus(); window.print(); };
-  </script>
+
 </body>
 </html>`;
 }

@@ -5,6 +5,7 @@ import { TicketSuccessDialog } from '@/components/TicketSuccessDialog';
 import { MAX_BUNDLE_TICKETS } from '@/lib/ticketDownloads';
 import { MAX_RECIPIENT_ROWS } from '@/lib/ticketRecipients';
 import type { SaleData } from '@/lib/saleData';
+import { stubPhoneInput } from '@/test/stubPhoneInput';
 
 // jsdom implements neither; saveBlob only needs them to exist.
 beforeAll(() => {
@@ -14,7 +15,7 @@ beforeAll(() => {
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 const saleData: SaleData = {
   saleId: 's1', eventName: 'Gig', ticketTypeName: '2 × General',
@@ -95,18 +96,22 @@ describe('TicketSuccessDialog — row cap agrees with the till (I5)', () => {
   // Dropping to chips at 20 left a 50-ticket sale's recipients with no send
   // and no download button at all.
   it('still renders a row per ticket well above 20', () => {
+    stubPhoneInput();
     render(<TicketSuccessDialog {...props} saleData={saleOf(50)} perTicket={rails()} />);
     expect(screen.getByLabelText('Recipient name for TKT-21')).toBeTruthy();
     expect(screen.getByLabelText('Recipient name for TKT-50')).toBeTruthy();
   });
 
   it('scrolls the long list rather than dropping it', () => {
+    stubPhoneInput();
     render(<TicketSuccessDialog {...props} saleData={saleOf(50)} perTicket={rails()} />);
     expect(screen.getByTestId('recipient-rows').className).toContain('overflow-y-auto');
   });
 
   it('renders rows right up to the shared limit', () => {
+    stubPhoneInput();
     render(<TicketSuccessDialog {...props} saleData={saleOf(MAX_RECIPIENT_ROWS)} perTicket={rails()} />);
+    expect(screen.getAllByLabelText(/^Recipient name for TKT-/)).toHaveLength(MAX_RECIPIENT_ROWS);
     expect(screen.getByLabelText(`Recipient name for TKT-${MAX_RECIPIENT_ROWS}`)).toBeTruthy();
   });
 });

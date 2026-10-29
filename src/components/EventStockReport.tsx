@@ -6,6 +6,7 @@ import { apiClient, type StockStatus, type StockMovementRow } from '@/lib/api';
 import { fmtCents } from '@/lib/money';
 import type { Currency } from '@/lib/currency';
 import { scopeKey, type StockScope } from '@/lib/stockScope';
+import { formatMoney } from '@/lib/currency';
 import { saveBlob } from '@/lib/ticketDownloads';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -46,7 +47,7 @@ export function EventStockReport({ scope, currency = 'ZAR' }: { scope: StockScop
         <DashboardSection scope={scope} currency={currency} />
       </TabsContent>
       <TabsContent value="reconciliation">
-        <ReconciliationSection scope={scope} />
+        <ReconciliationSection scope={scope} currency={currency} />
       </TabsContent>
       <TabsContent value="movements">
         <MovementsSection scope={scope} />
@@ -210,7 +211,7 @@ function dayRange(fromDay: string, toDay: string): { from: string; to: string } 
   return { from: `${fromDay}T00:00:00+02:00`, to: `${nextDay}T00:00:00+02:00` };
 }
 
-function ReconciliationSection({ scope }: { scope: StockScope }) {
+function ReconciliationSection({ scope, currency }: { scope: StockScope; currency: Currency }) {
   // Venue reports are by day (Eswatini, UTC+2): an inclusive From–To date pair.
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Mbabane' });
   const [fromDay, setFromDay] = useState(today);
@@ -327,10 +328,46 @@ function ReconciliationSection({ scope }: { scope: StockScope }) {
               </TableBody>
             </Table>
           </div>
+          {data && <SalesPricingAudit data={data} currency={currency} />}
         </SectionState>
       </CardContent>
     </Card>
   );
+}
+
+function SalesPricingAudit({ data, currency }: { data: import('@/lib/api').StockReconciliation; currency: Currency }) {
+  const columns = [
+    { key: 'regularUnits', label: 'Regular units' },
+    { key: 'specialUnits', label: 'Special units' },
+    { key: 'specialBundles', label: 'Bundles' },
+    { key: 'unclassifiedUnits', label: 'Unclassified units' },
+    { key: 'refundedNotRestockedUnits', label: 'Refunded, not returned' },
+    { key: 'regularValue', label: 'List value', money: true },
+    { key: 'discountAmount', label: 'Discount', money: true },
+    { key: 'salesRevenue', label: 'Net sales', money: true },
+  ] as const;
+  const values = (row: typeof data.total) => columns.map(col => (
+    <TableCell key={col.key} className="text-right tabular-nums">
+      {'money' in col ? formatMoney(row[col.key] / 100, data.event?.currency ?? currency, { decimals: 2 }) : row[col.key]}
+    </TableCell>
+  ));
+  return <div className="mt-6 space-y-3">
+    <h3 className="font-semibold">Sales pricing audit</h3>
+    <p className="text-sm text-muted-foreground">Net of refunds. Regular, special and unclassified units plus refunded units not returned to stock equal units sold. List value minus discount equals net sales, before purchase charges and commission.</p>
+    {data.total.unclassifiedUnits !== 0 && <p className="text-sm text-amber-800">Unclassified units are sales without a saved regular/special split. Their recorded prices and sales totals are retained; current catalogue prices are not used to guess the split.</p>}
+    <div className="overflow-x-auto"><Table>
+      <TableHeader><TableRow><TableHead>Product / stall</TableHead>
+        {columns.map(col => <TableHead key={col.key} className="text-right whitespace-nowrap">{col.label}</TableHead>)}
+      </TableRow></TableHeader>
+      <TableBody>
+        {data.perBar.map(row => <TableRow key={`${row.merchantId}:${row.productId}`}>
+          <TableCell><span className="font-medium">{row.productName}</span><span className="block text-xs text-muted-foreground">{row.merchantName}</span></TableCell>
+          {values(row)}
+        </TableRow>)}
+        <TableRow className="border-t-2 font-semibold"><TableCell>Total</TableCell>{values(data.total)}</TableRow>
+      </TableBody>
+    </Table></div>
+  </div>;
 }
 
 // ---------------------------------------------------------------- movements

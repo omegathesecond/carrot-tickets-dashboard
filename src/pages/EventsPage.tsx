@@ -27,6 +27,7 @@ import { GalleryManager } from '@/components/GalleryManager';
 import { submitNewEvent } from '@/lib/createEvent';
 import { composeEventDateTime } from '@/lib/eventForm';
 import { formatEventDateTimeRange } from '@/lib/eventWhen';
+import { loadSearchEvents, normalizeEventSearch } from '@/lib/eventSearch';
 
 // Buckets shown as the status filter tabs. Drafts are "pending" (awaiting
 // approval to publish), published+upcoming are "approved", published events
@@ -71,6 +72,7 @@ export function EventsPage() {
     else next.delete('q');
     setSearchParams(next, { replace: true });
   };
+  const searchQuery = normalizeEventSearch(searchTerm);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   // Defaults to checked — most Carrot events span more than one day, and an
   // organizer who leaves it off the default single start/end time fields
@@ -103,6 +105,13 @@ export function EventsPage() {
     // established fallback (matches AllocationPage's reseller polling).
     // Organizers only ever change their own data through this same client,
     // where mutation-triggered invalidation already keeps things in sync.
+    refetchInterval: isAdmin ? 5000 : false,
+  });
+
+  const searchEvents = useQuery({
+    queryKey: ['events', 'search'],
+    queryFn: () => loadSearchEvents(apiClient.events.getEvents),
+    enabled: !!searchQuery,
     refetchInterval: isAdmin ? 5000 : false,
   });
 
@@ -230,8 +239,9 @@ export function EventsPage() {
       activeTab === 'all'
         ? allEvents
         : classified.filter((c) => c.bucket === activeTab).map((c) => c.event);
-    const query = searchTerm.trim().toLowerCase();
-    const base = query ? byTab.filter((e) => e.name.toLowerCase().includes(query)) : byTab;
+    const base = searchQuery
+      ? (searchEvents.data ?? []).filter((e) => normalizeEventSearch(e.name).includes(searchQuery))
+      : byTab;
     // A pending cashless ask is only actionable by Carrot staff, and there is
     // no admin notification channel in this system (event approval works the
     // same way) — so the list itself has to carry the signal. Float the asks
@@ -239,7 +249,7 @@ export function EventsPage() {
     if (!isAdmin) return base;
     const pending = (e: Event) => (e.cashlessRequestedAt && !e.cashless ? 0 : 1);
     return [...base].sort((a, b) => pending(a) - pending(b));
-  }, [allEvents, classified, activeTab, isAdmin, searchTerm]);
+  }, [allEvents, classified, activeTab, isAdmin, searchQuery, searchEvents.data]);
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -546,8 +556,7 @@ export function EventsPage() {
         </TabsList>
       </Tabs>
 
-      {/* Search — filters the already-tab-scoped list live, client-side, so
-          typing never refetches or shifts the surrounding layout. */}
+      {/* Search spans every event; clearing it restores the selected tab. */}
       <div className="relative max-w-md">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
         <Input
@@ -569,9 +578,15 @@ export function EventsPage() {
         )}
       </div>
 
-      {filteredEvents.length === 0 ? (
+      {searchQuery && searchEvents.isError ? (
+        <div role="alert" className="py-16 text-center text-red-600">
+          Failed to search events. <Button variant="outline" onClick={() => searchEvents.refetch()}>Retry</Button>
+        </div>
+      ) : searchQuery && searchEvents.isPending ? (
+        <div role="status" className="py-16 text-center">Searching events...</div>
+      ) : filteredEvents.length === 0 ? (
         <div className="text-center py-16 text-slate-500">
-          {searchTerm ? 'No events found' : 'No events in this category.'}
+          {searchQuery ? 'No events found' : 'No events in this category.'}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -607,6 +622,9 @@ export function EventsPage() {
                         <XCircle className="h-5 w-5 text-slate-400" />
                       )}
                     </CardTitle>
+                    {searchQuery && (
+                      <span className="text-sm text-slate-600">Status: {event.status.replace(/_/g, ' ')}</span>
+                    )}
                     {event.category && (
                       <span className="inline-flex w-fit items-center rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700">
                         {EVENT_CATEGORY_LABELS[event.category] ?? event.category}

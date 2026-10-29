@@ -1,3 +1,4 @@
+import type { DeskTopupMethod, DeskTopupTotals } from '@/lib/deskPaymentMethod';
 export * from './reseller';
 import type { EventCategory } from '@/constants/eventCategories';
 import type { Currency } from '@/lib/currency';
@@ -89,7 +90,7 @@ export interface AuthUser {
   // True for Carrot platform admins, who approve events and see every
   // vendor's sales/scans. Set from the API's getMe/login payload.
   isSuperAdmin?: boolean;
-  operatorType?: 'events' | 'transport' | 'both';
+  operatorType?: 'events' | 'transport' | 'both' | 'services';
 }
 
 export interface PaymentMethodSettings {
@@ -147,6 +148,7 @@ export interface Event {
   status: 'draft' | 'pending_approval' | 'published' | 'cancelled' | 'completed';
   // NFC closed-loop cashless event: attendees carry funded wristbands, vendors
   // charge them, cashiers top up + cash out. Gates the organizer Cashless tab.
+  purchaseCharge?: { type: 'fixed' | 'percentage'; value: number } | null;
   cashless?: boolean;
   // Organizer's standing ask for cashless — an organizer may not set the flag
   // themselves (the API 403s), so they request and an admin grants.
@@ -174,6 +176,7 @@ export interface Event {
 }
 
 export interface TicketType {
+  isAllocation?: boolean;
   _id: string;
   name: string; // e.g., "VIP", "General", "Early Bird"
   price: number;
@@ -218,6 +221,7 @@ export interface EventFormData {
   priceMax?: number;
   // Admin-only. The API rejects this from a non-super-admin token, so the
   // form only ever sends it when the toggle was rendered for an admin.
+  purchaseCharge?: { type: 'fixed' | 'percentage'; value: number } | null;
   cashless?: boolean;
   // Attendance Status feature inputs — see Event.lineup / Event.outfitThemeOptions.
   lineup?: string[];
@@ -230,7 +234,7 @@ export interface EventFormData {
 // The client removed the standalone "Are you planning to attend?" question
 // entirely — the api no longer materializes or returns it — so 'attend' is
 // not a member of this union.
-export type VoteQuestionKind = 'artist' | 'song' | 'outfit' | 'attending_with' | 'busy' | 'bump_into' | 'cup';
+export type VoteQuestionKind = 'artist' | 'song' | 'outfit' | 'attending_with' | 'busy' | 'bump_into' | 'cup' | `custom_${string}`;
 
 export interface VoteWindow {
   opensAt: string | null;
@@ -244,7 +248,10 @@ export interface VoteOption {
   label: string;
 }
 
+export interface FanQuestion { kind: VoteQuestionKind; prompt: string; enabled: boolean; options: VoteOption[] }
+
 export interface VotePreview {
+  settings: FanQuestion[];
   eventId: string;
   window: VoteWindow;
   questions: Array<{ kind: VoteQuestionKind; prompt: string; order: number; options: VoteOption[] }>;
@@ -851,7 +858,7 @@ export interface Organizer {
   primaryContact: string | null;
   businessType: string | null;
   operatorType?: string;
-  serviceCategory?: string;
+  serviceCategories?: string[];
   verificationStatus: OrganizerVerificationStatus;
   verifiedAt: string | null;
   rejectionReason: string | null;
@@ -1055,7 +1062,7 @@ export interface CashlessVendorRow {
   chargeCount: number;
 }
 
-export interface CashlessCashierRow {
+export interface CashlessCashierRow extends DeskTopupTotals {
   cashierId: string;
   name: string;
   toppedUp: number;  // cents loaded
@@ -1063,13 +1070,14 @@ export interface CashlessCashierRow {
   txnCount: number;
 }
 
-export interface CashlessSummary {
+export interface CashlessSummary extends DeskTopupTotals {
   event?: { id: string; name: string };
   circulated: number; // Σ top-ups
   spent: number;      // Σ vendor charges
   withdrawn: number;  // Σ cash-outs
   leftBehind: number; // Σ remaining wallet balances (un-withdrawn)
   fees: number;       // Carrot commission collected
+  purchaseCharges: number; // Customer charges owed to organizer
   walletsFunded: number;
   vendors: CashlessVendorRow[];
   cashiers: CashlessCashierRow[];
@@ -1078,6 +1086,7 @@ export interface CashlessSummary {
 export interface CashlessTxn {
   id: string;
   type: 'topup' | 'withdrawal' | 'purchase';
+  method?: DeskTopupMethod | 'office_cash';
   amount: number; // cents
   at: string;     // ISO
   /** WHO moved the money: vendor name (purchase) or cashier/reseller name (top-up/cash-out). */
@@ -1088,12 +1097,14 @@ export interface CashlessTxn {
   /** The caller's own reference (clientTxnId) — what a support query is traced by. */
   ref?: string | null;
   status?: string;
+  reversal?: { staffName: string; reason: string; at: string; restocked: boolean };
   walletId?: string;
   /**
    * The tag this moved on, as it was AT THE TIME. Null when the wallet had no
    * band bound then — a desk top-up before the attendee collected their tag.
    */
   tagUid?: string | null;
+  purchaseChargeAmount?: number;
   fee?: number;
   netAmount?: number;
 }

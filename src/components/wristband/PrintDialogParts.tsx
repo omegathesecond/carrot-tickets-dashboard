@@ -20,12 +20,13 @@ export function ProgressBar({ done, total }: { done: number; total: number }) {
 }
 
 /** Reprintable history for the "New batch" tab — the recovery path when a
- *  batch was issued but its PDF failed to render. */
-export function RecentBatches({ batches, busy, qrReady, onReprint }: {
+ *  batch was issued but its export failed to render. */
+export function RecentBatches({ batches, busy, qrReady, onReprint, actionLabel }: {
   batches: WristbandBatch[];
   busy: boolean;
   qrReady: boolean;
   onReprint: (b: WristbandBatch) => void;
+  actionLabel: string;
 }) {
   return (
     <div className="space-y-2 border-t pt-3">
@@ -39,7 +40,7 @@ export function RecentBatches({ batches, busy, qrReady, onReprint }: {
               title={qrReady ? undefined : 'This design has no visible QR element'}
               onClick={() => onReprint(b)}
             >
-              <Printer className="mr-1 h-3.5 w-3.5" /> Print
+              <Printer className="mr-1 h-3.5 w-3.5" /> {actionLabel}
             </Button>
           </div>
         ))}

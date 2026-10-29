@@ -66,7 +66,7 @@ const COLUMNS: Record<ColumnId, OrganizerColumn> = {
   },
   category: {
     header: 'Category',
-    cell: (o) => (o.serviceCategory ? humanize(o.serviceCategory) : '—'),
+    cell: (o) => (o.serviceCategories?.length ? o.serviceCategories.map(humanize).join(', ') : '—'),
   },
   contact: {
     header: 'Contact',

@@ -1,3 +1,4 @@
+import { deskPaymentMethodLabel } from '@/lib/deskPaymentMethod';
 import { useEffect, useState } from 'react';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { Search, X } from 'lucide-react';
@@ -103,6 +104,7 @@ export function EventTransactionLog({ eventId }: { eventId: string }) {
                     <TableHead>Tag ID</TableHead>
                     <TableHead>By</TableHead>
                     <TableHead>Type</TableHead>
+                    <TableHead>Payment</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
@@ -115,9 +117,9 @@ export function EventTransactionLog({ eventId }: { eventId: string }) {
                         key={t.id}
                         className="cursor-pointer hover:bg-slate-50"
                         onClick={() => setSelected({
-                          id: t.id, type: t.type, amount: t.amount, at: t.at,
+                          id: t.id, type: t.type, method: t.method, amount: t.amount, at: t.at,
                           actorName: t.actorName, actorType: t.actorType,
-                          bandUid: t.tagUid ?? t.bandUid, fee: t.fee, netAmount: t.netAmount,
+                          bandUid: t.tagUid ?? t.bandUid, purchaseChargeAmount: t.purchaseChargeAmount, fee: t.fee, netAmount: t.netAmount,
                           ref: t.ref, status: t.status,
                         })}
                       >
@@ -130,11 +132,13 @@ export function EventTransactionLog({ eventId }: { eventId: string }) {
                         <TableCell>
                           <Badge variant="secondary" className={meta.className}>{meta.label}</Badge>
                         </TableCell>
+                        <TableCell>{t.type === 'purchase' ? '—' : deskPaymentMethodLabel(t.method)}</TableCell>
                         <TableCell className="text-right font-medium">{fmtR(t.amount)}</TableCell>
                         <TableCell>
-                          <Badge variant="secondary" className="bg-green-100 text-green-800">
+                          <Badge variant="secondary" className={t.status === 'reversed' ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'}>
                             {t.status ?? 'completed'}
                           </Badge>
+                          {t.reversal && <div className="mt-1 text-xs text-muted-foreground">Reversed by {t.reversal.staffName} · {fmtWhen(t.reversal.at)}<br />{t.reversal.reason} · {t.reversal.restocked ? 'Items returned to stock' : 'Stock unchanged'}</div>}
                         </TableCell>
                       </TableRow>
                     );

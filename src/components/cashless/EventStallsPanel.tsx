@@ -1,3 +1,4 @@
+import { EventResourceActions } from '@/components/EventResourceActions';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -12,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ViewAffordance } from '@/components/ViewAffordance';
 import { scopeKey, stallPath, type StockScope } from '@/lib/stockScope';
+import { matchesSearch } from '@/lib/search';
 
 const initialsOf = (name: string) =>
   name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
@@ -29,13 +31,14 @@ const DEFAULT_FORM: AddForm = { name: '', commissionPercent: '0' };
  * under rather than asking the organizer to pick one. The API enforces
  * ownership of that scope on every call. A venue stall carries no commission.
  */
-export function EventStallsPanel({ scope }: { scope: StockScope }) {
+export function EventStallsPanel({ scope, canDelete = false }: { scope: StockScope; canDelete?: boolean }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [form, setForm] = useState<AddForm>(DEFAULT_FORM);
+  const [search, setSearch] = useState('');
 
-  const { data: stalls = [], isLoading } = useQuery({
+  const { data: stalls = [], isLoading, isError, error } = useQuery({
     queryKey: ['merchants', scopeKey(scope)],
     queryFn: () => apiClient.merchants.list(scope),
   });
@@ -69,6 +72,7 @@ export function EventStallsPanel({ scope }: { scope: StockScope }) {
 
   const pendingActiveId = setActive.isPending ? setActive.variables?.id : undefined;
   const isFormValid = form.name.trim().length > 0;
+  const visibleStalls = stalls.filter((stall) => matchesSearch(search, stall.name));
 
   return (
     <div className="space-y-4">
@@ -113,12 +117,17 @@ export function EventStallsPanel({ scope }: { scope: StockScope }) {
         </Dialog>
       </div>
 
+      <Input type="search" aria-label="Search stalls" placeholder="Search stalls…"
+        value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-sm" />
+
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {[0, 1, 2].map((i) => (
             <Card key={i}><CardContent className="h-40 animate-pulse bg-slate-100/60 rounded-xl" /></Card>
           ))}
         </div>
+      ) : isError ? (
+        <p className="text-sm text-red-600">Could not load stalls{error instanceof Error ? ` — ${error.message}` : ''}.</p>
       ) : stalls.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center text-center py-14 gap-3">
@@ -135,9 +144,11 @@ export function EventStallsPanel({ scope }: { scope: StockScope }) {
             </Button>
           </CardContent>
         </Card>
+      ) : visibleStalls.length === 0 ? (
+        <p className="text-sm text-muted-foreground py-4">No stalls match your search.</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {stalls.map((v: MerchantRow) => {
+          {visibleStalls.map((v: MerchantRow) => {
             const active = v.status === 'active';
             return (
               <Card key={v._id} onClick={() => navigate(stallPath(scope, v._id))}
@@ -158,7 +169,11 @@ export function EventStallsPanel({ scope }: { scope: StockScope }) {
 
                   <ViewAffordance label="View stall" />
 
-                  <div className="mt-auto">
+                  <div className="mt-auto space-y-2">
+                    <EventResourceActions kind="stall" initial={{ name: v.name, commissionPercent: String(v.commissionPercent) }}
+                    canDelete={scope.kind === 'event' && canDelete} queryKey={['merchants', scopeKey(scope)]}
+                    onSave={(values) => apiClient.merchants.update(scope, v._id, { name: values.name, commissionPercent: Number(values.commissionPercent) })}
+                    onDelete={() => apiClient.merchants.delete(v._id)} />
                     <Button variant="outline" size="sm" disabled={pendingActiveId === v._id}
                       onClick={(e) => { e.stopPropagation(); setActive.mutate({ id: v._id, isActive: !active }); }}
                       className={active

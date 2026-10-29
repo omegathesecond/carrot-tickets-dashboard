@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { PurchaseChargeSetting } from '@/components/cashless/PurchaseChargeSetting';
 import { Badge } from '@/components/ui/badge';
 
 const fmtDate = (iso?: string | null) => {
@@ -119,6 +120,7 @@ export function EventCashlessSetting({ event, isAdmin }: { event: Event; isAdmin
             </Button>
           </div>
         )}
+        {event.cashless && <PurchaseChargeSetting key={JSON.stringify(event.purchaseCharge)} event={event} />}
       </CardContent>
     </Card>
   );

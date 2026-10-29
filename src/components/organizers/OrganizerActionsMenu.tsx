@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -27,6 +28,9 @@ export function OrganizerActionsMenu({ organizer: o, actions }: { organizer: Org
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        <DropdownMenuItem asChild>
+          <Link to={`/gate-operators?vendorId=${encodeURIComponent(o.id)}`}>Gate Operators</Link>
+        </DropdownMenuItem>
         {o.verificationStatus !== 'verified' && (
           <DropdownMenuItem onClick={() => actions.onVerification(o, 'verified')}>
             Verify

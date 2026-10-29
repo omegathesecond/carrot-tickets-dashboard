@@ -1,3 +1,4 @@
+import { EventResourceActions } from '@/components/EventResourceActions';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -9,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { OperatorCredentialsDialog } from '@/components/OperatorCredentialsDialog';
 import { OperatorGrantsField } from '@/components/OperatorGrantsField';
 import type { StockScope } from '@/lib/stockScope';
+import { matchesSearch } from '@/lib/search';
 
 type Credentials = { title: string; loginCode?: string; pin: string };
 
@@ -21,9 +23,10 @@ type Credentials = { title: string; loginCode?: string; pin: string };
  * already loads under MANAGE_ACCESS, so no separate permission gate is
  * needed here.
  */
-export function StallOperatorsPanel({ scope, merchantId, stallName }: { scope: StockScope; merchantId: string; stallName: string }) {
+export function StallOperatorsPanel({ scope, merchantId, stallName, canDelete = false }: { scope: StockScope; canDelete?: boolean; merchantId: string; stallName: string }) {
   const qc = useQueryClient();
   const [adding, setAdding] = useState(false);
+  const [search, setSearch] = useState('');
   const [form, setForm] = useState<{ fullName: string; phoneNumber: string; grants: OperatorGrant[] }>(
     { fullName: '', phoneNumber: '', grants: [] },
   );
@@ -72,6 +75,7 @@ export function StallOperatorsPanel({ scope, merchantId, stallName }: { scope: S
   });
 
   const operators = data?.operators ?? [];
+  const visibleOperators = operators.filter((op) => matchesSearch(search, op.fullName, op.loginCode, op.phoneNumber));
   // Per-row pending ids — a mutation in flight for one operator must not
   // disable the same action on every other row (mirrors EventStallsPanel's
   // pendingActiveId in this same commit).
@@ -91,6 +95,9 @@ export function StallOperatorsPanel({ scope, merchantId, stallName }: { scope: S
         <Button size="sm" onClick={() => setAdding(true)}>Add person</Button>
       </div>
 
+      <Input type="search" aria-label="Search till staff" placeholder="Search till staff by name, User ID or phone…"
+        value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-sm" />
+
       {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
       {isError && (
         <p className="text-sm text-red-600 py-4">
@@ -103,9 +110,13 @@ export function StallOperatorsPanel({ scope, merchantId, stallName }: { scope: S
         </p>
       )}
 
-      {!isError && operators.length > 0 && (
+      {!isLoading && !isError && operators.length > 0 && visibleOperators.length === 0 && (
+        <p className="text-sm text-muted-foreground py-4">No till staff match your search.</p>
+      )}
+
+      {!isError && visibleOperators.length > 0 && (
         <ul className="divide-y rounded-md border">
-          {operators.map((op) => (
+          {visibleOperators.map((op) => (
             <li key={op._id} className="flex flex-col gap-3 p-3">
               <div className="flex items-center justify-between gap-4">
                 <div className="min-w-0">
@@ -131,6 +142,11 @@ export function StallOperatorsPanel({ scope, merchantId, stallName }: { scope: S
                   </Button>
                 </div>
               </div>
+              <EventResourceActions kind="till staff" initial={{ name: op.fullName, phoneNumber: op.phoneNumber ?? '' }}
+                    canDelete={scope.kind === 'event' && canDelete} queryKey={['merchantOperators', merchantId]}
+                    onSave={(values) => apiClient.merchantOperators.update(scope, op._id, { fullName: values.name, phoneNumber: values.phoneNumber })}
+                    onReveal={() => apiClient.merchantOperators.revealPin(op._id)}
+                    onDelete={() => apiClient.merchantOperators.delete(op._id)} />
               <OperatorGrantsField
                 population="merchant"
                 idPrefix={`stall-op-${op._id}`}

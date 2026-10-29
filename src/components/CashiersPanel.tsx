@@ -1,3 +1,4 @@
+import { EventResourceActions } from '@/components/EventResourceActions';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -29,7 +30,7 @@ const DEFAULT_FORM: AddForm = { fullName: '', phoneNumber: '', grants: [] };
  * loads under canManageAccess, so no separate permission gate is needed
  * here — mirrors StallOperatorsPanel's shape.
  */
-export function CashiersPanel({ eventId }: { eventId: string }) {
+export function CashiersPanel({ eventId, canDelete = false }: { eventId: string; canDelete?: boolean }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -68,8 +69,8 @@ export function CashiersPanel({ eventId }: { eventId: string }) {
   });
 
   const setTagDesk = useMutation({
-    mutationFn: ({ id, on }: { id: string; on: boolean }) =>
-      apiClient.cashiers.setGrants(id, on ? ['issue_tags'] : []),
+    mutationFn: ({ id, on, grants }: { id: string; on: boolean; grants: OperatorGrant[] }) =>
+      apiClient.cashiers.setGrants(id, on ? [...new Set([...grants, 'issue_tags' as const])] : grants.filter(g=>g !== 'issue_tags')),
     onSuccess: (_res, vars) => {
       invalidate();
       toast.success(
@@ -100,7 +101,7 @@ export function CashiersPanel({ eventId }: { eventId: string }) {
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          Everyone gets their own login and PIN, so every top-up and cash-out at this event is attributed to a person.
+          Choose each cashier's cash reload, card reload and withdrawal permissions. Open their profile to change access.
         </p>
         <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
           <DialogTrigger asChild>
@@ -109,7 +110,7 @@ export function CashiersPanel({ eventId }: { eventId: string }) {
               Add cashier
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Add cashier</DialogTitle></DialogHeader>
             <form
               onSubmit={(e) => { e.preventDefault(); if (isFormValid) createCashier.mutate(); }}
@@ -126,7 +127,8 @@ export function CashiersPanel({ eventId }: { eventId: string }) {
                   onChange={(e) => setForm((f) => ({ ...f, phoneNumber: e.target.value }))} />
               </div>
               <div className="space-y-2">
-                <Label>Extra permissions</Label>
+                <Label>Cashier permissions</Label>
+                <p className="text-xs text-muted-foreground">Money actions are off until selected. Choose only the duties this cashier needs.</p>
                 <OperatorGrantsField
                   population="cashier"
                   idPrefix="cashier"
@@ -208,11 +210,16 @@ export function CashiersPanel({ eventId }: { eventId: string }) {
                 <ViewAffordance label="View activity" />
 
                 <div className="mt-auto grid grid-cols-2 gap-2">
+                  <div className="col-span-2"><EventResourceActions kind="cashier" initial={{ name: c.fullName, phoneNumber: c.phoneNumber ?? '' }}
+                    canDelete={canDelete} queryKey={['cashiers', eventId]}
+                    onSave={(values) => apiClient.cashiers.update(c._id, { fullName: values.name, phoneNumber: values.phoneNumber })}
+                    onReveal={() => apiClient.cashiers.revealPin(c._id)}
+                    onDelete={() => apiClient.cashiers.delete(c._id)} /></div>
                   <Button variant="outline" size="sm"
                     disabled={setTagDesk.isPending && setTagDesk.variables?.id === c._id}
                     onClick={(e) => {
                       e.stopPropagation();
-                      setTagDesk.mutate({ id: c._id, on: !(c.grants ?? []).includes('issue_tags') });
+                      setTagDesk.mutate({ id: c._id, on: !(c.grants ?? []).includes('issue_tags'), grants: c.grants ?? [] });
                     }}
                     className={(c.grants ?? []).includes('issue_tags')
                       ? 'col-span-2 text-orange-600 hover:text-orange-700 hover:border-orange-300'
