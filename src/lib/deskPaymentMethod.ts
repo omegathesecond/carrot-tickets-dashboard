@@ -13,6 +13,7 @@ export function deskPaymentMethodLabel(method: string | undefined): string {
     case 'deltapay': return 'DeltaPay';
     case 'mobile_money': return 'Mobile Money';
     case 'office_cash': return 'Office cash';
+    case 'bank_transfer': return 'Bank transfer';
     default: throw new Error('Missing or invalid desk payment method');
   }
 }
