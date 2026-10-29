@@ -1,5 +1,6 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { Guarantees } from '@/components/Guarantees';
+import { TagWithdrawalsPage } from '@/pages/TagWithdrawalsPage';
 import { MarketplacePage } from '@/pages/MarketplacePage';
 import { BrowserRouter as Router, Routes, Route, Outlet } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -111,6 +112,7 @@ function App() {
                   <Route path="resellers" element={<AdminRoute><ResellersPage /></AdminRoute>} />
                   <Route path="resellers/:id" element={<AdminRoute><ResellerDetailPage /></AdminRoute>} />
                   <Route path="resellers/:id/hubs/:hubId" element={<AdminRoute><HubDetailPage /></AdminRoute>} />
+                  <Route path="tag-withdrawals" element={<AdminRoute><TagWithdrawalsPage /></AdminRoute>} />
                   <Route path="payouts" element={<AdminRoute><OrganizerPayoutsPage /></AdminRoute>} />
                   <Route path="fees" element={<AdminRoute><FeesPage /></AdminRoute>} />
                   <Route path="gate-operators" element={<GateOperatorsPage />} />
@@ -168,6 +170,7 @@ function App() {
                   <Route path="hubs/:hubId" element={
                     <ResellerProtectedRoute requires="reseller:view_hub_sales"><ResellerHubDetailPage /></ResellerProtectedRoute>
                   } />
+                  <Route path="tag-withdrawals" element={<AdminRoute><TagWithdrawalsPage /></AdminRoute>} />
                   <Route path="payouts" element={
                     <ResellerProtectedRoute requires="reseller:request_payout"><ResellerPayoutsPage /></ResellerProtectedRoute>
                   } />

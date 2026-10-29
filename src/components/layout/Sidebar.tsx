@@ -193,6 +193,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       { name: 'Settings', href: '/settings', icon: Settings2, show: true },
       { name: 'Resellers', href: '/resellers', icon: Users, show: true },
       { name: 'Payouts', href: '/payouts', icon: Banknote, show: true },
+      { name: 'Tag withdrawals', href: '/tag-withdrawals', icon: Banknote, show: true },
       { name: 'Fees', href: '/fees', icon: Receipt, show: true },
     ] : []),
   ].filter((item) => item.show);
