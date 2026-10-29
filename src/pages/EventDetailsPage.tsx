@@ -45,7 +45,7 @@ import { getSaleTicketType, getSaleTicketCodes } from '@/lib/sales';
 import {
   ArrowLeft, Calendar, MapPin, Users, CheckCircle, Clock,
   Edit, Trash2, Eye, EyeOff, QrCode, Plus, TrendingUp, TrendingDown, Image, BarChart3, UserCircle,
-  Share2, Link as LinkIcon, MessagesSquare, Coins, CreditCard, UtensilsCrossed, Copy, Type, FileText,
+  Share2, Link as LinkIcon, MessagesSquare, Coins, Banknote, CreditCard, UtensilsCrossed, Copy, Type, FileText,
   Gift, ClipboardCheck as AttendanceStatusIcon,
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -100,6 +100,7 @@ export function EventDetailsPage() {
   const canManageCommunity = canManageEvents(user);
   // Money tab — VIEW_REVENUE, mirroring the server guard on the financials route.
   const canSeeFinancials = canViewEventFinancials(user);
+  const canRequestPayout = canSeeFinancials && user?.userType === 'vendor' && !isAdmin;
   const showMenuTab = canManageMenu(user);
 
   // Inline rename of the event title in the header.
@@ -487,6 +488,7 @@ export function EventDetailsPage() {
   const NAV_TABS = [
     { key: 'overview', label: 'Overview', icon: Calendar, show: true },
     { key: 'financials', label: 'Financials', icon: Coins, show: canSeeFinancials },
+    { key: 'payouts', label: 'Payouts', icon: Banknote, show: canRequestPayout },
     { key: 'guarantee', label: 'Guarantee', icon: Coins, show: user?.userType === 'vendor' && !isAdmin },
     { key: 'analytics', label: 'Analytics', icon: BarChart3, show: true },
     { key: 'vote', label: 'Ask Your Fans', icon: AttendanceStatusIcon, show: true },
@@ -1348,7 +1350,12 @@ export function EventDetailsPage() {
         {canSeeFinancials && (
           <TabsContent value="financials" className="mt-6">
             <EventFinancialsTab eventId={id!} />
-            {user?.userType === 'vendor' && !isAdmin && <EventPayoutPanel eventId={id!} />}
+          </TabsContent>
+        )}
+
+        {canRequestPayout && (
+          <TabsContent value="payouts" className="mt-6">
+            <EventPayoutPanel eventId={id!} />
           </TabsContent>
         )}
 
