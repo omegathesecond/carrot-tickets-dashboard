@@ -89,7 +89,7 @@ export interface AuthUser {
   // True for Carrot platform admins, who approve events and see every
   // vendor's sales/scans. Set from the API's getMe/login payload.
   isSuperAdmin?: boolean;
-  operatorType?: 'events' | 'transport' | 'both';
+  operatorType?: 'events' | 'transport' | 'both' | 'services';
 }
 
 export interface PaymentMethodSettings {

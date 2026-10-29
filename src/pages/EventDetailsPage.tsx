@@ -1,3 +1,4 @@
+import { Guarantees } from '@/components/Guarantees';
 import { EventPayoutPanel } from '@/components/EventPayoutPanel';
 import { hasPermission, TicketsPermission } from '@/lib/permissions';
 import { EventCouponsTab } from '@/components/EventCouponsTab';
@@ -486,6 +487,7 @@ export function EventDetailsPage() {
   const NAV_TABS = [
     { key: 'overview', label: 'Overview', icon: Calendar, show: true },
     { key: 'financials', label: 'Financials', icon: Coins, show: canSeeFinancials },
+    { key: 'guarantee', label: 'Guarantee', icon: Coins, show: user?.userType === 'vendor' && !isAdmin },
     { key: 'analytics', label: 'Analytics', icon: BarChart3, show: true },
     { key: 'vote', label: 'Ask Your Fans', icon: AttendanceStatusIcon, show: true },
     { key: 'coupons', label: 'Coupons', icon: Gift, show: hasPermission(user, TicketsPermission.EDIT_EVENT) && event.ticketing !== 'external' },
@@ -1350,6 +1352,7 @@ export function EventDetailsPage() {
           </TabsContent>
         )}
 
+        {user?.userType === 'vendor' && !isAdmin && <TabsContent value="guarantee" className="mt-6"><Guarantees eventId={id!} /></TabsContent>}
         <TabsContent value="analytics" className="mt-6">
           <EventAnalyticsTab eventId={id!} currency={event.currency ?? 'SZL'} />
         </TabsContent>
