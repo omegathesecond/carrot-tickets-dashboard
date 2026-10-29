@@ -1,4 +1,5 @@
 import type { GuaranteeRequest, GuaranteeInput } from '@/types/guarantee';
+import type { TagWithdrawalRequest, TagWithdrawalStatus } from '@/types/tagWithdrawal';
 import type { PayoutBank, EventPayoutRequest, EventPayoutOverview, PayoutStatus } from '@/types/eventPayout';
 import type { EventCoupon, CreateCouponsInput } from '@/types/eventCoupon';
 import type { DeskTopupMethod, DeskTopupTotals } from '@/lib/deskPaymentMethod';
@@ -1046,6 +1047,16 @@ export class ApiClient {
   };
 
   // Reseller admin endpoints (super-admin only)
+  tagWithdrawals = {
+    list: (search: string, status: string, page: number, eventId?: string) => {
+      const query = new URLSearchParams({ search, page: String(page), ...(status ? { status } : {}), ...(eventId ? { eventId } : {}) });
+      return this.request<{ items: TagWithdrawalRequest[]; total: number; page: number }>(`/admin/tag-withdrawals?${query}`);
+    },
+    detail: (id: string) => this.request<TagWithdrawalRequest>(`/admin/tag-withdrawals/${id}`),
+    decide: (id: string, data: { status: TagWithdrawalStatus; paymentReference?: string; paymentCompleted?: boolean; rejectionReason?: string }) =>
+      this.request<TagWithdrawalRequest>(`/admin/tag-withdrawals/${id}/status`, { method: 'POST', body: JSON.stringify(data) }),
+  };
+
   payoutRequests = {
     overview: (eventId: string) => this.request<EventPayoutOverview>(`/payout-requests/events/${eventId}`),
     bank: () => this.request<PayoutBank | null>('/payout-requests/bank'),
