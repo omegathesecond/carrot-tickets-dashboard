@@ -144,7 +144,7 @@ export function EventCashlessTab({ eventId, eventName }: Props) {
           <TabsTrigger value="takings">Stall takings</TabsTrigger>
           <TabsTrigger value="manage">Manage stalls</TabsTrigger>
         </TabsList>
-        {user?.isSuperAdmin && <EventStallLoginTools key={eventId} eventId={eventId} eventName={eventName} />}
+        {showStalls && <EventStallLoginTools key={eventId} eventId={eventId} eventName={eventName} canExport={!!user?.isSuperAdmin} />}
       </div>
       <TabsContent value="takings">
         {summaryBody((s) => (
