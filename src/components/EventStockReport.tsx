@@ -52,6 +52,7 @@ export function EventStockReport({ eventId }: { eventId: string }) {
 
 // ---------------------------------------------------------------- helpers
 const STATUS_META: Record<StockStatus, { label: string; className: string }> = {
+  UNTRACKED: { label: 'Not counted', className: 'bg-slate-100 text-slate-700' },
   in_stock: { label: 'In stock', className: 'bg-slate-100 text-slate-700' },
   low: { label: 'Low', className: 'bg-amber-100 text-amber-800' },
   sold_out: { label: 'Sold out', className: 'bg-red-100 text-red-700' },
@@ -261,12 +262,12 @@ function ReconciliationSection({ eventId }: { eventId: string }) {
                 {(data?.byProduct ?? []).map((r) => (
                   <TableRow key={r.productId}>
                     <TableCell className="font-medium">{r.productName}</TableCell>
-                    <TableCell className="text-right">{r.opening}</TableCell>
-                    <TableCell className="text-right">{r.added}</TableCell>
-                    <TableCell className="text-right">{r.transferIn}</TableCell>
-                    <TableCell className="text-right">{r.transferOut}</TableCell>
+                    <TableCell className="text-right">{r.stockTracked === false ? '—' : r.opening}</TableCell>
+                    <TableCell className="text-right">{r.stockTracked === false ? '—' : r.added}</TableCell>
+                    <TableCell className="text-right">{r.stockTracked === false ? '—' : r.transferIn}</TableCell>
+                    <TableCell className="text-right">{r.stockTracked === false ? '—' : r.transferOut}</TableCell>
                     <TableCell className="text-right">{r.sold}</TableCell>
-                    <TableCell className="text-right font-semibold">{r.expectedClosing}</TableCell>
+                    <TableCell className="text-right font-semibold">{r.stockTracked === false ? '—' : r.expectedClosing}</TableCell>
                     <TableCell className="text-right">{num(r.physicalCount)}</TableCell>
                     <TableCell className="text-right">{variance(r.variance)}</TableCell>
                   </TableRow>
@@ -274,12 +275,12 @@ function ReconciliationSection({ eventId }: { eventId: string }) {
                 {data && (
                   <TableRow className="border-t-2 font-semibold">
                     <TableCell>Total</TableCell>
-                    <TableCell className="text-right">{data.total.opening}</TableCell>
-                    <TableCell className="text-right">{data.total.added}</TableCell>
-                    <TableCell className="text-right">{data.total.transferIn}</TableCell>
-                    <TableCell className="text-right">{data.total.transferOut}</TableCell>
+                    <TableCell className="text-right">{data.total.stockTracked === false ? '—' : data.total.opening}</TableCell>
+                    <TableCell className="text-right">{data.total.stockTracked === false ? '—' : data.total.added}</TableCell>
+                    <TableCell className="text-right">{data.total.stockTracked === false ? '—' : data.total.transferIn}</TableCell>
+                    <TableCell className="text-right">{data.total.stockTracked === false ? '—' : data.total.transferOut}</TableCell>
                     <TableCell className="text-right">{data.total.sold}</TableCell>
-                    <TableCell className="text-right">{data.total.expectedClosing}</TableCell>
+                    <TableCell className="text-right">{data.total.stockTracked === false ? '—' : data.total.expectedClosing}</TableCell>
                     <TableCell className="text-right">{num(data.total.physicalCount)}</TableCell>
                     <TableCell className="text-right">{variance(data.total.variance)}</TableCell>
                   </TableRow>

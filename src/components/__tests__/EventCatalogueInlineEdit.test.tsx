@@ -4,6 +4,7 @@ import { render, screen, cleanup, within, fireEvent, waitFor } from '@testing-li
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { EventCataloguePanel } from '@/components/cashless/EventCataloguePanel';
+import { apiClient } from '@/lib/api';
 
 afterEach(cleanup);
 
@@ -123,6 +124,19 @@ describe('inline price editing on the catalogue list', () => {
 });
 
 describe('inline stock editing on the stock levels list', () => {
+  it('shows uncounted products without offering a stock count', async () => {
+    vi.mocked(apiClient.events.getEventStockBoard).mockResolvedValueOnce({
+      ...BOARD,
+      perBar: [{ ...BOARD.perBar[0]!, stockTracked: false, onHand: 0, status: 'UNTRACKED' }],
+      byProduct: [{ ...BOARD.byProduct[0]!, stockTracked: false, totalOnHand: 0, status: 'UNTRACKED' }],
+    });
+    renderPanel();
+    const row = (await screen.findByText('Castle Lite 330ml')).closest('tr')!;
+    expect(within(row).getAllByText('Not counted')).toHaveLength(2);
+    expect(within(row).queryByRole('button', { name: /Edit stock/i })).toBeNull();
+    expect(within(row).getByText('30')).toBeTruthy();
+    expect(recordCount).not.toHaveBeenCalled();
+  });
   it('books a typed total as a stock count for that stall', async () => {
     renderPanel();
     const row = (await screen.findByText('Castle Lite 330ml')).closest('tr')!;

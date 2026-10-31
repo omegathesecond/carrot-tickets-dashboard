@@ -2568,7 +2568,7 @@ export interface IssuedMerchantOperatorCredentials {
 }
 
 // ---- Cashless stock (Slices 4/6) — mirror the API payloads exactly ----
-export type StockStatus = 'in_stock' | 'low' | 'sold_out';
+export type StockStatus = 'in_stock' | 'low' | 'sold_out' | 'UNTRACKED';
 
 export interface ProductCategoryOption {
   value: string;
@@ -2588,6 +2588,7 @@ export const PRODUCT_CATEGORIES: ProductCategoryOption[] = [
 ];
 
 export interface StockProductRow {
+  stockTracked?: boolean;
   _id: string;
   eventId: string;
   name: string;
@@ -2604,6 +2605,7 @@ export interface StockProductRow {
 }
 
 export interface NewProduct {
+  stockTracked?: boolean;
   name: string;
   category: string;
   price: number; // ZAR cents
@@ -2719,6 +2721,7 @@ export const MENU_ORDER_FULFILLMENT_LABELS: Record<MenuOrderFulfillmentStatus, s
 };
 
 export interface StockBoardBarRow {
+  stockTracked?: boolean;
   merchantId: string;
   merchantName: string;
   productId: string;
@@ -2733,6 +2736,7 @@ export interface StockBoardBarRow {
   status: StockStatus;
 }
 export interface StockBoardProductRow {
+  stockTracked?: boolean;
   productId: string;
   productName: string;
   category: string;
@@ -2748,6 +2752,7 @@ export interface StockBoard {
 }
 
 export interface ReconRow {
+  stockTracked?: boolean;
   merchantId?: string;
   merchantName?: string;
   productId: string;
