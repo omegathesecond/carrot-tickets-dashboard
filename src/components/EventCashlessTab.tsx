@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { CreditCard, ArrowDownCircle, ArrowUpCircle, Wallet, Loader2, ArrowRight } from 'lucide-react';
+import { EventStallLoginTools } from '@/components/EventStallLoginTools';
 import { EventStallsPanel } from '@/components/cashless/EventStallsPanel';
 import { EventTagsPanel } from '@/components/cashless/EventTagsPanel';
 import { EventCataloguePanel } from '@/components/cashless/EventCataloguePanel';
@@ -34,6 +35,7 @@ const fmtR = (cents: number) => `R${((cents ?? 0) / 100).toLocaleString('en-ZA',
 
 interface Props {
   eventId: string;
+  eventName: string;
 }
 
 /**
@@ -45,7 +47,7 @@ interface Props {
  * Stalls, products and stock are all eventId-bound in the model, so they live
  * here rather than on a top-level page that asks which event you meant.
  */
-export function EventCashlessTab({ eventId }: Props) {
+export function EventCashlessTab({ eventId, eventName }: Props) {
   const {
     data: summary,
     isLoading,
@@ -137,17 +139,20 @@ export function EventCashlessTab({ eventId }: Props) {
 
   const stallsBody = (
     <Tabs value={stallsView} onValueChange={setStallsView} className="space-y-4">
-      <TabsList>
-        <TabsTrigger value="takings">Stall takings</TabsTrigger>
-        <TabsTrigger value="manage">Manage stalls</TabsTrigger>
-      </TabsList>
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <TabsList>
+          <TabsTrigger value="takings">Stall takings</TabsTrigger>
+          <TabsTrigger value="manage">Manage stalls</TabsTrigger>
+        </TabsList>
+        {user?.isSuperAdmin && <EventStallLoginTools key={eventId} eventId={eventId} eventName={eventName} />}
+      </div>
       <TabsContent value="takings">
         {summaryBody((s) => (
           <StallTakings eventId={eventId} summary={s} onManage={() => setStallsView('manage')} />
         ))}
       </TabsContent>
       <TabsContent value="manage">
-        <EventStallsPanel eventId={eventId} canDelete={!!user?.isSuperAdmin} />
+        <EventStallsPanel key={eventId} eventId={eventId} canDelete={!!user?.isSuperAdmin} />
       </TabsContent>
     </Tabs>
   );

@@ -2,7 +2,8 @@ import { EventResourceActions } from '@/components/EventResourceActions';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { apiClient, type OperatorGrant } from '@/lib/api';
+import { apiClient, type OperatorGrant, type MerchantOperatorRow } from '@/lib/api';
+import { StallLoginExports, stallLoginTargets } from '@/components/StallLoginExports';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,7 +12,7 @@ import { OperatorCredentialsDialog } from '@/components/OperatorCredentialsDialo
 import { OperatorGrantsField } from '@/components/OperatorGrantsField';
 import { matchesSearch } from '@/lib/search';
 
-type Credentials = { title: string; loginCode?: string; pin: string };
+type Credentials = { title: string; operatorName: string; phoneNumber?: string; loginCode: string; pin: string };
 
 /**
  * The people who work ONE stall's till — each with their own login code +
@@ -38,6 +39,7 @@ export function StallOperatorsPanel({ merchantId, stallName, canDelete = false }
   const invalidate = () => qc.invalidateQueries({ queryKey: ['merchantOperators', merchantId] });
 
   const create = useMutation({
+    gcTime: 0,
     mutationFn: () => apiClient.merchantOperators.create(merchantId, {
       fullName: form.fullName.trim(),
       ...(form.phoneNumber.trim() ? { phoneNumber: form.phoneNumber.trim() } : {}),
@@ -46,15 +48,16 @@ export function StallOperatorsPanel({ merchantId, stallName, canDelete = false }
     onSuccess: (res) => {
       setAdding(false);
       setForm({ fullName: '', phoneNumber: '', grants: [] });
-      setCredentials({ title: `${res.operator.fullName} — till login`, loginCode: res.loginCode, pin: res.pin });
+      setCredentials({ title: `${res.operator.fullName} — till login`, operatorName: res.operator.fullName, phoneNumber: res.operator.phoneNumber, loginCode: res.loginCode, pin: res.pin });
       invalidate();
     },
     onError: (e: Error) => toast.error(e.message || 'Failed to add person'),
   });
 
   const resetPin = useMutation({
-    mutationFn: (id: string) => apiClient.merchantOperators.resetPin(id),
-    onSuccess: (res) => setCredentials({ title: 'New PIN', pin: res.pin }),
+    gcTime: 0,
+    mutationFn: (operator: MerchantOperatorRow) => apiClient.merchantOperators.resetPin(operator._id),
+    onSuccess: (res, operator) => setCredentials({ title: `${operator.fullName} — new PIN`, operatorName: operator.fullName, phoneNumber: operator.phoneNumber, loginCode: operator.loginCode, pin: res.pin }),
     onError: (e: Error) => toast.error(e.message || 'Failed to reset PIN'),
   });
 
@@ -77,20 +80,23 @@ export function StallOperatorsPanel({ merchantId, stallName, canDelete = false }
   // Per-row pending ids — a mutation in flight for one operator must not
   // disable the same action on every other row (mirrors EventStallsPanel's
   // pendingActiveId in this same commit).
-  const pendingResetId = resetPin.isPending ? resetPin.variables : undefined;
+  const pendingResetId = resetPin.isPending ? resetPin.variables?._id : undefined;
   const pendingActiveId = setActive.isPending ? setActive.variables?.id : undefined;
   const pendingGrantsId = setGrants.isPending ? setGrants.variables?.id : undefined;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="text-base font-semibold">People on this till</h3>
           <p className="text-sm text-muted-foreground">
             Everyone gets their own code, so each sale names who rang it up.
           </p>
         </div>
-        <Button size="sm" onClick={() => setAdding(true)}>Add person</Button>
+        <div className="flex flex-wrap gap-2">
+          {canDelete && <StallLoginExports name={stallName} disabled={isLoading || isError || !operators.some(op => op.isActive)} loadTargets={async () => stallLoginTargets(stallName, (await apiClient.merchantOperators.list(merchantId)).operators)} />}
+          <Button size="sm" onClick={() => setAdding(true)}>Add person</Button>
+        </div>
       </div>
 
       <Input type="search" aria-label="Search till staff" placeholder="Search till staff by name, User ID or phone…"
@@ -127,7 +133,7 @@ export function StallOperatorsPanel({ merchantId, stallName, canDelete = false }
                 </div>
                 <div className="flex shrink-0 gap-2">
                   <Button size="sm" variant="outline" disabled={pendingResetId === op._id}
-                    onClick={() => resetPin.mutate(op._id)}>
+                    onClick={() => resetPin.mutate(op)}>
                     Reset PIN
                   </Button>
                   <Button
@@ -144,6 +150,7 @@ export function StallOperatorsPanel({ merchantId, stallName, canDelete = false }
                     canDelete={canDelete} queryKey={['merchantOperators', merchantId]}
                     onSave={(values) => apiClient.merchantOperators.update(op._id, { fullName: values.name, phoneNumber: values.phoneNumber })}
                     onReveal={() => apiClient.merchantOperators.revealPin(op._id)}
+                    cardIdentity={{ operatorName: op.fullName, stallName, phoneNumber: op.phoneNumber }}
                     onDelete={() => apiClient.merchantOperators.delete(op._id)} />
               <OperatorGrantsField
                 population="merchant"
@@ -195,11 +202,12 @@ export function StallOperatorsPanel({ merchantId, stallName, canDelete = false }
 
       <OperatorCredentialsDialog
         open={!!credentials}
-        onClose={() => setCredentials(null)}
+        onClose={() => { setCredentials(null); create.reset(); resetPin.reset(); }}
         title={credentials?.title ?? ''}
         loginCode={credentials?.loginCode}
         pin={credentials?.pin ?? ''}
         businessName={stallName}
+        cardIdentity={credentials ? { operatorName: credentials.operatorName, stallName, phoneNumber: credentials.phoneNumber } : undefined}
       />
     </div>
   );

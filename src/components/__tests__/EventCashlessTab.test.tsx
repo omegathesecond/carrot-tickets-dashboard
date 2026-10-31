@@ -63,7 +63,7 @@ function renderTab(user: AuthUser | null, url = '/events/e1') {
   render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[url]}>
-        <EventCashlessTab eventId="e1" />
+        <EventCashlessTab eventId="e1" eventName="Test Festival" />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -215,7 +215,7 @@ describe('EventCashlessTab once the summary has loaded', () => {
     render(
       <QueryClientProvider client={client}>
         <MemoryRouter initialEntries={[url]}>
-          <EventCashlessTab eventId="e1" />
+          <EventCashlessTab eventId="e1" eventName="Test Festival" />
         </MemoryRouter>
       </QueryClientProvider>,
     );
@@ -254,4 +254,19 @@ describe('organiser charge earnings', () => {
     summary.mockResolvedValue({ ...data, purchaseCharges: 800 });
     expect(await within(card).findByText(fmtR(800), {}, { timeout: 6500 })).toBeDefined();
   }, 10000);
+});
+
+
+describe('stall login exports on the main Stalls view', () => {
+  it('offers individual sharing and bulk downloads without opening Manage stalls', () => {
+    renderTab(SUPER_ADMIN, '/events/e1?tab=cashless&sub=stalls');
+    expect(screen.getByRole('button', { name: 'Share one login' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Download all logins' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Stall takings' }).getAttribute('data-state')).toBe('active');
+  });
+  it('keeps existing PIN export privileges restricted to administrators', () => {
+    renderTab(DESK_MANAGER, '/events/e1?tab=cashless&sub=stalls');
+    expect(screen.queryByRole('button', { name: 'Share one login' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Download all logins' })).toBeNull();
+  });
 });

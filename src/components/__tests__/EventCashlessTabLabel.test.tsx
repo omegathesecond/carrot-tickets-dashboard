@@ -25,7 +25,7 @@ const renderTab = (initialEntry = '/events/e1') =>
   render(
     <MemoryRouter initialEntries={[initialEntry]}>
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <EventCashlessTab eventId="e1" />
+        <EventCashlessTab eventId="e1" eventName="Test Festival" />
       </QueryClientProvider>
     </MemoryRouter>,
   );

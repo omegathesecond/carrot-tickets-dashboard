@@ -69,6 +69,7 @@ export function EventStallsPanel({ eventId, canDelete = false }: { eventId: stri
   const isFormValid = form.name.trim().length > 0;
   const visibleStalls = stalls.filter((stall) => matchesSearch(search, stall.name));
 
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">

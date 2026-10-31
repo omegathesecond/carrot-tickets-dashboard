@@ -1549,6 +1549,9 @@ export class ApiClient {
 
     transactions: async (id: string, limit = 100): Promise<MerchantDetail> =>
       this.request<MerchantDetail>(`/tickets/merchants/${id}/transactions?limit=${limit}`),
+
+    menu: async (id: string): Promise<StallMenu> =>
+      this.request<StallMenu>(`/tickets/merchants/${id}/menu`),
   };
 
   // MerchantOperators — the people who actually work a stall's till, each
@@ -2840,6 +2843,21 @@ export interface MerchantDetail {
   event: { id: string; name: string };
   transactions: MerchantChargeTxn[];
   summary: { totalCharged: number; totalNet: number; totalFee: number; count: number };
+}
+
+export interface StallMenu {
+  merchantId: string;
+  event: { id: string; name: string; currency: 'SZL' | 'ZAR' };
+  products: {
+    productId: string;
+    name: string;
+    price: number;
+    category: string;
+    status: 'in_stock' | 'low' | 'sold_out' | 'untracked';
+    onHand: number;
+    unitLabel: string;
+    bundlePrice: { quantity: number; price: number } | null;
+  }[];
 }
 
 export interface WristbandBatch {
