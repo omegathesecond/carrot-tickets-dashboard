@@ -262,10 +262,12 @@ describe('stall login exports on the main Stalls view', () => {
     renderTab(SUPER_ADMIN, '/events/e1?tab=cashless&sub=stalls');
     expect(screen.getByRole('button', { name: 'Share one login' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Download all logins' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Auto-create users' })).toBeTruthy();
     expect(screen.getByRole('tab', { name: 'Stall takings' }).getAttribute('data-state')).toBe('active');
   });
   it('keeps existing PIN export privileges restricted to administrators', () => {
     renderTab(DESK_MANAGER, '/events/e1?tab=cashless&sub=stalls');
+    expect(screen.getByRole('button', { name: 'Auto-create users' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Share one login' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Download all logins' })).toBeNull();
   });

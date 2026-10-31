@@ -1558,6 +1558,9 @@ export class ApiClient {
   // with their own loginCode + PIN so a charge names a human (MANAGE_ACCESS;
   // ownership is enforced server-side off the stall's event, never the body).
   merchantOperators = {
+    createMissingForEvent: async (eventId: string): Promise<{ created: number; existing: number; inactive: number; skipped: number }> =>
+      this.request(`/tickets/events/${eventId}/stall-users`, { method: 'POST' }),
+
     revealPin: async (id: string): Promise<{ loginCode: string; pin: string }> =>
       this.request(`/tickets/merchant-operators/${id}/reveal-pin`, { method: 'POST' }),
 
