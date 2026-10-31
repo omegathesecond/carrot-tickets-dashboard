@@ -1248,12 +1248,13 @@ export class ApiClient {
 
     list: async (
       eventId: string,
-      params: { limit?: number; cursor?: string; status?: TagStatus; q?: string } = {},
+      params: { limit?: number; cursor?: string; status?: TagStatus; q?: string; fundedOnly?: boolean } = {},
     ): Promise<{ tags: TagRow[]; hasMore: boolean; nextCursor: string | null }> => {
       const qs = new URLSearchParams();
       if (params.limit) qs.set('limit', String(params.limit));
       if (params.cursor) qs.set('cursor', params.cursor);
       if (params.status) qs.set('status', params.status);
+      if (params.fundedOnly !== undefined) qs.set('fundedOnly', String(params.fundedOnly));
       if (params.q) qs.set('q', params.q);
       const query = qs.toString();
       return this.request(`/tickets/events/${eventId}/tags${query ? `?${query}` : ''}`);
