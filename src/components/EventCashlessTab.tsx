@@ -34,6 +34,7 @@ const fmtR = (cents: number) => `R${((cents ?? 0) / 100).toLocaleString('en-ZA',
 
 interface Props {
   eventId: string;
+  eventName: string;
 }
 
 /**
@@ -45,7 +46,7 @@ interface Props {
  * Stalls, products and stock are all eventId-bound in the model, so they live
  * here rather than on a top-level page that asks which event you meant.
  */
-export function EventCashlessTab({ eventId }: Props) {
+export function EventCashlessTab({ eventId, eventName }: Props) {
   const {
     data: summary,
     isLoading,
@@ -147,7 +148,7 @@ export function EventCashlessTab({ eventId }: Props) {
         ))}
       </TabsContent>
       <TabsContent value="manage">
-        <EventStallsPanel eventId={eventId} canDelete={!!user?.isSuperAdmin} />
+        <EventStallsPanel key={eventId} eventId={eventId} eventName={eventName} canDelete={!!user?.isSuperAdmin} />
       </TabsContent>
     </Tabs>
   );

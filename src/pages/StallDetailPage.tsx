@@ -10,10 +10,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { TransactionDetailDialog, type TxnDetail } from '@/components/TransactionDetailDialog';
 import { StallOperatorsPanel } from '@/components/StallOperatorsPanel';
+import { StallMenuPanel } from '@/components/StallMenuPanel';
 import { Input } from '@/components/ui/input';
 import { matchesSearch } from '@/lib/search';
+import { fmtR } from '@/lib/money';
 
-const fmtR = (c: number) => `R${((c ?? 0) / 100).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtTime = (iso: string) => {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -35,8 +36,12 @@ export function StallDetailPage() {
   const [search, setSearch] = useState('');
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['stall-detail', merchantId],
-    queryFn: () => apiClient.merchants.transactions(merchantId),
+    queryKey: ['stall-detail', id, merchantId],
+    queryFn: async () => {
+      const detail = await apiClient.merchants.transactions(merchantId);
+      if (detail.event.id !== id) throw new Error('This stall does not belong to this event.');
+      return detail;
+    },
     retry: false,
   });
   const visibleTransactions = data?.transactions.filter((t) => matchesSearch(search, t.id, t.bandUid)) ?? [];
@@ -90,9 +95,13 @@ export function StallDetailPage() {
               </CardContent></Card>
             </div>
 
+            <Card><CardContent className="pt-6">
+              <StallMenuPanel key={merchantId} eventId={id} merchantId={merchantId} stallName={data.merchant.name} />
+            </CardContent></Card>
+
             <Card>
               <CardContent className="pt-6">
-                <StallOperatorsPanel merchantId={merchantId} stallName={data.merchant.name} canDelete={!!user?.isSuperAdmin} />
+                <StallOperatorsPanel key={merchantId} merchantId={merchantId} stallName={data.merchant.name} canDelete={!!user?.isSuperAdmin} />
               </CardContent>
             </Card>
 

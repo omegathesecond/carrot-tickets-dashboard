@@ -63,7 +63,7 @@ function renderTab(user: AuthUser | null, url = '/events/e1') {
   render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[url]}>
-        <EventCashlessTab eventId="e1" />
+        <EventCashlessTab eventId="e1" eventName="Test Festival" />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -215,7 +215,7 @@ describe('EventCashlessTab once the summary has loaded', () => {
     render(
       <QueryClientProvider client={client}>
         <MemoryRouter initialEntries={[url]}>
-          <EventCashlessTab eventId="e1" />
+          <EventCashlessTab eventId="e1" eventName="Test Festival" />
         </MemoryRouter>
       </QueryClientProvider>,
     );

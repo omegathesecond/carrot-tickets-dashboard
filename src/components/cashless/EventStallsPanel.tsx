@@ -13,6 +13,8 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ViewAffordance } from '@/components/ViewAffordance';
 import { matchesSearch } from '@/lib/search';
+import { StallLoginExports, stallLoginTargets } from '@/components/StallLoginExports';
+import { StallLoginPicker } from '@/components/StallLoginPicker';
 
 const initialsOf = (name: string) =>
   name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
@@ -26,7 +28,7 @@ const DEFAULT_FORM: AddForm = { name: '', commissionPercent: '0' };
  * eventId, so this panel takes the event it lives under rather than asking the
  * organizer to pick one. The API enforces ownership of that event on every call.
  */
-export function EventStallsPanel({ eventId, canDelete = false }: { eventId: string; canDelete?: boolean }) {
+export function EventStallsPanel({ eventId, eventName, canDelete = false }: { eventId: string; eventName: string; canDelete?: boolean }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -68,6 +70,14 @@ export function EventStallsPanel({ eventId, canDelete = false }: { eventId: stri
   const pendingActiveId = setActive.isPending ? setActive.variables?.id : undefined;
   const isFormValid = form.name.trim().length > 0;
   const visibleStalls = stalls.filter((stall) => matchesSearch(search, stall.name));
+  const loadAllLogins = async () => {
+    const active = (await apiClient.merchants.list(eventId)).filter(stall => stall.status === 'active');
+    const results = await Promise.allSettled(active.map(async stall => stallLoginTargets(stall.name, (await apiClient.merchantOperators.list(stall._id)).operators)));
+    return results.flatMap((result, i) => {
+      if (result.status === 'rejected') throw new Error(`Could not load staff at ${active[i]!.name}: ${result.reason instanceof Error ? result.reason.message : 'Request failed'}`);
+      return result.value;
+    });
+  };
 
   return (
     <div className="space-y-4">
@@ -75,6 +85,7 @@ export function EventStallsPanel({ eventId, canDelete = false }: { eventId: stri
         <p className="text-sm text-muted-foreground">
           Bars, food stalls and merch tables that charge bands at this event, each with a commission cut
         </p>
+        {canDelete && <div className="flex flex-wrap gap-2"><StallLoginPicker eventId={eventId} eventName={eventName} disabled={isLoading || isError || stalls.length === 0} loadTargets={loadAllLogins} /><StallLoginExports name={eventName} disabled={isLoading || isError || stalls.length === 0} loadTargets={loadAllLogins} /></div>}
         <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
           <DialogTrigger asChild>
             <Button className="bg-gradient-to-r from-orange-600 to-amber-600 text-white hover:opacity-90">

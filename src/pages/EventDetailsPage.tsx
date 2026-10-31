@@ -1387,7 +1387,7 @@ export function EventDetailsPage() {
         {event?.cashless && (
           <TabsContent value="cashless" className="mt-6">
             {isAdmin && <a className="mb-4 inline-block font-medium text-orange-600 underline" href={`/tag-withdrawals?eventId=${id}`}>Review attendee tag withdrawals →</a>}
-            <EventCashlessTab eventId={id!} />
+            <EventCashlessTab eventId={id!} eventName={event.name} />
           </TabsContent>
         )}
 

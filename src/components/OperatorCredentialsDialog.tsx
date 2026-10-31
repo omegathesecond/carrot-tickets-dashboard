@@ -1,6 +1,8 @@
 import { toast } from 'sonner';
 import { Copy, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { LoginCardDownloads } from '@/components/LoginCardDownloads';
+import type { LoginCardIdentity } from '@/lib/operatorLoginCards';
 import {
   Dialog,
   DialogContent,
@@ -17,12 +19,13 @@ interface OperatorCredentialsDialogProps {
   pin: string;
   businessName?: string;
   hubName?: string;
+  cardIdentity?: LoginCardIdentity;
 }
 
 export function OperatorCredentialsDialog({
-  open, onClose, title, loginCode, pin, businessName, hubName,
+  open, onClose, title, loginCode, pin, businessName, hubName, cardIdentity,
 }: OperatorCredentialsDialogProps) {
-  const copyText = `${loginCode ? `User ID: ${loginCode}\n` : ''}PIN: ${pin}`;
+  const copyText = `${cardIdentity ? `${cardIdentity.operatorName}\nStall: ${cardIdentity.stallName}\n${cardIdentity.phoneNumber ? `Recipient: ${cardIdentity.phoneNumber}\n` : ''}` : ''}${loginCode ? `User ID: ${loginCode}\n` : ''}PIN: ${pin}`;
 
   const handleCopy = async () => {
     try {
@@ -103,11 +106,16 @@ export function OperatorCredentialsDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
+          {cardIdentity && <div className="rounded-lg bg-orange-50 p-3">
+            <p className="text-lg font-bold">{cardIdentity.operatorName}</p>
+            <p className="text-sm">{cardIdentity.stallName}</p>
+            {cardIdentity.phoneNumber && <p className="text-sm text-slate-600">{cardIdentity.phoneNumber}</p>}
+          </div>}
           {loginCode && (
             <div>
               <p className="text-xs uppercase tracking-wide text-slate-500">User ID</p>
@@ -119,16 +127,17 @@ export function OperatorCredentialsDialog({
             <p className="text-3xl font-bold font-mono tracking-widest text-slate-900">{pin}</p>
           </div>
           <p className="text-xs text-red-600">
-            Keep it confidential — do not share this PIN.
+            {cardIdentity ? 'Share this login card only with the named person.' : 'Keep it confidential — do not share this PIN.'}
           </p>
+          {cardIdentity && loginCode && <LoginCardDownloads card={{ ...cardIdentity, loginCode, pin }} />}
         </div>
         <DialogFooter className="gap-2 sm:gap-2">
           <Button variant="outline" onClick={handleCopy}>
-            <Copy className="h-4 w-4 mr-2" /> Copy
+            <Copy className="h-4 w-4 mr-2" /> {cardIdentity ? 'Copy named login' : 'Copy'}
           </Button>
-          <Button variant="outline" onClick={handlePrint}>
+          {!cardIdentity && <Button variant="outline" onClick={handlePrint}>
             <Printer className="h-4 w-4 mr-2" /> Print
-          </Button>
+          </Button>}
           <Button
             onClick={onClose}
             className="bg-gradient-to-r from-orange-600 to-amber-600 text-white hover:opacity-90"
