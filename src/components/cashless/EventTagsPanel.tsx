@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Nfc, Search } from 'lucide-react';
 import { apiClient, type TagRow, type TagStatus } from '@/lib/api';
 import { Switch } from '@/components/ui/switch';
@@ -8,6 +8,7 @@ import { fmtR } from '@/lib/money';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { TagDetailSheet } from '@/components/cashless/TagDetailSheet';
@@ -18,56 +19,6 @@ const STATUS_META: Record<TagStatus, { label: string; className: string }> = {
   frozen: { label: 'Frozen', className: 'bg-slate-100 text-slate-700' },
   closed: { label: 'Closed', className: 'bg-slate-100 text-slate-700' },
 };
-
-type TagListParams = { status?: TagStatus; q?: string };
-type TagPage = {
-  tags: TagRow[];
-  hasMore: boolean;
-  nextCursor: string | null;
-  /** Funded-only scan bookkeeping; absent on a plain server page. */
-  scanned?: number;
-  truncated?: boolean;
-};
-
-/** The tags endpoint clamps limit to 200, so asking for more just wastes a round trip. */
-const SCAN_PAGE_SIZE = 200;
-/** 25 x 200 = 5,000 tags. Past that we say the list is partial rather than imply it is whole. */
-const SCAN_MAX_PAGES = 25;
-
-/**
- * "Funded only" has no server-side equivalent. The tags endpoint sorts by _id —
- * newest tag registered first — and offers no balance filter and no balance
- * sort, so at an event that pre-registers plastic in bulk the handful of tags
- * actually holding money end up scattered across every page (at the Bikers
- * Rally: 11 funded tags among 496, spread over 10 pages, with exactly one on
- * page 1). Walk the cursor ourselves, keep what has a balance, sort by it.
- *
- * The scan is capped, and hitting the cap is REPORTED rather than quietly
- * dropping the rest: a partial "who is holding your money" list that looks
- * complete is worse than no list at all.
- */
-async function fetchFundedTags(eventId: string, params: TagListParams): Promise<TagPage> {
-  const funded: TagRow[] = [];
-  let cursor: string | undefined;
-  let scanned = 0;
-
-  for (let page = 0; page < SCAN_MAX_PAGES; page++) {
-    const res = await apiClient.tags.list(eventId, {
-      ...params,
-      limit: SCAN_PAGE_SIZE,
-      ...(cursor ? { cursor } : {}),
-    });
-    scanned += res.tags.length;
-    for (const t of res.tags) if (t.balance > 0) funded.push(t);
-
-    if (!res.hasMore || !res.nextCursor) {
-      return { tags: byBalanceDesc(funded), hasMore: false, nextCursor: null, scanned, truncated: false };
-    }
-    cursor = res.nextCursor;
-  }
-
-  return { tags: byBalanceDesc(funded), hasMore: false, nextCursor: null, scanned, truncated: true };
-}
 
 /** Biggest balance first — the cash-out queue reads top-down. */
 function byBalanceDesc(rows: TagRow[]): TagRow[] {
@@ -88,29 +39,35 @@ export function EventTagsPanel({ eventId }: { eventId: string }) {
   // bulk-registers plastic (496 tags, 11 funded, one of them on page 1).
   const [fundedOnly, setFundedOnly] = useState(true);
 
-  const { data: summary } = useQuery({
+  const { data: summary, error: summaryError } = useQuery({
     queryKey: ['tag-summary', eventId],
     queryFn: () => apiClient.tags.summary(eventId),
+    refetchInterval: 5000,
   });
 
-  const { data: page, isLoading } = useQuery<TagPage>({
+  const { data, isPending, error, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
     queryKey: ['tags', eventId, status, q, fundedOnly],
-    queryFn: () => {
-      const params: TagListParams = {
-        ...(status !== 'all' ? { status } : {}),
-        ...(q.trim() ? { q: q.trim() } : {}),
-      };
-      return fundedOnly ? fetchFundedTags(eventId, params) : apiClient.tags.list(eventId, params);
-    },
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) => apiClient.tags.list(eventId, {
+      fundedOnly,
+      limit: 200,
+      ...(pageParam ? { cursor: pageParam } : {}),
+      ...(status !== 'all' ? { status } : {}),
+      ...(q.trim() ? { q: q.trim() } : {}),
+    }),
+    getNextPageParam: page => page.hasMore ? page.nextCursor ?? undefined : undefined,
+    refetchInterval: 5000,
   });
+  const rows = data?.pages.flatMap(page => page.tags) ?? [];
+  const tags = fundedOnly ? byBalanceDesc(rows) : rows;
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Stat label="Tags in use" value={String(summary?.tagsInUse ?? 0)} hint={`${summary?.unboundTags ?? 0} unbound`} />
-        <Stat label="Still on tags" value={fmtR(summary?.balanceOutstanding ?? 0)} hint="owed to attendees" />
-        <Stat label="Cash-funded" value={fmtR(summary?.cashFundedOutstanding ?? 0)} hint="collected at the office" />
-        <Stat label="Average balance" value={fmtR(summary?.averageBalance ?? 0)} hint="per tag" />
+        <Stat label="Tags in use" value={summary ? String(summary.tagsInUse) : '—'} hint={summary ? `${summary.unboundTags} unbound` : 'Loading totals…'} />
+        <Stat label="Still on tags" value={summary ? fmtR(summary.balanceOutstanding) : "—"} hint="owed to attendees" />
+        <Stat label="Cash-funded" value={summary ? fmtR(summary.cashFundedOutstanding) : "—"} hint="collected at the office" />
+        <Stat label="Average balance" value={summary ? fmtR(summary.averageBalance) : "—"} hint="per tag" />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -136,20 +93,19 @@ export function EventTagsPanel({ eventId }: { eventId: string }) {
         </div>
       </div>
 
-      {fundedOnly && page?.truncated && (
-        <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          Showing funded tags from the {(page.scanned ?? 0).toLocaleString()} most recently registered only —
-          there are older tags this scan did not reach. Search a tag UID to look one up directly.
-        </p>
-      )}
+      {summaryError && <p role="alert" className="text-sm text-red-600">Could not load tag totals: {summaryError.message}</p>}
+      {error && <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-red-600">
+        <p>Could not load tags: {error.message}</p>
+        <Button size="sm" variant="outline" onClick={() => refetch()}>Retry tags</Button>
+      </div>}
 
       <Card>
         <CardContent className="pt-6 overflow-x-auto">
-          {isLoading ? (
+          {isPending ? (
             <p className="py-8 text-center text-muted-foreground">
-              {fundedOnly ? 'Scanning every tag…' : 'Loading tags…'}
+              Loading tags…
             </p>
-          ) : !page?.tags.length ? (
+          ) : !tags.length && !error ? (
             <p className="py-8 text-center text-muted-foreground">
               {!fundedOnly
                 ? 'No tags issued yet.'
@@ -171,7 +127,7 @@ export function EventTagsPanel({ eventId }: { eventId: string }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {page.tags.map((t: TagRow) => (
+                {tags.map((t: TagRow) => (
                   <TableRow key={t.walletId} className="hover:bg-slate-50 cursor-pointer" onClick={() => setOpenTag(t.walletId)}>
                     <TableCell className="font-mono text-xs">
                       <span className="inline-flex items-center gap-1.5">
@@ -197,6 +153,9 @@ export function EventTagsPanel({ eventId }: { eventId: string }) {
         </CardContent>
       </Card>
 
+      {hasNextPage && <Button variant="outline" disabled={isFetchingNextPage} onClick={() => fetchNextPage()}>
+        {isFetchingNextPage ? 'Loading more tags…' : 'Load more tags'}
+      </Button>}
       <TagDetailSheet eventId={eventId} walletId={openTag} onClose={() => setOpenTag(null)} />
     </div>
   );
