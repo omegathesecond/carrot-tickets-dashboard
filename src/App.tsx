@@ -112,7 +112,7 @@ function App() {
                   <Route path="resellers" element={<AdminRoute><ResellersPage /></AdminRoute>} />
                   <Route path="resellers/:id" element={<AdminRoute><ResellerDetailPage /></AdminRoute>} />
                   <Route path="resellers/:id/hubs/:hubId" element={<AdminRoute><HubDetailPage /></AdminRoute>} />
-                  <Route path="tag-withdrawals" element={<AdminRoute><TagWithdrawalsPage /></AdminRoute>} />
+                  <Route path="tag-withdrawals" element={<TagWithdrawalsPage />} />
                   <Route path="payouts" element={<AdminRoute><OrganizerPayoutsPage /></AdminRoute>} />
                   <Route path="fees" element={<AdminRoute><FeesPage /></AdminRoute>} />
                   <Route path="gate-operators" element={<GateOperatorsPage />} />
@@ -170,7 +170,7 @@ function App() {
                   <Route path="hubs/:hubId" element={
                     <ResellerProtectedRoute requires="reseller:view_hub_sales"><ResellerHubDetailPage /></ResellerProtectedRoute>
                   } />
-                  <Route path="tag-withdrawals" element={<AdminRoute><TagWithdrawalsPage /></AdminRoute>} />
+                  <Route path="tag-withdrawals" element={<TagWithdrawalsPage />} />
                   <Route path="payouts" element={
                     <ResellerProtectedRoute requires="reseller:request_payout"><ResellerPayoutsPage /></ResellerProtectedRoute>
                   } />

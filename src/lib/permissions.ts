@@ -185,3 +185,8 @@ export function canIssueTags(user: AuthUser | null | undefined): boolean {
   if (user.isSuperAdmin) return true;
   return hasPermission(user, TicketsPermission.ISSUE_TAGS);
 }
+
+/** Withdrawal visibility follows financial access; payout decisions remain admin-only. */
+export function canViewTagWithdrawals(user: AuthUser | null | undefined): boolean {
+  return !!user && (!!user.isSuperAdmin || (user.permissions ?? []).includes(TicketsPermission.VIEW_REVENUE));
+}
