@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -6,6 +6,8 @@ import { ArrowDownToLine, ArrowRight, CheckCircle2, ChevronLeft, ChevronRight, C
 import { apiClient } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { canViewTagWithdrawals } from '@/lib/permissions';
+import { EventPicker } from '@/components/EventPicker';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { formatMoney } from '@/lib/currency';
 import type { TagWithdrawalStatus } from '@/types/tagWithdrawal';
@@ -33,11 +35,19 @@ function WithdrawalStatusBadge({ status }: { status: TagWithdrawalStatus }) {
 }
 
 export function TagWithdrawalsPage() {
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const eventId = params.get('eventId') || undefined;
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');
-  const [page, setPage] = useState(1);
+  const debouncedSearch = useDebouncedValue(search.trim(), 350);
+  // A new committed search starts at page 1 in the same request, without an
+  // intermediate fetch for the old search or the previous page number.
+  const [pagination, setPagination] = useState({ search: '', page: 1 });
+  const page = pagination.search === debouncedSearch ? pagination.page : 1;
+  const setPage = (page: number) => setPagination({ search: debouncedSearch, page });
+  useEffect(() => {
+    setPagination(current => current.search === debouncedSearch ? current : { search: debouncedSearch, page: 1 });
+  }, [debouncedSearch]);
   const [selected, setSelected] = useState<string | null>(null);
   const [reference, setReference] = useState('');
   const [reason, setReason] = useState('');
@@ -47,8 +57,8 @@ export function TagWithdrawalsPage() {
   const isAdmin = !!user?.isSuperAdmin;
   const actor = String(user?._id);
   const client = useQueryClient();
-  const list = useQuery({ queryKey: ['tag-withdrawals', actor, isAdmin, search, status, page, eventId],
-    queryFn: () => apiClient.tagWithdrawals.list(search, status === 'all' ? '' : status, page, eventId), enabled: canView, refetchInterval: 30_000 });
+  const list = useQuery({ queryKey: ['tag-withdrawals', actor, isAdmin, debouncedSearch, status, page, eventId],
+    queryFn: () => apiClient.tagWithdrawals.list(debouncedSearch, status === 'all' ? '' : status, page, eventId), enabled: canView, refetchInterval: 30_000 });
   const detail = useQuery({ queryKey: ['tag-withdrawal', actor, isAdmin, selected], queryFn: () => apiClient.tagWithdrawals.detail(selected!),
     enabled: canView && !!selected, gcTime: 0 });
   const decide = useMutation({
@@ -96,10 +106,18 @@ export function TagWithdrawalsPage() {
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
           <p className="text-sm font-medium text-slate-600" aria-live="polite">{list.isLoading ? 'Loading requests…' : list.isError ? 'Requests unavailable' : `${list.data?.total ?? 0} ${list.data?.total === 1 ? 'request' : 'requests'}`}</p>
-          <div className="relative w-full sm:w-80">
+          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+            <EventPicker selectionMode="single" value={eventId ? [eventId] : []} cacheKey={`withdrawal-event-picker:${actor}:${isAdmin}`} searchEvents={apiClient.tagWithdrawals.events} className="w-full sm:w-60" onChange={ids => {
+              const next = new URLSearchParams(params);
+              if (ids[0]) next.set('eventId', ids[0]); else next.delete('eventId');
+              setParams(next, { replace: true });
+              setPage(1);
+            }} />
+          <div className="relative w-full sm:w-72">
             <Label htmlFor="withdrawal-search" className="sr-only">Search</Label>
             <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <Input id="withdrawal-search" className="h-10 rounded-lg border-slate-200 bg-slate-50 pl-9 text-sm shadow-none placeholder:text-slate-400" placeholder="Search event, tag or reference…" value={search} maxLength={120} onChange={e => { setSearch(e.target.value); setPage(1); }} />
+            <Input id="withdrawal-search" className="h-10 rounded-lg border-slate-200 bg-slate-50 pl-9 text-sm shadow-none placeholder:text-slate-400" placeholder="Search event, tag or reference…" value={search} maxLength={120} onChange={e => setSearch(e.target.value)} />
+          </div>
           </div>
         </div>
         <TabsContent value={status} className="mt-0">
@@ -111,7 +129,9 @@ export function TagWithdrawalsPage() {
                 {['Event / tag', 'Requested', 'Destination', 'Amount', 'Status', ''].map((heading, i) => <th role="columnheader" key={i} className={cn('px-4 py-3 text-xs font-medium text-slate-500 first:pl-6 last:pr-6', heading === 'Amount' && 'text-right')}>{heading || <span className="sr-only">Actions</span>}</th>)}
               </tr></thead>
               <tbody role="rowgroup" className="block divide-y divide-slate-100 xl:table-row-group">
-                {list.data?.items.map(row => <tr role="row" key={row._id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-4 p-5 transition-colors hover:bg-slate-50/70 xl:table-row xl:p-0">
+                {list.data?.items.map(row => <tr role="row" key={row._id} tabIndex={0} onClick={() => open(row._id)} onKeyDown={e => {
+                  if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(row._id); }
+                }} className="grid cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-4 p-5 transition-colors hover:bg-orange-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-orange-400 xl:table-row xl:p-0">
                   <td role="cell" className="col-start-1 row-start-1 min-w-0 xl:max-w-[280px] xl:py-5 xl:pl-6 xl:pr-4">
                     <p className="break-words font-semibold leading-snug text-slate-800">{row.eventName}</p>
                     <p className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2 py-0.5 font-mono text-xs uppercase tracking-wide text-slate-500"><Tag aria-hidden="true" className="h-3 w-3" />{row.bandUid}</p>
@@ -122,7 +142,7 @@ export function TagWithdrawalsPage() {
                   <td role="cell" className="col-start-1 row-start-2 min-w-0 self-center xl:px-4 xl:py-5"><p className="break-words text-xs text-slate-600 xl:text-sm">{row.destinationSummary}</p><p className="mt-1 text-xs text-slate-400">{row.country === 'SZ' ? 'Eswatini' : 'South Africa'}</p></td>
                   <td role="cell" className="col-start-2 row-start-2 self-center text-right xl:whitespace-nowrap xl:px-4 xl:py-5"><p className="text-base font-semibold tabular-nums tracking-tight text-slate-900">{formatMoney(row.amount / 100, row.currency, { decimals: 2 })}</p><p className="mt-1 text-xs font-normal text-slate-400">{row.currency}</p></td>
                   <td role="cell" className="col-start-2 row-start-1 text-right xl:px-4 xl:py-5 xl:text-left"><WithdrawalStatusBadge status={row.status} /></td>
-                  <td role="cell" className="col-start-2 row-start-3 self-center text-right xl:py-5 xl:pl-2 xl:pr-6"><Button variant="ghost" className="h-8 gap-1.5 px-2 font-medium text-orange-600 hover:bg-orange-50 hover:text-orange-700" onClick={() => open(row._id)}>{isAdmin ? 'Review' : 'View'}<ArrowRight aria-hidden="true" className="h-3.5 w-3.5" /></Button></td>
+                  <td role="cell" className="col-start-2 row-start-3 self-center text-right xl:py-5 xl:pl-2 xl:pr-6"><Button variant="ghost" className="h-8 gap-1.5 px-2 font-medium text-orange-600 hover:bg-orange-50 hover:text-orange-700" onClick={e => { e.stopPropagation(); open(row._id); }}>{isAdmin ? 'Review' : 'View'}<ArrowRight aria-hidden="true" className="h-3.5 w-3.5" /></Button></td>
                 </tr>)}
               </tbody>
             </table>
@@ -132,7 +152,7 @@ export function TagWithdrawalsPage() {
             </div>}
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-5 py-4 text-xs text-slate-500 sm:px-6">
               <p>Page <span className="font-medium text-slate-700">{page}</span> of {Math.max(1, Math.ceil((list.data?.total ?? 0) / 25))}</p>
-              <div className="flex gap-2"><Button variant="outline" size="sm" className="gap-1 rounded-lg border-slate-200 shadow-none" disabled={page === 1} onClick={() => setPage(p => p - 1)}><ChevronLeft aria-hidden="true" className="h-3.5 w-3.5" />Previous</Button><Button variant="outline" size="sm" className="gap-1 rounded-lg border-slate-200 shadow-none" disabled={!list.data || page * 25 >= list.data.total} onClick={() => setPage(p => p + 1)}>Next<ChevronRight aria-hidden="true" className="h-3.5 w-3.5" /></Button></div>
+              <div className="flex gap-2"><Button variant="outline" size="sm" className="gap-1 rounded-lg border-slate-200 shadow-none" disabled={page === 1} onClick={() => setPage(page - 1)}><ChevronLeft aria-hidden="true" className="h-3.5 w-3.5" />Previous</Button><Button variant="outline" size="sm" className="gap-1 rounded-lg border-slate-200 shadow-none" disabled={!list.data || page * 25 >= list.data.total} onClick={() => setPage(page + 1)}>Next<ChevronRight aria-hidden="true" className="h-3.5 w-3.5" /></Button></div>
             </div>
           </>}
         </TabsContent>
