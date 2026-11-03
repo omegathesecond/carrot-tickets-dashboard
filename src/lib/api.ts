@@ -1048,6 +1048,7 @@ export class ApiClient {
 
   // Reseller admin endpoints (super-admin only)
   tagWithdrawals = {
+    events: (search: string) => this.request<Array<{ id: string; name: string }>>(`/admin/tag-withdrawals/events?${new URLSearchParams({ search })}`),
     list: (search: string, status: string, page: number, eventId?: string) => {
       const query = new URLSearchParams({ search, page: String(page), ...(status ? { status } : {}), ...(eventId ? { eventId } : {}) });
       return this.request<{ items: TagWithdrawalRequest[]; total: number; page: number }>(`/admin/tag-withdrawals?${query}`);

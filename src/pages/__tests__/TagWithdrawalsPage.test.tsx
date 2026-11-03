@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TagWithdrawalsPage } from '../TagWithdrawalsPage';
 import { apiClient } from '@/lib/api';
 import type { TagWithdrawalRequest } from '@/types/tagWithdrawal';
-vi.mock('@/lib/api', () => ({ apiClient: { tagWithdrawals: { list: vi.fn(), detail: vi.fn(), decide: vi.fn() } } }));
+vi.mock('@/lib/api', () => ({ apiClient: { tagWithdrawals: { events: vi.fn(), list: vi.fn(), detail: vi.fn(), decide: vi.fn() } } }));
 const auth = vi.hoisted(() => ({ user: { _id: 'admin-1', isSuperAdmin: true, permissions: [] as string[] } }));
 vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: auth.user, isLoading: false }) }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -18,6 +18,7 @@ function page() {
 beforeEach(() => {
   vi.clearAllMocks();
   auth.user = { _id: 'admin-1', isSuperAdmin: true, permissions: [] };
+  vi.mocked(apiClient.tagWithdrawals.events).mockResolvedValue([{ id: 'event-1', name: 'Festival' }]);
   row = { _id: 'request-1', eventId: 'event-1', walletId: 'wallet-1', eventName: 'Festival', bandUid: '0ae98d36', amount: 12345,
     currency: 'ZAR', country: 'ZA', method: 'bank_transfer', status: 'pending', destinationSummary: 'Test Bank ••••8901',
     createdAt: '2026-10-29T12:00:00Z', history: [], details: { fullName: 'Attendee', contactPhone: '+26878422613',
@@ -100,4 +101,58 @@ it('does not fetch requests for accounts without financial permission', async ()
   page();
   expect(apiClient.tagWithdrawals.list).not.toHaveBeenCalled();
   expect(screen.queryByRole('heading', { name: 'Tag withdrawals' })).toBeNull();
+});
+
+it('opens the request from anywhere on the tile and supports the keyboard', async () => {
+  page();
+  fireEvent.click(await screen.findByText('Festival'));
+  await screen.findByRole('dialog', { name: 'Attendee withdrawal' });
+  fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+  const tile = screen.getByText('Festival').closest('tr')!;
+  fireEvent.keyDown(tile, { key: 'Enter' });
+  await screen.findByRole('dialog', { name: 'Attendee withdrawal' });
+  expect(apiClient.tagWithdrawals.decide).not.toHaveBeenCalled();
+});
+
+it('waits for typing to pause, sends only the final search, and resets the page in that request', async () => {
+  vi.mocked(apiClient.tagWithdrawals.list).mockResolvedValue({ items: [row], total: 30, page: 1 });
+  page(); await screen.findByRole('button', { name: 'Review' });
+  fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+  await waitFor(() => expect(apiClient.tagWithdrawals.list).toHaveBeenLastCalledWith('', '', 2, undefined));
+  const count = vi.mocked(apiClient.tagWithdrawals.list).mock.calls.length;
+  vi.useFakeTimers();
+  try {
+    fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'F' } });
+    await act(async () => { await vi.advanceTimersByTimeAsync(200); });
+    fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'Festival' } });
+    await act(async () => { await vi.advanceTimersByTimeAsync(349); });
+    expect(apiClient.tagWithdrawals.list).toHaveBeenCalledTimes(count);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    expect(apiClient.tagWithdrawals.list).toHaveBeenCalledTimes(count + 1);
+    expect(apiClient.tagWithdrawals.list).toHaveBeenLastCalledWith('Festival', '', 1, undefined);
+    fireEvent.change(screen.getByLabelText('Search'), { target: { value: '' } });
+    await act(async () => { await vi.advanceTimersByTimeAsync(350); });
+    expect(apiClient.tagWithdrawals.list).toHaveBeenLastCalledWith('', '', 1, undefined);
+  } finally { vi.useRealTimers(); }
+});
+
+it('searches events on the backend and sends the selected event filter with the list request', async () => {
+  page(); await screen.findByRole('button', { name: 'Review' });
+  fireEvent.click(screen.getByRole('combobox'));
+  fireEvent.change(screen.getByPlaceholderText('Search events by name…'), { target: { value: 'Fest' } });
+  await waitFor(() => expect(apiClient.tagWithdrawals.events).toHaveBeenCalledWith('Fest'));
+  fireEvent.click(await screen.findByRole('option', { name: 'Festival' }));
+  await waitFor(() => expect(apiClient.tagWithdrawals.list).toHaveBeenLastCalledWith('', '', 1, 'event-1'));
+  expect(screen.getByRole('combobox').textContent).toContain('Festival');
+  fireEvent.click(screen.getByRole('combobox'));
+  fireEvent.click(screen.getByRole('option', { name: 'All events' }));
+  await waitFor(() => expect(apiClient.tagWithdrawals.list).toHaveBeenLastCalledWith('', '', 1, undefined));
+});
+
+it('shows an event lookup failure instead of an empty event filter', async () => {
+  vi.mocked(apiClient.tagWithdrawals.events).mockRejectedValue(new Error('Event lookup unavailable'));
+  page(); await screen.findByRole('button', { name: 'Review' });
+  fireEvent.click(screen.getByRole('combobox'));
+  expect((await screen.findByRole('alert')).textContent).toContain('Event lookup unavailable');
+  expect(screen.queryByText('No events found')).toBeNull();
 });
