@@ -7,7 +7,8 @@ import { TagWithdrawalsPage } from '../TagWithdrawalsPage';
 import { apiClient } from '@/lib/api';
 import type { TagWithdrawalRequest } from '@/types/tagWithdrawal';
 vi.mock('@/lib/api', () => ({ apiClient: { tagWithdrawals: { list: vi.fn(), detail: vi.fn(), decide: vi.fn() } } }));
-vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: { _id: 'admin-1' } }) }));
+const auth = vi.hoisted(() => ({ user: { _id: 'admin-1', isSuperAdmin: true, permissions: [] as string[] } }));
+vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: auth.user, isLoading: false }) }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 let row: TagWithdrawalRequest;
 function page() {
@@ -16,11 +17,15 @@ function page() {
 }
 beforeEach(() => {
   vi.clearAllMocks();
+  auth.user = { _id: 'admin-1', isSuperAdmin: true, permissions: [] };
   row = { _id: 'request-1', eventId: 'event-1', walletId: 'wallet-1', eventName: 'Festival', bandUid: '0ae98d36', amount: 12345,
     currency: 'ZAR', country: 'ZA', method: 'bank_transfer', status: 'pending', destinationSummary: 'Test Bank ••••8901',
     createdAt: '2026-10-29T12:00:00Z', history: [], details: { fullName: 'Attendee', contactPhone: '+26878422613',
       bank: { country: 'South Africa', bank: 'Test Bank', accountHolder: 'Attendee', accountType: 'Savings', branchCode: '123456', accountNumber: '012345678901' } } };
-  vi.mocked(apiClient.tagWithdrawals.list).mockImplementation(async () => ({ items: [row], total: 1, page: 1 }));
+  vi.mocked(apiClient.tagWithdrawals.list).mockImplementation(async (_search, status, pageNumber) => {
+    const items = !status || row.status === status ? [row] : [];
+    return { items, total: items.length, page: pageNumber };
+  });
   vi.mocked(apiClient.tagWithdrawals.detail).mockImplementation(async () => ({ ...row }));
   vi.mocked(apiClient.tagWithdrawals.decide).mockImplementation(async (_id, data) => {
     row = { ...row, status: data.status, processingBy: 'admin-1', paymentReference: data.paymentReference }; return row;
@@ -50,4 +55,49 @@ it('shows load failures instead of an empty queue', async () => {
   vi.mocked(apiClient.tagWithdrawals.list).mockRejectedValue(new Error('Service unavailable'));
   page(); expect((await screen.findByRole('alert')).textContent).toContain('Service unavailable');
   expect(screen.queryByText('No withdrawal requests match these filters.')).toBeNull();
+});
+
+it('starts on All and keeps a request in the list after processing begins', async () => {
+  page();
+  expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['All', 'Requested', 'Payment in progress', 'Paid', 'Rejected']);
+  expect(screen.getByRole('tab', { name: 'All', selected: true })).toBeTruthy();
+  fireEvent.click(await screen.findByRole('button', { name: 'Review' }));
+  expect(apiClient.tagWithdrawals.list).toHaveBeenCalledWith('', '', 1, undefined);
+  fireEvent.click(await screen.findByRole('button', { name: 'Start processing' }));
+  await screen.findByRole('heading', { name: 'Confirm completed payment' });
+  fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+  await screen.findByRole('button', { name: 'Review' });
+  expect(screen.getByRole('cell', { name: 'Payment in progress' })).toBeTruthy();
+  expect(screen.getByRole('tab', { name: 'All', selected: true })).toBeTruthy();
+});
+
+it('filters by each status tab and resets pagination when switching tabs', async () => {
+  vi.mocked(apiClient.tagWithdrawals.list).mockResolvedValue({ items: [row], total: 30, page: 1 });
+  page();
+  fireEvent.click(await screen.findByRole('button', { name: 'Review' }));
+  await screen.findByRole('button', { name: 'Start processing' });
+  fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+  await waitFor(() => expect(apiClient.tagWithdrawals.list).toHaveBeenLastCalledWith('', '', 2, undefined));
+  for (const [label, status] of [['Requested', 'pending'], ['Payment in progress', 'processing'], ['Paid', 'paid'], ['Rejected', 'rejected'], ['All', '']]) {
+    fireEvent.mouseDown(screen.getByRole('tab', { name: label }), { button: 0, ctrlKey: false });
+    await waitFor(() => expect(apiClient.tagWithdrawals.list).toHaveBeenLastCalledWith('', status, 1, undefined));
+  }
+});
+
+it('lets financial organizers view requests without payout actions or payment details', async () => {
+  auth.user = { _id: 'organizer-1', isSuperAdmin: false, permissions: ['tickets:view_revenue'] };
+  page(); fireEvent.click(await screen.findByRole('button', { name: 'View' }));
+  await screen.findByText(/Carrot administrators handle the payout/);
+  expect(screen.queryByRole('button', { name: 'Start processing' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Reject and release balance' })).toBeNull();
+  expect(screen.queryByText('012345678901')).toBeNull();
+  expect(apiClient.tagWithdrawals.decide).not.toHaveBeenCalled();
+});
+
+it('does not fetch requests for accounts without financial permission', async () => {
+  auth.user = { _id: 'scanner-1', isSuperAdmin: false, permissions: ['tickets:scan_tickets'] };
+  page();
+  expect(apiClient.tagWithdrawals.list).not.toHaveBeenCalled();
+  expect(screen.queryByRole('heading', { name: 'Tag withdrawals' })).toBeNull();
 });

@@ -34,7 +34,7 @@ import { ChannelsManager } from '@/components/community/ChannelsManager';
 import { AnnouncementComposer } from '@/components/community/AnnouncementComposer';
 import { MembersModeration } from '@/components/community/MembersModeration';
 import { useAuth } from '@/contexts/AuthContext';
-import { canManageEvents, canEditEventInfo, canViewEventFinancials, canManageMenu } from '@/lib/permissions';
+import { canManageEvents, canEditEventInfo, canViewEventFinancials, canManageMenu, canViewTagWithdrawals } from '@/lib/permissions';
 import {
   composeEventDateTime,
   eventToDateTimeInputs,
@@ -1386,7 +1386,7 @@ export function EventDetailsPage() {
         {/* Cashless Tab — organizer's money report for a cashless event */}
         {event?.cashless && (
           <TabsContent value="cashless" className="mt-6">
-            {isAdmin && <a className="mb-4 inline-block font-medium text-orange-600 underline" href={`/tag-withdrawals?eventId=${id}`}>Review attendee tag withdrawals →</a>}
+            {canViewTagWithdrawals(user) && <a className="mb-4 inline-block font-medium text-orange-600 underline" href={`/tag-withdrawals?eventId=${id}`}>View attendee tag withdrawals →</a>}
             <EventCashlessTab eventId={id!} eventName={event.name} />
           </TabsContent>
         )}

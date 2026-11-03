@@ -41,6 +41,7 @@ import {
   canPrintWristbands,
   canModerateSocial,
   canManageTransport,
+  canViewTagWithdrawals,
 } from '@/lib/permissions';
 
 interface NavigationItem {
@@ -138,6 +139,12 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       show: hasPermission(user, TicketsPermission.VIEW_STATS),
     },
     {
+      name: 'Tag withdrawals',
+      href: '/tag-withdrawals',
+      icon: Banknote,
+      show: canViewTagWithdrawals(user),
+    },
+    {
       name: 'Users',
       href: '/users',
       icon: UsersRound,
@@ -193,7 +200,6 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       { name: 'Settings', href: '/settings', icon: Settings2, show: true },
       { name: 'Resellers', href: '/resellers', icon: Users, show: true },
       { name: 'Payouts', href: '/payouts', icon: Banknote, show: true },
-      { name: 'Tag withdrawals', href: '/tag-withdrawals', icon: Banknote, show: true },
       { name: 'Fees', href: '/fees', icon: Receipt, show: true },
     ] : []),
   ].filter((item) => item.show);
