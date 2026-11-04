@@ -40,7 +40,7 @@ const renderPanel = () => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <StallOperatorsPanel merchantId="m1" stallName="Sandwich Stall" />
+      <StallOperatorsPanel scope={{ kind: 'event', eventId: 'e1' }} merchantId="m1" stallName="Sandwich Stall" />
     </QueryClientProvider>,
   );
 };
@@ -67,7 +67,7 @@ describe('StallOperatorsPanel grants', () => {
     const sw = await screen.findByRole('switch', { name: /stock/i });
     fireEvent.click(sw);
     await waitFor(() =>
-      expect(update).toHaveBeenCalledWith('op1', { grants: ['manage_stock'] }),
+      expect(update).toHaveBeenCalledWith({ kind: 'event', eventId: 'e1' }, 'op1', { grants: ['manage_stock'] }),
     );
   });
 
@@ -89,7 +89,7 @@ describe('StallOperatorsPanel grants', () => {
     fireEvent.click(within(dialog).getByRole('switch', { name: /stock/i }));
     fireEvent.click(within(dialog).getByRole('button', { name: /add|create|save/i }));
     await waitFor(() =>
-      expect(create).toHaveBeenCalledWith('m1', expect.objectContaining({ grants: ['manage_stock'] })),
+      expect(create).toHaveBeenCalledWith({ kind: 'event', eventId: 'e1' }, 'm1', expect.objectContaining({ grants: ['manage_stock'] })),
     );
   });
 
@@ -133,7 +133,7 @@ describe('StallOperatorsPanel grants', () => {
     renderPanel();
     await screen.findByText('Nomsa Shongwe');
     fireEvent.click(screen.getByRole('button', { name: /deactivate/i }));
-    await waitFor(() => expect(update).toHaveBeenCalledWith('op1', { isActive: false }));
-    expect(update).not.toHaveBeenCalledWith('op1', expect.objectContaining({ grants: expect.anything() }));
+    await waitFor(() => expect(update).toHaveBeenCalledWith({ kind: 'event', eventId: 'e1' }, 'op1', { isActive: false }));
+    expect(update).not.toHaveBeenCalledWith({ kind: 'event', eventId: 'e1' }, 'op1', expect.objectContaining({ grants: expect.anything() }));
   });
 });

@@ -11,7 +11,9 @@ import {
   type UpdateProduct,
   type StockStatus,
 } from '@/lib/api';
-import { fmtR, randToCents, centsToRand } from '@/lib/money';
+import { fmtCents, randToCents, centsToRand } from '@/lib/money';
+import { currencySymbol, type Currency } from '@/lib/currency';
+import { scopeKey, type StockScope } from '@/lib/stockScope';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -90,14 +92,18 @@ const stockCell = (row?: { onHand: number; status: string; stockTracked?: boolea
 const categoryLabel = (v: string) =>
   PRODUCT_CATEGORIES.find((c) => c.value === v)?.label ?? v;
 
+/** The scope's owner as copy — "event" / "venue" (cf. the API's ownerWord). */
+const ownerNoun = (scope: StockScope) => (scope.kind === 'event' ? 'event' : 'venue');
+
 /**
- * Cashless catalogue & stock management for ONE event (Slice 6 / parent §9).
- * Products and stock are event-scoped in the model — a Product carries an
- * eventId and a ProductStock row is per (stall x product) — so this panel takes
- * the event it lives under instead of asking the organizer to pick one. The API
- * enforces MANAGE_STOCK + event ownership on every call.
+ * Cashless catalogue & stock management for ONE event (Slice 6 / parent §9) or
+ * the vendor's venue. Products and stock are scope-bound in the model — a
+ * Product belongs to one event or one venue and a ProductStock row is per
+ * (stall x product) — so this panel takes the scope (event or venue) it lives
+ * under instead of asking the organizer to pick one. The API enforces
+ * MANAGE_STOCK + ownership of that scope on every call.
  */
-export function EventCataloguePanel({ eventId }: { eventId: string }) {
+export function EventCataloguePanel({ scope, currency = 'ZAR' }: { scope: StockScope; currency?: Currency }) {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<StockProductRow | null>(null);
@@ -138,9 +144,8 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
   };
 
   const { data: products = [], isLoading } = useQuery({
-    queryKey: ['stock-products', eventId],
-    queryFn: () => apiClient.stock.listProducts(eventId),
-    enabled: !!eventId,
+    queryKey: ['stock-products', scopeKey(scope)],
+    queryFn: () => apiClient.stock.listProducts(scope),
   });
 
   const {
@@ -153,9 +158,8 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
     isSuccess: stallsLoaded,
     isError: stallsErrored,
   } = useQuery({
-    queryKey: ['merchants', eventId],
-    queryFn: () => apiClient.merchants.list(eventId),
-    enabled: !!eventId,
+    queryKey: ['merchants', scopeKey(scope)],
+    queryFn: () => apiClient.merchants.list(scope),
   });
 
   const {
@@ -164,9 +168,8 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
     isError: allocationsErrored,
     error: allocationsError,
   } = useQuery({
-    queryKey: ['event-stock-allocations', eventId],
-    queryFn: () => apiClient.stock.getAllocations(eventId),
-    enabled: !!eventId, // matches its three siblings above/below
+    queryKey: ['event-stock-allocations', scopeKey(scope)],
+    queryFn: () => apiClient.stock.getAllocations(scope),
   });
   const allocations = allocationData?.allocations ?? {};
 
@@ -184,9 +187,8 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
   }, [allocationsErrored, allocationsError]);
 
   const { data: board } = useQuery({
-    queryKey: ['stock-board', eventId],
-    queryFn: () => apiClient.events.getEventStockBoard(eventId),
-    enabled: !!eventId,
+    queryKey: ['stock-board', scopeKey(scope)],
+    queryFn: () => apiClient.stock.board(scope),
   });
 
   // board.perBar grouped by stall, for the levels panel.
@@ -270,8 +272,8 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
   );
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ['stock-products', eventId] });
-    queryClient.invalidateQueries({ queryKey: ['stock-board', eventId] });
+    queryClient.invalidateQueries({ queryKey: ['stock-products', scopeKey(scope)] });
+    queryClient.invalidateQueries({ queryKey: ['stock-board', scopeKey(scope)] });
   };
   // The stock board reports every product that has a stock row, switched off
   // or not, so a product deactivated in the Catalogue keeps its shelf line.
@@ -284,13 +286,13 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
   );
 
   const invalidateAllocations = () =>
-    queryClient.invalidateQueries({ queryKey: ['event-stock-allocations', eventId] });
+    queryClient.invalidateQueries({ queryKey: ['event-stock-allocations', scopeKey(scope)] });
 
   // Price alone, straight from the row. updateProductSchema is .min(1), so a
   // one-field PATCH is valid and leaves every other field untouched.
   const savePrice = useMutation({
     mutationFn: ({ id, price }: { id: string; price: number }) =>
-      apiClient.stock.updateProduct(id, { price }),
+      apiClient.stock.updateProduct(scope, id, { price }),
     onSuccess: () => { invalidate(); setPriceEditId(null); toast.success('Price updated'); },
     onError: (e: Error) => toast.error(e.message || 'Failed to update price'),
   });
@@ -306,7 +308,7 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
   // one operation whose journal leg records the difference as a variance.
   const saveCount = useMutation({
     mutationFn: (v: { merchantId: string; productId: string; countedOnHand: number }) =>
-      apiClient.stock.recordCount(eventId, v),
+      apiClient.stock.recordCount(scope, v),
     onSuccess: (r) => {
       invalidate();
       setStockEditKey(null);
@@ -335,11 +337,11 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
       // Sequential: the first failure stops the run and is reported, rather
       // than firing every request and guessing which stalls actually zeroed.
       for (const r of carrying) {
-        await apiClient.stock.recordCount(eventId, {
+        await apiClient.stock.recordCount(scope, {
           merchantId: r.merchantId, productId, countedOnHand: 0,
         });
       }
-      await apiClient.stock.setAllocations(eventId, { productId, merchantIds: [] });
+      await apiClient.stock.setAllocations(scope, { productId, merchantIds: [] });
     },
     onSuccess: () => {
       invalidate();
@@ -359,8 +361,8 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
   const saveProduct = useMutation({
     mutationFn: async (payload: { create?: NewProduct; update?: UpdateProduct; merchantIds: string[] }) => {
       const saved = editing
-        ? await apiClient.stock.updateProduct(editing._id, payload.update!)
-        : await apiClient.stock.createProduct(eventId, payload.create!);
+        ? await apiClient.stock.updateProduct(scope, editing._id, payload.update!)
+        : await apiClient.stock.createProduct(scope, payload.create!);
       // A product must exist before it can be allocated, so this follows the
       // save rather than running alongside it. A failure here propagates — a
       // half-applied save must never report success.
@@ -377,7 +379,7 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
         allocationSkipped = 'stalls-unknown';
       } else if (stalls.length) {
         if (allocationsLoaded) {
-          await apiClient.stock.setAllocations(eventId, {
+          await apiClient.stock.setAllocations(scope, {
             productId: saved._id,
             merchantIds: payload.merchantIds,
           });
@@ -418,7 +420,7 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
       // reported, rather than firing every request and surfacing one rejection
       // out of many with no idea which products actually landed.
       for (const p of products) {
-        await apiClient.stock.setAllocations(eventId, { productId: p._id, merchantIds });
+        await apiClient.stock.setAllocations(scope, { productId: p._id, merchantIds });
       }
     },
     onSuccess: () => {
@@ -438,7 +440,7 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
   const [opForm, setOpForm] = useState<OpForm>(EMPTY_OP);
 
   const receiveM = useMutation({
-    mutationFn: () => apiClient.stock.receive(eventId, {
+    mutationFn: () => apiClient.stock.receive(scope, {
       merchantId: opForm.merchantId, productId: opForm.productId,
       quantity: Number(opForm.quantity), unit: opForm.unit,
       ...(opForm.note.trim() ? { note: opForm.note.trim() } : {}),
@@ -448,7 +450,7 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
   });
 
   const transferM = useMutation({
-    mutationFn: () => apiClient.stock.transfer(eventId, {
+    mutationFn: () => apiClient.stock.transfer(scope, {
       productId: opForm.productId, fromMerchantId: opForm.fromMerchantId, toMerchantId: opForm.toMerchantId,
       qty: Number(opForm.quantity), ...(opForm.note.trim() ? { note: opForm.note.trim() } : {}),
     }),
@@ -457,7 +459,7 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
   });
 
   const countM = useMutation({
-    mutationFn: () => apiClient.stock.recordCount(eventId, {
+    mutationFn: () => apiClient.stock.recordCount(scope, {
       merchantId: opForm.merchantId, productId: opForm.productId, countedOnHand: Number(opForm.quantity),
     }),
     onSuccess: (r) => {
@@ -470,7 +472,7 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
   });
 
   const thresholdM = useMutation({
-    mutationFn: (clear: boolean) => apiClient.stock.setThreshold(eventId, {
+    mutationFn: (clear: boolean) => apiClient.stock.setThreshold(scope, {
       merchantId: opForm.merchantId, productId: opForm.productId,
       lowStockThreshold: clear ? null : Number(opForm.quantity),
     }),
@@ -554,7 +556,7 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
     <div className="space-y-6">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Package className="h-4 w-4 text-orange-600" />
-        What this event's stalls sell — priced per unit, stocked per stall
+        What this {ownerNoun(scope)}'s stalls sell — priced per unit, stocked per stall
       </div>
 
       {/* Two jobs share this page and they are read at different moments: during
@@ -580,7 +582,7 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
         <TabsContent value="levels" className="space-y-4">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard icon={<TrendingUp className="h-4 w-4" />} label="Units sold" value={totals.unitsSold.toLocaleString('en-ZA')} hint="rung up on itemised charges" tone="blue" />
-            <StatCard icon={<Coins className="h-4 w-4" />} label="Sales" value={fmtR(totals.revenue)} hint="what those units took" tone="green" />
+            <StatCard icon={<Coins className="h-4 w-4" />} label="Sales" value={fmtCents(totals.revenue, currency)} hint="what those units took" tone="green" />
             <StatCard icon={<Boxes className="h-4 w-4" />} label="On hand" value={totals.uncounted ? 'Not counted' : totals.onHand.toLocaleString('en-ZA')} hint={totals.uncounted ? 'Inventory quantities are not tracked' : 'units still on the shelf'} tone="ink" />
             <StatCard icon={<AlertTriangle className="h-4 w-4" />} label="Needs attention" value={String(totals.needsAttention)} hint="products low or sold out" tone="orange" />
           </div>
@@ -678,7 +680,7 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
                                     </button>
                                   )}
                                 </TableCell>
-                                <TableCell className="text-right tabular-nums font-semibold">{fmtR(r.revenue)}</TableCell>
+                                <TableCell className="text-right tabular-nums font-semibold">{fmtCents(r.revenue, currency)}</TableCell>
                                 <TableCell><StatusPill status={r.status} /></TableCell>
                                 <TableCell>
                                   <Button variant="ghost" size="icon" className="h-7 w-7"
@@ -802,7 +804,7 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
                               className="rounded px-1 hover:bg-slate-100"
                               onClick={() => { setPriceEditId(p._id); setPriceDraft(centsToRand(p.price)); }}
                             >
-                              {fmtR(p.price)}
+                              {fmtCents(p.price, currency)}
                             </button>
                           )}
                         </TableCell>
@@ -832,7 +834,7 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
         </TabsContent>
 
         <TabsContent value="stock" className="space-y-4">
-          <EventStockReport eventId={eventId} />
+          <EventStockReport scope={scope} currency={currency} />
         </TabsContent>
       </Tabs>
       <StockOpDialogs
@@ -842,7 +844,8 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
       />
 
       <ProductStockDialog
-        eventId={eventId}
+        scope={scope}
+        currency={currency}
         product={detailProduct}
         levels={detailLevels}
         onClose={() => setDetailId(null)}
@@ -891,7 +894,7 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label>Price (R per unit)</Label>
+                <Label>Price ({currencySymbol(currency)} per unit)</Label>
                 <Input inputMode="decimal" value={form.priceRand} onChange={(e) => setForm({ ...form, priceRand: e.target.value })} placeholder="25.00" />
               </div>
             </div>
@@ -900,7 +903,7 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
               {!stallsLoaded ? (
                 <p className={stallsErrored ? 'text-xs text-red-600' : 'text-xs text-muted-foreground'}>
                   {stallsErrored
-                    ? 'Stalls could not be loaded — this event may already have stalls, so this is not necessarily a setup problem. This product will not be assigned to a stall until it is saved again once stalls load.'
+                    ? `Stalls could not be loaded — this ${ownerNoun(scope)} may already have stalls, so this is not necessarily a setup problem. This product will not be assigned to a stall until it is saved again once stalls load.`
                     : 'Loading stalls…'}
                 </p>
               ) : stalls.length === 0 ? (
@@ -942,7 +945,7 @@ export function EventCataloguePanel({ eventId }: { eventId: string }) {
               <ImageUploadField
                 value={form.imageUrl}
                 onChange={(imageUrl) => setForm((f) => ({ ...f, imageUrl }))}
-                onUpload={(file) => apiClient.events.uploadProductImage(eventId, file)}
+                onUpload={(file) => apiClient.stock.uploadProductImage(scope, file)}
               />
             </div>
             <div className="grid grid-cols-3 gap-3">

@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { OperatorCredentialsDialog } from '@/components/OperatorCredentialsDialog';
 import { OperatorGrantsField } from '@/components/OperatorGrantsField';
 import { matchesSearch } from '@/lib/search';
+import type { StockScope } from '@/lib/stockScope';
 
 type Credentials = { title: string; operatorName: string; phoneNumber?: string; loginCode: string; pin: string };
 
@@ -18,11 +19,12 @@ type Credentials = { title: string; operatorName: string; phoneNumber?: string; 
  * The people who work ONE stall's till — each with their own login code +
  * PIN, so a charge names a human instead of the stall. The stall itself
  * (Merchant) holds no credentials any more; this panel is where they live.
- * Mounted on the stall detail page (/events/:id/stalls/:merchantId), which
+ * Mounted on the stall detail page (/events/:id/stalls/:merchantId, or
+ * /venue/stalls/:merchantId for a venue), which
  * already loads under MANAGE_ACCESS, so no separate permission gate is
  * needed here.
  */
-export function StallOperatorsPanel({ merchantId, stallName, canDelete = false }: { merchantId: string; stallName: string; canDelete?: boolean }) {
+export function StallOperatorsPanel({ scope, merchantId, stallName, canDelete = false }: { scope: StockScope; merchantId: string; stallName: string; canDelete?: boolean }) {
   const qc = useQueryClient();
   const [adding, setAdding] = useState(false);
   const [search, setSearch] = useState('');
@@ -33,14 +35,14 @@ export function StallOperatorsPanel({ merchantId, stallName, canDelete = false }
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['merchantOperators', merchantId],
-    queryFn: () => apiClient.merchantOperators.list(merchantId),
+    queryFn: () => apiClient.merchantOperators.list(scope, merchantId),
   });
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['merchantOperators', merchantId] });
 
   const create = useMutation({
     gcTime: 0,
-    mutationFn: () => apiClient.merchantOperators.create(merchantId, {
+    mutationFn: () => apiClient.merchantOperators.create(scope, merchantId, {
       fullName: form.fullName.trim(),
       ...(form.phoneNumber.trim() ? { phoneNumber: form.phoneNumber.trim() } : {}),
       grants: form.grants,
@@ -56,21 +58,21 @@ export function StallOperatorsPanel({ merchantId, stallName, canDelete = false }
 
   const resetPin = useMutation({
     gcTime: 0,
-    mutationFn: (operator: MerchantOperatorRow) => apiClient.merchantOperators.resetPin(operator._id),
+    mutationFn: (operator: MerchantOperatorRow) => apiClient.merchantOperators.resetPin(scope, operator._id),
     onSuccess: (res, operator) => setCredentials({ title: `${operator.fullName} — new PIN`, operatorName: operator.fullName, phoneNumber: operator.phoneNumber, loginCode: operator.loginCode, pin: res.pin }),
     onError: (e: Error) => toast.error(e.message || 'Failed to reset PIN'),
   });
 
   const setActive = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
-      apiClient.merchantOperators.update(id, { isActive }),
+      apiClient.merchantOperators.update(scope, id, { isActive }),
     onSuccess: invalidate,
     onError: (e: Error) => toast.error(e.message || 'Failed to update person'),
   });
 
   const setGrants = useMutation({
     mutationFn: ({ id, grants }: { id: string; grants: OperatorGrant[] }) =>
-      apiClient.merchantOperators.update(id, { grants }),
+      apiClient.merchantOperators.update(scope, id, { grants }),
     onSuccess: invalidate,
     onError: (e: Error) => toast.error(e.message || 'Failed to update person'),
   });
@@ -94,7 +96,7 @@ export function StallOperatorsPanel({ merchantId, stallName, canDelete = false }
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {canDelete && <StallLoginExports name={stallName} disabled={isLoading || isError || !operators.some(op => op.isActive)} loadTargets={async () => stallLoginTargets(stallName, (await apiClient.merchantOperators.list(merchantId)).operators)} />}
+          {canDelete && <StallLoginExports name={stallName} disabled={isLoading || isError || !operators.some(op => op.isActive)} loadTargets={async () => stallLoginTargets(stallName, (await apiClient.merchantOperators.list(scope, merchantId)).operators)} />}
           <Button size="sm" onClick={() => setAdding(true)}>Add person</Button>
         </div>
       </div>
@@ -148,7 +150,7 @@ export function StallOperatorsPanel({ merchantId, stallName, canDelete = false }
               </div>
               <EventResourceActions kind="till staff" initial={{ name: op.fullName, phoneNumber: op.phoneNumber ?? '' }}
                     canDelete={canDelete} queryKey={['merchantOperators', merchantId]}
-                    onSave={(values) => apiClient.merchantOperators.update(op._id, { fullName: values.name, phoneNumber: values.phoneNumber })}
+                    onSave={(values) => apiClient.merchantOperators.update(scope, op._id, { fullName: values.name, phoneNumber: values.phoneNumber })}
                     onReveal={() => apiClient.merchantOperators.revealPin(op._id)}
                     cardIdentity={{ operatorName: op.fullName, stallName, phoneNumber: op.phoneNumber }}
                     onDelete={() => apiClient.merchantOperators.delete(op._id)} />

@@ -17,6 +17,7 @@ import {
   type StockProductRow,
 } from '@/lib/api';
 import { fmtR, randToCents, centsToRand } from '@/lib/money';
+import { scopeKey, type StockScope } from '@/lib/stockScope';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -68,6 +69,9 @@ const NEW_CATEGORY = '__new__';
  */
 export function EventMenuTab({ eventId }: { eventId: string }) {
   const queryClient = useQueryClient();
+  // The menu is event-only; the merchant + catalogue lists below are the stock
+  // scope's, so they share the catalogue panel's cache entries.
+  const scope: StockScope = { kind: 'event', eventId };
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<MenuItemRow | null>(null);
   const [form, setForm] = useState<ItemForm>(EMPTY_ITEM_FORM);
@@ -99,14 +103,14 @@ export function EventMenuTab({ eventId }: { eventId: string }) {
   // in which case these 403 and the vendor picker / catalogue import just fall
   // back to manual entry instead of breaking the tab.
   const { data: merchants = [] } = useQuery({
-    queryKey: ['merchants', eventId],
-    queryFn: () => apiClient.merchants.list(eventId),
+    queryKey: ['merchants', scopeKey(scope)],
+    queryFn: () => apiClient.merchants.list(scope),
     enabled: !!eventId,
     retry: false,
   });
   const { data: catalogueProducts = [] } = useQuery({
-    queryKey: ['stock-products', eventId],
-    queryFn: () => apiClient.stock.listProducts(eventId),
+    queryKey: ['stock-products', scopeKey(scope)],
+    queryFn: () => apiClient.stock.listProducts(scope),
     enabled: !!eventId,
     retry: false,
   });

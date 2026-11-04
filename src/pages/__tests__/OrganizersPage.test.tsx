@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router-dom';
 import { OrganizersPage } from '@/pages/OrganizersPage';
 import { apiClient } from '@/lib/api';
 import type { Organizer, OrganizersListResponse } from '@/types';
@@ -34,6 +35,7 @@ const eventsOrganizer: Organizer = {
   eventCount: 3,
   ticketsSold: 100,
   revenue: 5000,
+  type: 'transport',
 };
 
 const servicesOrganizer: Organizer = {
@@ -53,21 +55,26 @@ const servicesOrganizer: Organizer = {
   eventCount: 0,
   ticketsSold: 0,
   revenue: 0,
+  type: 'services',
 };
 
 function mockResponse(organizers: Organizer[]): OrganizersListResponse {
   return {
     organizers,
     statusCounts: {},
+    typeCounts: { all: organizers.length, events: 0, venues: 0, services: 1, transport: 1 },
+    serviceCategories: ['beauty_and_wellness'],
     pagination: { page: 1, limit: 25, total: organizers.length, totalPages: 1 },
   };
 }
 
-function renderPage() {
+function renderPage(path = '/organizers') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <OrganizersPage />
+      <MemoryRouter initialEntries={[path]}>
+        <OrganizersPage />
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -82,40 +89,40 @@ afterEach(() => {
 });
 
 describe('OrganizersPage — service business visibility', () => {
-  it('shows a "Service · <category>" badge for a services vendor and businessType for an events vendor', async () => {
+  it('shows each vendor\'s type badge on the All tab and the humanised category on the Businesses tab', async () => {
     renderPage();
 
     await screen.findByText('Sunshine Coaches');
-    // businessType is rendered lowercase in the DOM; "capitalize" is a CSS
-    // text-transform only, not an actual text change. getByText throws if
-    // no match is found, so a successful call is itself the assertion.
-    expect(screen.getByText('transport company')).toBeTruthy();
+    expect(within(screen.getByText('Sunshine Coaches').closest('tr')!).getByText('Bus operator')).toBeTruthy();
+    expect(within(screen.getByText('Glow Spa').closest('tr')!).getByText('Business')).toBeTruthy();
 
-    expect(screen.getByText('Glow Spa')).toBeTruthy();
-    expect(screen.getByText('Service · Beauty And Wellness')).toBeTruthy();
+    cleanup();
+    renderPage('/organizers?type=services');
+    await screen.findByText('Glow Spa');
+    expect(within(screen.getByText('Glow Spa').closest('tr')!).getByText('Beauty And Wellness')).toBeTruthy();
   });
 
-  it('calls organizers.list with operatorType: "services" when the Service businesses filter is selected', async () => {
+  it('calls organizers.list with type: "services" when the Businesses tab is opened', async () => {
     renderPage();
 
     await screen.findByText('Sunshine Coaches');
 
-    const select = screen.getByLabelText('Filter by type');
-    fireEvent.change(select, { target: { value: 'services' } });
+    // Radix's TabsTrigger selects on POINTER-DOWN, not click.
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /businesses/i }), { button: 0 });
 
     await waitFor(() => {
       expect(apiClient.organizers.list).toHaveBeenLastCalledWith(
-        expect.objectContaining({ operatorType: 'services' }),
+        expect.objectContaining({ type: 'services' }),
       );
     });
   });
 
-  it('does not pass operatorType for the default "All types" filter', async () => {
+  it('does not pass a type for the default All tab', async () => {
     renderPage();
     await screen.findByText('Sunshine Coaches');
 
     expect(apiClient.organizers.list).toHaveBeenLastCalledWith(
-      expect.objectContaining({ operatorType: undefined }),
+      expect.objectContaining({ type: undefined }),
     );
   });
 });
