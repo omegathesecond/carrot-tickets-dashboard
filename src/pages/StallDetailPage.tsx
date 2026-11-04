@@ -14,6 +14,7 @@ import { StallMenuPanel } from '@/components/StallMenuPanel';
 import { Input } from '@/components/ui/input';
 import { matchesSearch } from '@/lib/search';
 import { fmtR } from '@/lib/money';
+import { scopeKey, type StockScope } from '@/lib/stockScope';
 
 const fmtTime = (iso: string) => {
   if (!iso) return '—';
@@ -23,34 +24,44 @@ const fmtTime = (iso: string) => {
 const bandRef = (uid: string) => (!uid ? '—' : `••${(uid.length > 6 ? uid.slice(-6) : uid).toUpperCase()}`);
 
 /**
- * One stall's takings, reached from its event's Cashless > Stalls tab. The
- * route carries both ids (/events/:id/stalls/:merchantId) because a merchant
- * belongs to exactly one event — the event id is what makes the URL, and the
- * back link, honest about where this stall lives.
+ * One stall's takings, reached from its event's Cashless > Stalls tab (or a
+ * venue's Stalls tab). The event route carries both ids
+ * (/events/:id/stalls/:merchantId) because a merchant belongs to exactly one
+ * event — the event id is what makes the URL, and the back link, honest about
+ * where this stall lives. The venue route (/venue/stalls/:merchantId) has no
+ * :id, which is how the page knows which scope it is in.
  */
 export function StallDetailPage() {
   const { user } = useAuth();
   const { id = '', merchantId = '' } = useParams();
+  const scope: StockScope = id ? { kind: 'event', eventId: id } : { kind: 'venue' };
   const navigate = useNavigate();
   const [selected, setSelected] = useState<TxnDetail | null>(null);
   const [search, setSearch] = useState('');
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['stall-detail', id, merchantId],
+    queryKey: ['stall-detail', scopeKey(scope), merchantId],
     queryFn: async () => {
-      const detail = await apiClient.merchants.transactions(merchantId);
-      if (detail.event.id !== id) throw new Error('This stall does not belong to this event.');
+      const detail = await apiClient.merchants.transactions(scope, merchantId);
+      if (scope.kind === 'event' && detail.event?.id !== id) throw new Error('This stall does not belong to this event.');
       return detail;
     },
     retry: false,
   });
+  // The stall belongs to an event or a venue — the API names whichever it is.
+  const ownerName = data?.event?.name ?? data?.venue?.name;
+  // Commission is an event-stall concept: Carrot takes it off a stall that
+  // belongs to someone else's event. A venue's own stalls never carry one (the
+  // API stores 0), so none of its figures — the percentage, the fee, or the
+  // net-of-fee amounts — belong on a venue stall's page.
+  const showCommission = scope.kind === 'event';
   const visibleTransactions = data?.transactions.filter((t) => matchesSearch(search, t.id, t.bandUid)) ?? [];
 
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
         <Button variant="ghost" size="sm" className="text-slate-500"
-          onClick={() => navigate(`/events/${id}?tab=cashless&sub=stalls`)}>
+          onClick={() => navigate(scope.kind === 'event' ? `/events/${id}?tab=cashless&sub=stalls` : '/venue?tab=stalls')}>
           <ArrowLeft className="h-4 w-4 mr-1.5" /> Stalls
         </Button>
 
@@ -66,8 +77,7 @@ export function StallDetailPage() {
               <div>
                 <h1 className="text-2xl font-bold text-slate-900">{data.merchant.name}</h1>
                 <p className="text-sm text-slate-500 mt-0.5">
-                  {data.merchant.commissionPercent}% commission
-                  {data.event?.name ? ` · ${data.event.name}` : ''}
+                  {[showCommission ? `${data.merchant.commissionPercent}% commission` : null, ownerName].filter(Boolean).join(' · ')}
                 </p>
               </div>
               <Badge variant={data.merchant.status === 'active' ? 'default' : 'secondary'}>
@@ -75,33 +85,37 @@ export function StallDetailPage() {
               </Badge>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div className="col-span-full"><SalesStatementDownload kind="merchant" id={merchantId} name={data.merchant.name} /></div>
+            <div className={showCommission ? 'grid grid-cols-2 sm:grid-cols-4 gap-4' : 'grid grid-cols-2 gap-4'}>
+              {scope.kind === 'event' && <div className="col-span-full"><SalesStatementDownload kind="merchant" id={merchantId} name={data.merchant.name} /></div>}
               <Card><CardContent className="pt-6">
                 <div className="text-xs font-medium text-slate-500">Charged</div>
                 <div className="text-2xl font-bold mt-1">{fmtR(data.summary.totalCharged)}</div>
               </CardContent></Card>
-              <Card><CardContent className="pt-6">
-                <div className="text-xs font-medium text-green-600">Net owed</div>
-                <div className="text-2xl font-bold mt-1">{fmtR(data.summary.totalNet)}</div>
-              </CardContent></Card>
-              <Card><CardContent className="pt-6">
-                <div className="text-xs font-medium text-slate-500">Commission</div>
-                <div className="text-2xl font-bold mt-1">{fmtR(data.summary.totalFee)}</div>
-              </CardContent></Card>
+              {showCommission && (
+                <>
+                  <Card><CardContent className="pt-6">
+                    <div className="text-xs font-medium text-green-600">Net owed</div>
+                    <div className="text-2xl font-bold mt-1">{fmtR(data.summary.totalNet)}</div>
+                  </CardContent></Card>
+                  <Card><CardContent className="pt-6">
+                    <div className="text-xs font-medium text-slate-500">Commission</div>
+                    <div className="text-2xl font-bold mt-1">{fmtR(data.summary.totalFee)}</div>
+                  </CardContent></Card>
+                </>
+              )}
               <Card><CardContent className="pt-6">
                 <div className="text-xs font-medium text-slate-500">Charges</div>
                 <div className="text-2xl font-bold mt-1">{data.summary.count}</div>
               </CardContent></Card>
             </div>
 
-            <Card><CardContent className="pt-6">
+            {scope.kind === 'event' && <Card><CardContent className="pt-6">
               <StallMenuPanel key={merchantId} eventId={id} merchantId={merchantId} stallName={data.merchant.name} />
-            </CardContent></Card>
+            </CardContent></Card>}
 
             <Card>
               <CardContent className="pt-6">
-                <StallOperatorsPanel key={merchantId} merchantId={merchantId} stallName={data.merchant.name} canDelete={!!user?.isSuperAdmin} />
+                <StallOperatorsPanel key={merchantId} canDelete={scope.kind === 'event' && !!user?.isSuperAdmin} scope={scope} merchantId={merchantId} stallName={data.merchant.name} />
               </CardContent>
             </Card>
 
@@ -132,7 +146,8 @@ export function StallDetailPage() {
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-slate-900">{fmtR(t.amount)}</p>
                           <p className="text-xs text-slate-500">
-                            Net {fmtR(t.netAmount)}{t.fee > 0 ? ` · Fee ${fmtR(t.fee)}` : ''} · {bandRef(t.bandUid)} · {fmtTime(t.createdAt)}
+                            {showCommission ? `Net ${fmtR(t.netAmount)}${t.fee > 0 ? ` · Fee ${fmtR(t.fee)}` : ''} · ` : null}
+                            {bandRef(t.bandUid)} · {fmtTime(t.createdAt)}
                           </p>
                         </div>
                         <Badge variant="secondary" className="bg-green-100 text-green-800">{t.status || 'completed'}</Badge>

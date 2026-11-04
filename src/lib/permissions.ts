@@ -24,6 +24,7 @@ export const TicketsPermission = {
   MANAGE_STOCK: 'tickets:manage_stock',
   MANAGE_MENU: 'tickets:manage_menu',
   ISSUE_TAGS: 'tickets:issue_tags',
+  MANAGE_VENUE: 'tickets:manage_venue',
 } as const;
 
 export type TicketsPermissionValue =
@@ -189,4 +190,14 @@ export function canIssueTags(user: AuthUser | null | undefined): boolean {
 /** Withdrawal visibility follows financial access; payout decisions remain admin-only. */
 export function canViewTagWithdrawals(user: AuthUser | null | undefined): boolean {
   return !!user && (!!user.isSuperAdmin || (user.permissions ?? []).includes(TicketsPermission.VIEW_REVENUE));
+}
+
+/** Venue trading section — the vendor's own venue (stalls, staff, settings). */
+export function canManageVenue(user: AuthUser | null | undefined): boolean {
+  return hasPermission(user, TicketsPermission.MANAGE_VENUE);
+}
+
+/** May open the Venue section: venue admin, or venue stock (managers). Each tab gates itself. */
+export function canOpenVenue(user: AuthUser | null | undefined): boolean {
+  return canManageVenue(user) || hasPermission(user, TicketsPermission.MANAGE_STOCK);
 }

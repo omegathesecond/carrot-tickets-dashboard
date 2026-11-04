@@ -11,32 +11,32 @@ import type { StockMovementRow } from '@/lib/api';
 // dashboard/reconciliation queries are given minimal empty-shaped data so
 // those sections settle rather than interfering.
 //
-// getEventStockBoard is still mocked deliberately: the report no longer calls
+// stockBoard is still mocked deliberately: the report no longer calls
 // it, and leaving it here lets the assertion below prove that rather than
 // letting an accidental re-introduction pass unnoticed.
-const getEventStockBoard = vi.fn();
-const getEventStockDashboard = vi.fn();
-const getEventStockReconciliation = vi.fn();
-const getEventStockMovements = vi.fn();
+const stockBoard = vi.fn();
+const stockDashboard = vi.fn();
+const stockReconciliation = vi.fn();
+const stockMovements = vi.fn();
 
 vi.mock('@/lib/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/api')>();
   return {
     ...actual,
     apiClient: {
-      events: {
-        getEventStockBoard: (...a: unknown[]) => getEventStockBoard(...a),
-        getEventStockDashboard: (...a: unknown[]) => getEventStockDashboard(...a),
-        getEventStockReconciliation: (...a: unknown[]) => getEventStockReconciliation(...a),
-        getEventStockMovements: (...a: unknown[]) => getEventStockMovements(...a),
+      stock: {
+        board: (...a: unknown[]) => stockBoard(...a),
+        dashboard: (...a: unknown[]) => stockDashboard(...a),
+        reconciliation: (...a: unknown[]) => stockReconciliation(...a),
+        movements: (...a: unknown[]) => stockMovements(...a),
       },
     },
   };
 });
 
 const renderMovements = async (movements: StockMovementRow[]) => {
-  getEventStockBoard.mockResolvedValue({ event: { id: 'e1', name: 'Event' }, perBar: [], byProduct: [] });
-  getEventStockDashboard.mockResolvedValue({
+  stockBoard.mockResolvedValue({ event: { id: 'e1', name: 'Event' }, perBar: [], byProduct: [] });
+  stockDashboard.mockResolvedValue({
     event: { id: 'e1', name: 'Event' },
     revenueByProduct: [],
     bestSellers: [],
@@ -49,7 +49,7 @@ const renderMovements = async (movements: StockMovementRow[]) => {
     predictedStockOut: [],
     noRecentSales: 0,
   });
-  getEventStockReconciliation.mockResolvedValue({
+  stockReconciliation.mockResolvedValue({
     event: { id: 'e1', name: 'Event' },
     perBar: [],
     byProduct: [],
@@ -59,12 +59,12 @@ const renderMovements = async (movements: StockMovementRow[]) => {
       physicalCount: null, variance: null,
     },
   });
-  getEventStockMovements.mockResolvedValue({ movements, nextCursor: null, hasMore: false });
+  stockMovements.mockResolvedValue({ movements, nextCursor: null, hasMore: false });
 
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <EventStockReport eventId="e1" />
+      <EventStockReport scope={{ kind: 'event', eventId: 'e1' }} />
     </QueryClientProvider>,
   );
 
@@ -121,10 +121,10 @@ describe('EventStockReport movements — Who column', () => {
 });
 
 describe('EventStockReport no longer reads the stock board', () => {
-  it('never calls getEventStockBoard — Live stock was the only caller', async () => {
+  it('never calls stock.board — Live stock was the only caller', async () => {
     // The Stock levels tab and the Catalogue's On hand column both render this
     // board already; the third copy cost a request per page load.
     await renderMovements([]);
-    expect(getEventStockBoard).not.toHaveBeenCalled();
+    expect(stockBoard).not.toHaveBeenCalled();
   });
 });

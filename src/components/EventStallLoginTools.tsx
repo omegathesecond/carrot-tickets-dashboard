@@ -23,8 +23,8 @@ export function EventStallLoginTools({ eventId, eventName, canExport = false }: 
     onError: (error: Error) => toast.error(error.message),
   });
   const loadAllLogins = async () => {
-    const active = (await apiClient.merchants.list(eventId)).filter(stall => stall.status === 'active');
-    const results = await Promise.allSettled(active.map(async stall => stallLoginTargets(stall.name, (await apiClient.merchantOperators.list(stall._id)).operators)));
+    const active = (await apiClient.merchants.list({ kind: 'event', eventId })).filter(stall => stall.status === 'active');
+    const results = await Promise.allSettled(active.map(async stall => stallLoginTargets(stall.name, (await apiClient.merchantOperators.list({ kind: 'event', eventId }, stall._id)).operators)));
     return results.flatMap((result, i) => {
       if (result.status === 'rejected') throw new Error(`Could not load staff at ${active[i]!.name}: ${result.reason instanceof Error ? result.reason.message : 'Request failed'}`);
       return result.value;

@@ -65,9 +65,8 @@ vi.mock('@/lib/api', () => ({
     { value: 'food', label: 'Food' },
   ],
   apiClient: {
-    stock: { listProducts: vi.fn(async () => PRODUCTS) },
+    stock: { listProducts: vi.fn(async () => PRODUCTS), board: vi.fn(async () => BOARD) },
     merchants: { list: vi.fn(async () => [{ _id: 'm1', name: 'Main Bar' }]) },
-    events: { getEventStockBoard: vi.fn(async () => BOARD) },
   },
 }));
 
@@ -78,7 +77,7 @@ function renderCatalogue() {
       <MemoryRouter
         initialEntries={['/events/e1?tab=cashless&sub=catalogue&view=catalogue']}
       >
-        <EventCataloguePanel eventId="e1" />
+        <EventCataloguePanel scope={{ kind: 'event', eventId: 'e1' }} />
       </MemoryRouter>
     </QueryClientProvider>,
   );

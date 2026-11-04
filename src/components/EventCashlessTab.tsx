@@ -152,7 +152,7 @@ export function EventCashlessTab({ eventId, eventName }: Props) {
         ))}
       </TabsContent>
       <TabsContent value="manage">
-        <EventStallsPanel key={eventId} eventId={eventId} canDelete={!!user?.isSuperAdmin} />
+        <EventStallsPanel key={eventId} canDelete={!!user?.isSuperAdmin} scope={{ kind: 'event', eventId }} />
       </TabsContent>
     </Tabs>
   );
@@ -217,7 +217,7 @@ export function EventCashlessTab({ eventId, eventName }: Props) {
       {showStalls && <TabsContent value="stalls">{stallsBody}</TabsContent>}
       {showCatalogue && (
         <TabsContent value="catalogue">
-          <EventCataloguePanel eventId={eventId} />
+          <EventCataloguePanel scope={{ kind: 'event', eventId }} />
         </TabsContent>
       )}
       {showCashiers && <TabsContent value="cashiers">{cashiersBody}</TabsContent>}

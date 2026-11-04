@@ -13,20 +13,25 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ViewAffordance } from '@/components/ViewAffordance';
 import { matchesSearch } from '@/lib/search';
+import { scopeKey, stallPath, type StockScope } from '@/lib/stockScope';
 
 const initialsOf = (name: string) =>
   name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
+
+/** What a stall's till does at its owner: an event's stalls charge bands; a venue has no tags. */
+const tillJob = (scope: StockScope) => (scope.kind === 'event' ? 'charge bands at this event' : 'sell at this venue');
 
 type AddForm = { name: string; commissionPercent: string };
 const DEFAULT_FORM: AddForm = { name: '', commissionPercent: '0' };
 
 /**
  * Stall (in-event merchant) management for ONE event — a bar, a food stall, a
- * merch table: anything that taps bands. A merchant is bound to a single
- * eventId, so this panel takes the event it lives under rather than asking the
- * organizer to pick one. The API enforces ownership of that event on every call.
+ * merch table: anything that taps bands — or for the vendor's venue. A merchant
+ * is bound to a single event or venue, so this panel takes the scope it lives
+ * under rather than asking the organizer to pick one. The API enforces
+ * ownership of that scope on every call. A venue stall carries no commission.
  */
-export function EventStallsPanel({ eventId, canDelete = false }: { eventId: string; canDelete?: boolean }) {
+export function EventStallsPanel({ scope, canDelete = false }: { scope: StockScope; canDelete?: boolean }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -34,20 +39,20 @@ export function EventStallsPanel({ eventId, canDelete = false }: { eventId: stri
   const [search, setSearch] = useState('');
 
   const { data: stalls = [], isLoading, isError, error } = useQuery({
-    queryKey: ['merchants', eventId],
-    queryFn: () => apiClient.merchants.list(eventId),
-    enabled: !!eventId,
+    queryKey: ['merchants', scopeKey(scope)],
+    queryFn: () => apiClient.merchants.list(scope),
   });
 
   const createStall = useMutation({
     mutationFn: () =>
-      apiClient.merchants.create({
-        eventId,
-        name: form.name.trim(),
-        commissionPercent: Number(form.commissionPercent) || 0,
-      }),
+      apiClient.merchants.create(
+        scope,
+        scope.kind === 'event'
+          ? { name: form.name.trim(), commissionPercent: Number(form.commissionPercent) || 0 }
+          : { name: form.name.trim() },
+      ),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['merchants', eventId] });
+      queryClient.invalidateQueries({ queryKey: ['merchants', scopeKey(scope)] });
       toast.success('Stall created — add the people who work its till from the stall page');
       setIsAddOpen(false);
       setForm(DEFAULT_FORM);
@@ -57,9 +62,9 @@ export function EventStallsPanel({ eventId, canDelete = false }: { eventId: stri
 
   const setActive = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
-      apiClient.merchants.update(id, { isActive }),
+      apiClient.merchants.update(scope, id, { isActive }),
     onSuccess: (_res, vars) => {
-      queryClient.invalidateQueries({ queryKey: ['merchants', eventId] });
+      queryClient.invalidateQueries({ queryKey: ['merchants', scopeKey(scope)] });
       toast.success(vars.isActive ? 'Stall activated' : 'Stall disabled');
     },
     onError: (e: Error) => toast.error(e.message || 'Failed to update stall'),
@@ -74,7 +79,8 @@ export function EventStallsPanel({ eventId, canDelete = false }: { eventId: stri
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          Bars, food stalls and merch tables that charge bands at this event, each with a commission cut
+          Bars, food stalls and merch tables that {tillJob(scope)}
+          {scope.kind === 'event' && ', each with a commission cut'}
         </p>
         <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
           <DialogTrigger asChild>
@@ -91,13 +97,15 @@ export function EventStallsPanel({ eventId, canDelete = false }: { eventId: stri
                 <Input id="v-name" value={form.name} required className="h-12" placeholder="e.g. Main Bar or Food Court"
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="v-commission">Commission %</Label>
-                <Input id="v-commission" type="number" min={0} max={100} step="0.5" value={form.commissionPercent}
-                  className="h-12"
-                  onChange={(e) => setForm((f) => ({ ...f, commissionPercent: e.target.value }))} />
-                <p className="text-xs text-slate-500">Carrot's cut of every charge this stall collects (0–100).</p>
-              </div>
+              {scope.kind === 'event' && (
+                <div className="space-y-2">
+                  <Label htmlFor="v-commission">Commission %</Label>
+                  <Input id="v-commission" type="number" min={0} max={100} step="0.5" value={form.commissionPercent}
+                    className="h-12"
+                    onChange={(e) => setForm((f) => ({ ...f, commissionPercent: e.target.value }))} />
+                  <p className="text-xs text-slate-500">Carrot's cut of every charge this stall collects (0–100).</p>
+                </div>
+              )}
               <div className="flex justify-end space-x-2 pt-2">
                 <Button type="button" variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
                 <Button type="submit" disabled={createStall.isPending || !isFormValid}
@@ -129,7 +137,7 @@ export function EventStallsPanel({ eventId, canDelete = false }: { eventId: stri
             </span>
             <p className="font-medium text-slate-700">No stalls yet</p>
             <p className="text-sm text-slate-500 max-w-xs">
-              Add a stall, then add the people who work its till so they can charge bands at this event.
+              Add a stall, then add the people who work its till so they can {tillJob(scope)}.
             </p>
             <Button onClick={() => setIsAddOpen(true)}
               className="mt-1 bg-gradient-to-r from-orange-600 to-amber-600 text-white hover:opacity-90">
@@ -144,7 +152,7 @@ export function EventStallsPanel({ eventId, canDelete = false }: { eventId: stri
           {visibleStalls.map((v: MerchantRow) => {
             const active = v.status === 'active';
             return (
-              <Card key={v._id} onClick={() => navigate(`/events/${eventId}/stalls/${v._id}`)}
+              <Card key={v._id} onClick={() => navigate(stallPath(scope, v._id))}
                 className={`group transition hover:shadow-md cursor-pointer ${active ? '' : 'opacity-75'}`}>
                 <CardContent className="pt-5 flex flex-col gap-4 h-full">
                   <div className="flex items-start gap-3 text-left">
@@ -153,7 +161,9 @@ export function EventStallsPanel({ eventId, canDelete = false }: { eventId: stri
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold text-slate-900 leading-tight truncate group-hover:text-orange-600">{v.name}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">{v.commissionPercent}% commission</p>
+                      {scope.kind === 'event' && (
+                        <p className="text-xs text-slate-500 mt-0.5">{v.commissionPercent}% commission</p>
+                      )}
                     </div>
                     <Badge variant={active ? 'default' : 'secondary'}>{active ? 'Active' : 'Disabled'}</Badge>
                   </div>
@@ -162,8 +172,8 @@ export function EventStallsPanel({ eventId, canDelete = false }: { eventId: stri
 
                   <div className="mt-auto space-y-2">
                     <EventResourceActions kind="stall" initial={{ name: v.name, commissionPercent: String(v.commissionPercent) }}
-                    canDelete={canDelete} queryKey={['merchants', eventId]}
-                    onSave={(values) => apiClient.merchants.update(v._id, { name: values.name, commissionPercent: Number(values.commissionPercent) })}
+                    canDelete={scope.kind === 'event' && canDelete} queryKey={['merchants', scopeKey(scope)]}
+                    onSave={(values) => apiClient.merchants.update(scope, v._id, { name: values.name, ...(scope.kind === 'event' ? { commissionPercent: Number(values.commissionPercent) } : {}) })}
                     onDelete={() => apiClient.merchants.delete(v._id)} />
                     <Button variant="outline" size="sm" disabled={pendingActiveId === v._id}
                       onClick={(e) => { e.stopPropagation(); setActive.mutate({ id: v._id, isActive: !active }); }}

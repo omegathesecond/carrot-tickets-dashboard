@@ -15,7 +15,7 @@ const listProducts = vi.fn();
 const createProduct = vi.fn();
 const updateProduct = vi.fn();
 const listMerchants = vi.fn();
-const getEventStockBoard = vi.fn();
+const stockBoard = vi.fn();
 const getAllocations = vi.fn();
 const setAllocations = vi.fn();
 
@@ -30,9 +30,9 @@ vi.mock('@/lib/api', async (importOriginal) => {
         updateProduct: (...a: unknown[]) => updateProduct(...a),
         getAllocations: (...a: unknown[]) => getAllocations(...a),
         setAllocations: (...a: unknown[]) => setAllocations(...a),
+        board: (...a: unknown[]) => stockBoard(...a),
       },
       merchants: { list: (...a: unknown[]) => listMerchants(...a) },
-      events: { getEventStockBoard: (...a: unknown[]) => getEventStockBoard(...a) },
     },
   };
 });
@@ -48,7 +48,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   listProducts.mockResolvedValue([BEER]);
   listMerchants.mockResolvedValue([BAR, SHI]);
-  getEventStockBoard.mockResolvedValue({ rows: [] });
+  stockBoard.mockResolvedValue({ rows: [] });
   getAllocations.mockResolvedValue({ allocations: { 'p-beer': ['m-bar'] } });
   createProduct.mockResolvedValue({ ...BEER, _id: 'p-new' });
   updateProduct.mockResolvedValue(BEER);
@@ -66,7 +66,7 @@ const renderPanel = () =>
   render(
     <MemoryRouter initialEntries={['/events/e1?view=catalogue']}>
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <EventCataloguePanel eventId="e1" />
+        <EventCataloguePanel scope={{ kind: 'event', eventId: 'e1' }} />
       </QueryClientProvider>
     </MemoryRouter>,
   );
@@ -99,7 +99,7 @@ describe('stall allocation on the product dialog', () => {
 
     // The product must exist before it can be allocated, so the id used here
     // is the one the create call returned — not anything from the form.
-    await waitFor(() => expect(setAllocations).toHaveBeenCalledWith('e1', {
+    await waitFor(() => expect(setAllocations).toHaveBeenCalledWith({ kind: 'event', eventId: 'e1' }, {
       productId: 'p-new',
       merchantIds: ['m-shi'],
     }));
@@ -122,7 +122,7 @@ describe('stall allocation on the product dialog', () => {
     fireEvent.click(await screen.findByRole('checkbox', { name: 'Shisanyama' }));
     fireEvent.click(screen.getByRole('button', { name: /^save changes$/i }));
 
-    await waitFor(() => expect(setAllocations).toHaveBeenCalledWith('e1', {
+    await waitFor(() => expect(setAllocations).toHaveBeenCalledWith({ kind: 'event', eventId: 'e1' }, {
       productId: 'p-beer',
       merchantIds: ['m-bar', 'm-shi'],
     }));
@@ -187,8 +187,8 @@ describe('unallocated products', () => {
     fireEvent.click(await screen.findByRole('button', { name: /allocate to all stalls/i }));
 
     await waitFor(() => expect(setAllocations).toHaveBeenCalledTimes(2));
-    expect(setAllocations).toHaveBeenCalledWith('e1', { productId: 'p-beer', merchantIds: ['m-bar', 'm-shi'] });
-    expect(setAllocations).toHaveBeenCalledWith('e1', { productId: 'p-chicken', merchantIds: ['m-bar', 'm-shi'] });
+    expect(setAllocations).toHaveBeenCalledWith({ kind: 'event', eventId: 'e1' }, { productId: 'p-beer', merchantIds: ['m-bar', 'm-shi'] });
+    expect(setAllocations).toHaveBeenCalledWith({ kind: 'event', eventId: 'e1' }, { productId: 'p-chicken', merchantIds: ['m-bar', 'm-shi'] });
   });
 
   it('reports a partial failure rather than claiming every product was allocated', async () => {

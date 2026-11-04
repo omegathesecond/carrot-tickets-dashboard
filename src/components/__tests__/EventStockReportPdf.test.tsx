@@ -11,11 +11,11 @@ import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { EventStockReport } from '@/components/EventStockReport';
 
-const getEventStockBoard = vi.fn();
-const getEventStockDashboard = vi.fn();
-const getEventStockReconciliation = vi.fn();
-const getEventStockMovements = vi.fn();
-const getEventStockReconciliationPdf = vi.fn();
+const stockBoard = vi.fn();
+const stockDashboard = vi.fn();
+const stockReconciliation = vi.fn();
+const stockMovements = vi.fn();
+const stockReconciliationPdf = vi.fn();
 const saveBlob = vi.fn();
 const toastError = vi.fn();
 
@@ -24,12 +24,12 @@ vi.mock('@/lib/api', async (importOriginal) => {
   return {
     ...actual,
     apiClient: {
-      events: {
-        getEventStockBoard: (...a: unknown[]) => getEventStockBoard(...a),
-        getEventStockDashboard: (...a: unknown[]) => getEventStockDashboard(...a),
-        getEventStockReconciliation: (...a: unknown[]) => getEventStockReconciliation(...a),
-        getEventStockMovements: (...a: unknown[]) => getEventStockMovements(...a),
-        getEventStockReconciliationPdf: (...a: unknown[]) => getEventStockReconciliationPdf(...a),
+      stock: {
+        board: (...a: unknown[]) => stockBoard(...a),
+        dashboard: (...a: unknown[]) => stockDashboard(...a),
+        reconciliation: (...a: unknown[]) => stockReconciliation(...a),
+        movements: (...a: unknown[]) => stockMovements(...a),
+        reconciliationPdf: (...a: unknown[]) => stockReconciliationPdf(...a),
       },
     },
   };
@@ -45,14 +45,14 @@ vi.mock('sonner', () => ({ toast: { error: (...a: unknown[]) => toastError(...a)
 function renderReport() {
   const pricing = { regularUnits: 4, specialUnits: 6, specialBundles: 1, unclassifiedUnits: 0,
     refundedNotRestockedUnits: 0, regularValue: 35000, discountAmount: 2000, salesRevenue: 33000 };
-  getEventStockBoard.mockResolvedValue({ event: { id: 'e1', name: 'Event' }, perBar: [], byProduct: [] });
-  getEventStockDashboard.mockResolvedValue({
+  stockBoard.mockResolvedValue({ event: { id: 'e1', name: 'Event' }, perBar: [], byProduct: [] });
+  stockDashboard.mockResolvedValue({
     event: { id: 'e1', name: 'Event' },
     revenueByProduct: [], bestSellers: [], salesByBar: [], salesByEmployee: [],
     itemisedSplit: { itemised: { gross: 0, count: 0 }, unitemised: { gross: 0, count: 0 } },
     peakTimes: [], variances: [], totalShrinkageUnits: 0, predictedStockOut: [], noRecentSales: 0,
   });
-  getEventStockReconciliation.mockResolvedValue({
+  stockReconciliation.mockResolvedValue({
     event: { id: 'e1', name: 'Ocean Summer Vibes', currency: 'SZL' },
     perBar: [],
     byProduct: [{
@@ -67,12 +67,12 @@ function renderReport() {
       spoilage: 0, manual: 0, expectedClosing: 12, physicalCount: 11, variance: -1,
     },
   });
-  getEventStockMovements.mockResolvedValue({ movements: [], nextCursor: null, hasMore: false });
+  stockMovements.mockResolvedValue({ movements: [], nextCursor: null, hasMore: false });
 
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <EventStockReport eventId="e1" />
+      <EventStockReport scope={{ kind: 'event', eventId: 'e1' }} />
     </QueryClientProvider>,
   );
 }
@@ -106,7 +106,7 @@ describe('the reconciliation can be downloaded as a PDF', () => {
 
   it('fetches the PDF and hands it to the browser', async () => {
     const blob = new Blob(['%PDF-'], { type: 'application/pdf' });
-    getEventStockReconciliationPdf.mockResolvedValue(blob);
+    stockReconciliationPdf.mockResolvedValue(blob);
     renderReport();
     openReconciliation();
     // Wait for the table, so the event name the filename is built from has
@@ -115,7 +115,7 @@ describe('the reconciliation can be downloaded as a PDF', () => {
 
     fireEvent.click(downloadButton());
 
-    await waitFor(() => expect(getEventStockReconciliationPdf).toHaveBeenCalledWith('e1'));
+    await waitFor(() => expect(stockReconciliationPdf).toHaveBeenCalledWith({ kind: 'event', eventId: 'e1' }, undefined));
     await waitFor(() => expect(saveBlob).toHaveBeenCalled());
     expect(saveBlob.mock.calls[0]![0]).toBe(blob);
     // Named after the event, so an organiser downloading two events' recons in
@@ -124,7 +124,7 @@ describe('the reconciliation can be downloaded as a PDF', () => {
   });
 
   it('surfaces a failure instead of saving an empty file', async () => {
-    getEventStockReconciliationPdf.mockRejectedValue(new Error('Session expired. Please log in again.'));
+    stockReconciliationPdf.mockRejectedValue(new Error('Session expired. Please log in again.'));
     renderReport();
     openReconciliation();
 
@@ -138,14 +138,14 @@ describe('the reconciliation can be downloaded as a PDF', () => {
 
   it('blocks a second click while the first download is in flight', async () => {
     let release: (b: Blob) => void = () => {};
-    getEventStockReconciliationPdf.mockReturnValue(new Promise<Blob>((r) => { release = r; }));
+    stockReconciliationPdf.mockReturnValue(new Promise<Blob>((r) => { release = r; }));
     renderReport();
     openReconciliation();
 
     fireEvent.click(await screen.findByRole('button', { name: /download pdf/i }));
     await waitFor(() => expect(downloadButton().disabled).toBe(true));
     fireEvent.click(downloadButton());
-    expect(getEventStockReconciliationPdf).toHaveBeenCalledTimes(1);
+    expect(stockReconciliationPdf).toHaveBeenCalledTimes(1);
 
     release(new Blob(['%PDF-']));
     await waitFor(() => expect(downloadButton().disabled).toBe(false));
