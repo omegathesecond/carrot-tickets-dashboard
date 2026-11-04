@@ -1,5 +1,5 @@
 // Local/deployer release automation: signing stays on this machine and the
-// contracts Cloudflare token is read from Secret Manager only for R2 requests.
+// canonical Cloudflare token is read from Secret Manager only for R2 requests.
 import {execFileSync} from 'node:child_process';
 import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
@@ -17,9 +17,9 @@ const releaseNotes = notesFile ? readFileSync(resolve(notesFile),'utf8').trim() 
 if (!recipients.length || recipients.some(to => !to || !(/^\+\d{8,15}$/.test(to) || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to))) || !apiDir) {
   throw new Error('Supply valid notification recipients and --api-dir (built Carrot API repository)');
 }
-const gc = values => execFileSync('gcloud',['--configuration=deployer',...values,'--project=contracts-470406'],{encoding:'utf8',stdio:['ignore','pipe','pipe']});
-const secret = (name,version='latest') => gc(['secrets','versions','access',version,'--secret='+name]).trim();
-const token = secret('CONTRACTS_CLOUDFLARE__API_TOKEN');
+const gc = (values, project='contracts-470406') => execFileSync('gcloud',['--configuration=deployer',...values,'--project='+project],{encoding:'utf8',stdio:['ignore','pipe','pipe']});
+const secret = (name,version='latest',project='contracts-470406') => gc(['secrets','versions','access',version,'--secret='+name],project).trim();
+const token = secret('CLOUDFLARE__API_TOKEN','latest','hiyebo');
 const service = JSON.parse(gc(['run','services','describe','carrot-tickets-api','--region=europe-west1','--format=json']));
 const env = service.spec.template.spec.containers[0].env;
 const binding = env.find(item=>item.name==='YEBOLINK_API_KEY')?.valueFrom?.secretKeyRef;
