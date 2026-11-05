@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { ArrowDownToLine, ArrowRight, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Inbox, Loader2, RefreshCw, Search, Tag, XCircle } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { canViewTagWithdrawals } from '@/lib/permissions';
+import { canViewTagWithdrawals, canProcessTagWithdrawals } from '@/lib/permissions';
 import { EventPicker } from '@/components/EventPicker';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -54,12 +54,12 @@ export function TagWithdrawalsPage() {
   const [completed, setCompleted] = useState(false);
   const { user, isLoading } = useAuth();
   const canView = canViewTagWithdrawals(user);
-  const isAdmin = !!user?.isSuperAdmin;
+  const canProcess = canProcessTagWithdrawals(user);
   const actor = String(user?._id);
   const client = useQueryClient();
-  const list = useQuery({ queryKey: ['tag-withdrawals', actor, isAdmin, debouncedSearch, status, page, eventId],
+  const list = useQuery({ queryKey: ['tag-withdrawals', actor, canProcess, debouncedSearch, status, page, eventId],
     queryFn: () => apiClient.tagWithdrawals.list(debouncedSearch, status === 'all' ? '' : status, page, eventId), enabled: canView, refetchInterval: 30_000 });
-  const detail = useQuery({ queryKey: ['tag-withdrawal', actor, isAdmin, selected], queryFn: () => apiClient.tagWithdrawals.detail(selected!),
+  const detail = useQuery({ queryKey: ['tag-withdrawal', actor, canProcess, selected], queryFn: () => apiClient.tagWithdrawals.detail(selected!),
     enabled: canView && !!selected, gcTime: 0 });
   const decide = useMutation({
     mutationFn: (next: TagWithdrawalStatus) => apiClient.tagWithdrawals.decide(selected!, { status: next,
@@ -73,8 +73,8 @@ export function TagWithdrawalsPage() {
     onError: (e: Error) => { toast.error(e.message); void detail.refetch(); },
   });
   const request = detail.data;
-  const mine = isAdmin && request?.status === 'processing' && request.processingBy === actor;
-  const details = isAdmin ? request?.details : undefined;
+  const mine = canProcess && request?.status === 'processing' && request.processingBy === actor;
+  const details = canProcess ? request?.details : undefined;
   function open(id: string) { setSelected(id); setReference(''); setReason(''); setCompleted(false); }
   if (isLoading) return null;
   if (!canView) return <Navigate to="/" replace />;
@@ -87,7 +87,7 @@ export function TagWithdrawalsPage() {
           </div>
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Tag withdrawals</h1>
-            <p className="mt-1 text-sm leading-relaxed text-slate-500">{isAdmin ? 'Review attendee balances and manage payouts.' : 'Track attendee withdrawal requests for your events.'}</p>
+            <p className="mt-1 text-sm leading-relaxed text-slate-500">{canProcess ? 'Review attendee balances and manage payouts.' : 'Track attendee withdrawal requests for your events.'}</p>
           </div>
         </div>
         <Button aria-label="Refresh" variant="outline" className="h-10 w-10 shrink-0 gap-2 rounded-lg bg-white px-0 text-slate-600 shadow-none sm:h-9 sm:w-auto sm:px-4" disabled={list.isFetching} onClick={() => void list.refetch()}>
@@ -107,7 +107,7 @@ export function TagWithdrawalsPage() {
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
           <p className="text-sm font-medium text-slate-600" aria-live="polite">{list.isLoading ? 'Loading requests…' : list.isError ? 'Requests unavailable' : `${list.data?.total ?? 0} ${list.data?.total === 1 ? 'request' : 'requests'}`}</p>
           <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
-            <EventPicker selectionMode="single" value={eventId ? [eventId] : []} cacheKey={`withdrawal-event-picker:${actor}:${isAdmin}`} searchEvents={apiClient.tagWithdrawals.events} className="w-full sm:w-60" onChange={ids => {
+            <EventPicker selectionMode="single" value={eventId ? [eventId] : []} cacheKey={`withdrawal-event-picker:${actor}:${canProcess}`} searchEvents={apiClient.tagWithdrawals.events} className="w-full sm:w-60" onChange={ids => {
               const next = new URLSearchParams(params);
               if (ids[0]) next.set('eventId', ids[0]); else next.delete('eventId');
               setParams(next, { replace: true });
@@ -142,7 +142,7 @@ export function TagWithdrawalsPage() {
                   <td role="cell" className="col-start-1 row-start-2 min-w-0 self-center xl:px-4 xl:py-5"><p className="break-words text-xs text-slate-600 xl:text-sm">{row.destinationSummary}</p><p className="mt-1 text-xs text-slate-400">{row.country === 'SZ' ? 'Eswatini' : 'South Africa'}</p></td>
                   <td role="cell" className="col-start-2 row-start-2 self-center text-right xl:whitespace-nowrap xl:px-4 xl:py-5"><p className="text-base font-semibold tabular-nums tracking-tight text-slate-900">{formatMoney(row.amount / 100, row.currency, { decimals: 2 })}</p><p className="mt-1 text-xs font-normal text-slate-400">{row.currency}</p></td>
                   <td role="cell" className="col-start-2 row-start-1 text-right xl:px-4 xl:py-5 xl:text-left"><WithdrawalStatusBadge status={row.status} /></td>
-                  <td role="cell" className="col-start-2 row-start-3 self-center text-right xl:py-5 xl:pl-2 xl:pr-6"><Button variant="ghost" className="h-8 gap-1.5 px-2 font-medium text-orange-600 hover:bg-orange-50 hover:text-orange-700" onClick={e => { e.stopPropagation(); open(row._id); }}>{isAdmin ? 'Review' : 'View'}<ArrowRight aria-hidden="true" className="h-3.5 w-3.5" /></Button></td>
+                  <td role="cell" className="col-start-2 row-start-3 self-center text-right xl:py-5 xl:pl-2 xl:pr-6"><Button variant="ghost" className="h-8 gap-1.5 px-2 font-medium text-orange-600 hover:bg-orange-50 hover:text-orange-700" onClick={e => { e.stopPropagation(); open(row._id); }}>{canProcess ? 'Review' : 'View'}<ArrowRight aria-hidden="true" className="h-3.5 w-3.5" /></Button></td>
                 </tr>)}
               </tbody>
             </table>
@@ -157,7 +157,7 @@ export function TagWithdrawalsPage() {
           </>}
         </TabsContent>
       </Tabs>
-    <Dialog open={!!selected} onOpenChange={open => { if (!open && !decide.isPending) setSelected(null); }}><DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border-slate-200 p-6 sm:w-full sm:p-8"><DialogHeader><DialogTitle>Attendee withdrawal</DialogTitle><DialogDescription>{isAdmin ? 'Claim the request before sending money. Confirm it only after the payout has completed.' : 'View the request status and payment history. Carrot administrators handle the payout.'}</DialogDescription></DialogHeader>
+    <Dialog open={!!selected} onOpenChange={open => { if (!open && !decide.isPending) setSelected(null); }}><DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border-slate-200 p-6 sm:w-full sm:p-8"><DialogHeader><DialogTitle>Attendee withdrawal</DialogTitle><DialogDescription>{canProcess ? 'Claim the request before sending money. Confirm it only after the payout has completed.' : 'View the request status and payment history.'}</DialogDescription></DialogHeader>
       {detail.isLoading ? <p>Loading payout details…</p> : detail.isError ? <p role="alert" className="text-red-600">{detail.error.message}</p> : request && <div className="space-y-5">
         <div className="rounded-xl border border-slate-100 bg-slate-50 p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><span className="text-xs font-medium uppercase tracking-wider text-slate-500">Withdrawal amount</span><WithdrawalStatusBadge status={request.status} /></div>
@@ -170,10 +170,10 @@ export function TagWithdrawalsPage() {
         {(mine || request.status === 'paid') && details && <section className="rounded-xl border border-slate-200 p-5 space-y-2 text-sm"><h3 className="font-semibold">{request.method === 'mobile_money' ? 'Mobile money payout' : 'Bank payout'} · {request.country === 'SZ' ? 'Eswatini' : 'South Africa'}</h3>
           {details.bank ? <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2">{Object.entries({ Bank: details.bank.bank, 'Account holder': details.bank.accountHolder, 'Account type': details.bank.accountType, 'Account number': details.bank.accountNumber, 'Branch code': details.bank.branchCode }).map(([key, value]) => <div key={key} className="contents"><dt className="text-slate-500">{key}</dt><dd className="break-all select-all font-medium">{value}</dd></div>)}</dl> : <><p>{details.provider}</p><p className="select-all font-mono text-lg">{details.mobileNumber}</p></>}
         </section>}
-        {isAdmin && request.status === 'pending' && <div className="space-y-3 rounded-xl border border-orange-100 bg-orange-50/50 p-5"><p className="text-sm text-slate-500">The attendee’s balance is reserved. Start processing to assign this payout to yourself and reveal payment details.</p><Button disabled={decide.isPending} onClick={() => decide.mutate('processing')}>Start processing</Button></div>}
-        {isAdmin && request.status === 'processing' && !mine && <p className="rounded-lg bg-amber-50 p-4 text-sm">Another administrator is processing this payment. Do not send a second payout.</p>}
+        {canProcess && request.status === 'pending' && <div className="space-y-3 rounded-xl border border-orange-100 bg-orange-50/50 p-5"><p className="text-sm text-slate-500">The attendee’s balance is reserved. Start processing to assign this payout to yourself and reveal payment details.</p><Button disabled={decide.isPending} onClick={() => decide.mutate('processing')}>Start processing</Button></div>}
+        {canProcess && request.status === 'processing' && !mine && <p className="rounded-lg bg-amber-50 p-4 text-sm">Another person is processing this payment. Do not send a second payout.</p>}
         {mine && <section className="space-y-3 rounded-xl border border-slate-200 p-5"><h3 className="font-semibold">Confirm completed payment</h3><p className="text-sm text-slate-500">Send the amount using your bank or mobile-money service, then record the transaction reference here.</p><Label htmlFor="payment-reference">Payment reference</Label><Input id="payment-reference" value={reference} maxLength={120} onChange={e => setReference(e.target.value)} /><label className="flex gap-2 text-sm"><input type="checkbox" checked={completed} onChange={e => setCompleted(e.target.checked)} />I have sent this payment and confirmed it completed.</label><Button disabled={decide.isPending || !completed || !reference.trim()} onClick={() => decide.mutate('paid')}>Confirm paid</Button></section>}
-        {isAdmin && (request.status === 'pending' || mine) && <section className="border-t border-slate-100 pt-5 space-y-2"><Label htmlFor="rejection-reason">Unable to pay? Give the attendee a reason</Label><Input id="rejection-reason" value={reason} maxLength={1000} onChange={e => setReason(e.target.value)} /><p className="text-xs text-slate-500">Reject only if no money was sent. The balance will be released so the attendee can request again.</p><Button variant="destructive" disabled={decide.isPending || !reason.trim()} onClick={() => decide.mutate('rejected')}>Reject and release balance</Button></section>}
+        {canProcess && (request.status === 'pending' || mine) && <section className="border-t border-slate-100 pt-5 space-y-2"><Label htmlFor="rejection-reason">Unable to pay? Give the attendee a reason</Label><Input id="rejection-reason" value={reason} maxLength={1000} onChange={e => setReason(e.target.value)} /><p className="text-xs text-slate-500">Reject only if no money was sent. The balance will be released so the attendee can request again.</p><Button variant="destructive" disabled={decide.isPending || !reason.trim()} onClick={() => decide.mutate('rejected')}>Reject and release balance</Button></section>}
         {request.paymentReference && <p className="text-sm">Payment reference: <strong>{request.paymentReference}</strong>{request.paidAt && ` · ${new Date(request.paidAt).toLocaleString()}`}</p>}
         {request.rejectionReason && <p className="text-sm">Reason: {request.rejectionReason}</p>}
         <section className="border-t border-slate-100 pt-5"><h3 className="mb-4 text-sm font-semibold text-slate-900">History</h3><ol className="ml-1.5 space-y-5 border-l border-slate-200 text-sm">{request.history.map((item, i) => <li key={i} className="relative pl-5"><span aria-hidden="true" className="absolute -left-1 top-1.5 h-2 w-2 rounded-full bg-orange-400 ring-4 ring-white" /><p className="font-medium text-slate-700">{statuses[item.status].label}</p><p className="mt-1 text-xs text-slate-400">{new Date(item.at).toLocaleString()}</p>{item.note && <p className="mt-1.5 text-slate-500">{item.note}</p>}</li>)}</ol></section>

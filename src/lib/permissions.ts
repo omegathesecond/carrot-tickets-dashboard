@@ -187,9 +187,13 @@ export function canIssueTags(user: AuthUser | null | undefined): boolean {
   return hasPermission(user, TicketsPermission.ISSUE_TAGS);
 }
 
-/** Withdrawal visibility follows financial access; payout decisions remain admin-only. */
+/** Financial staff can view requests; event owners can process their own payouts. */
 export function canViewTagWithdrawals(user: AuthUser | null | undefined): boolean {
   return !!user && (!!user.isSuperAdmin || (user.permissions ?? []).includes(TicketsPermission.VIEW_REVENUE));
+}
+
+export function canProcessTagWithdrawals(user: AuthUser | null | undefined): boolean {
+  return canViewTagWithdrawals(user) && (!!user?.isSuperAdmin || user?.userType === 'vendor');
 }
 
 /** Venue trading section — the vendor's own venue (stalls, staff, settings). */
