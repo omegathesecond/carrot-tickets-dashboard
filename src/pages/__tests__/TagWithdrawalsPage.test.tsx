@@ -33,9 +33,12 @@ beforeEach(() => {
   });
 });
 afterEach(cleanup);
-it('requires processing before showing payment details, then requires a reference and confirmation', async () => {
+it('shows payment details on opening but requires processing, a reference and confirmation to mark paid', async () => {
   page(); fireEvent.click(await screen.findByRole('button', { name: 'Review' }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Start processing' }));
+  expect(await screen.findByText('012345678901')).toBeTruthy();
+  expect(apiClient.tagWithdrawals.decide).not.toHaveBeenCalled();
+  expect(screen.queryByRole('button', { name: 'Confirm paid' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Start processing' }));
   await screen.findByRole('heading', { name: 'Confirm completed payment' });
   expect(screen.getByText('012345678901')).toBeTruthy();
   const confirm = screen.getByRole('button', { name: 'Confirm paid' }) as HTMLButtonElement;
@@ -50,7 +53,7 @@ it('blocks a second administrator from paying a claimed request', async () => {
   page(); fireEvent.click(await screen.findByRole('button', { name: 'Review' }));
   await screen.findByText(/Another person is processing/);
   expect(screen.queryByRole('button', { name: 'Confirm paid' })).toBeNull();
-  expect(screen.queryByText('012345678901')).toBeNull();
+  expect(await screen.findByText('012345678901')).toBeTruthy();
 });
 it('shows load failures instead of an empty queue', async () => {
   vi.mocked(apiClient.tagWithdrawals.list).mockRejectedValue(new Error('Service unavailable'));
@@ -158,18 +161,23 @@ it('shows an event lookup failure instead of an empty event filter', async () =>
 });
 
 
-it('lets an event owner process a withdrawal and keeps bank details visible when reopening it', async () => {
+it.each(['bank_transfer', 'mobile_money'] as const)('shows the event owner full %s details on opening and keeps them when processing/reopening', async method => {
   auth.user = { _id: 'organizer-1', isSuperAdmin: false, permissions: ['tickets:view_revenue'], userType: 'vendor' };
+  const paymentDetail = method === 'bank_transfer' ? '012345678901' : '+26878422613';
+  if (method === 'mobile_money') row = { ...row, method, country: 'SZ', details: { fullName: 'Attendee', contactPhone: '+26879990000', mobileNumber: paymentDetail, provider: 'MTN MoMo' } };
   vi.mocked(apiClient.tagWithdrawals.decide).mockImplementation(async (_id, data) => {
     row = { ...row, status: data.status, processingBy: 'organizer-1', paymentReference: data.paymentReference }; return row;
   });
   page(); fireEvent.click(await screen.findByRole('button', { name: 'Review' }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Start processing' }));
+  expect(await screen.findByText(paymentDetail)).toBeTruthy();
+  expect(apiClient.tagWithdrawals.decide).not.toHaveBeenCalled();
+  expect(screen.queryByRole('button', { name: 'Confirm paid' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Start processing' }));
   await screen.findByRole('heading', { name: 'Confirm completed payment' });
-  expect(screen.getByText('012345678901')).toBeTruthy();
+  expect(screen.getByText(paymentDetail)).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Close' }));
   fireEvent.click(screen.getByRole('button', { name: 'Review' }));
-  expect(await screen.findByText('012345678901')).toBeTruthy();
+  expect(await screen.findByText(paymentDetail)).toBeTruthy();
   const confirm = screen.getByRole('button', { name: 'Confirm paid' }) as HTMLButtonElement;
   expect(confirm.disabled).toBe(true);
   fireEvent.change(screen.getByLabelText('Payment reference'), { target: { value: 'OWNER-123' } });
@@ -184,5 +192,5 @@ it('prevents an organizer from paying a request already claimed by someone else'
   page(); fireEvent.click(await screen.findByRole('button', { name: 'Review' }));
   await screen.findByText(/Another person is processing/);
   expect(screen.queryByRole('button', { name: 'Confirm paid' })).toBeNull();
-  expect(screen.queryByText('012345678901')).toBeNull();
+  expect(await screen.findByText('012345678901')).toBeTruthy();
 });
