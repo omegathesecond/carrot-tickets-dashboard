@@ -5,11 +5,13 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TagWithdrawalsPage } from '../TagWithdrawalsPage';
 import { apiClient } from '@/lib/api';
+import { toast } from 'sonner';
 import type { TagWithdrawalRequest } from '@/types/tagWithdrawal';
 vi.mock('@/lib/api', () => ({ apiClient: { tagWithdrawals: { events: vi.fn(), list: vi.fn(), detail: vi.fn(), decide: vi.fn() } } }));
 const auth = vi.hoisted(() => ({ user: { _id: 'admin-1', isSuperAdmin: true, permissions: [] as string[], userType: undefined as 'vendor' | 'sub-user' | undefined } }));
 vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: auth.user, isLoading: false }) }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+const writeClipboard = vi.fn();
 let row: TagWithdrawalRequest;
 function page() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
@@ -17,6 +19,8 @@ function page() {
 }
 beforeEach(() => {
   vi.clearAllMocks();
+  writeClipboard.mockResolvedValue(undefined);
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: writeClipboard } });
   auth.user = { _id: 'admin-1', isSuperAdmin: true, permissions: [], userType: undefined };
   vi.mocked(apiClient.tagWithdrawals.events).mockResolvedValue([{ id: 'event-1', name: 'Festival' }]);
   row = { _id: 'request-1', eventId: 'event-1', walletId: 'wallet-1', eventName: 'Festival', bandUid: '0ae98d36', amount: 12345,
@@ -170,6 +174,10 @@ it.each(['bank_transfer', 'mobile_money'] as const)('shows the event owner full 
   });
   page(); fireEvent.click(await screen.findByRole('button', { name: 'Review' }));
   expect(await screen.findByText(paymentDetail)).toBeTruthy();
+  const numberLabel = method === 'bank_transfer' ? 'Bank account number' : 'Mobile money number';
+  fireEvent.click(screen.getByRole('button', { name: `Copy ${numberLabel.toLowerCase()}` }));
+  await waitFor(() => expect(writeClipboard).toHaveBeenCalledWith(paymentDetail));
+  expect(toast.success).toHaveBeenCalledWith(`${numberLabel} copied`);
   expect(apiClient.tagWithdrawals.decide).not.toHaveBeenCalled();
   expect(screen.queryByRole('button', { name: 'Confirm paid' })).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Start processing' }));
@@ -193,4 +201,14 @@ it('prevents an organizer from paying a request already claimed by someone else'
   await screen.findByText(/Another person is processing/);
   expect(screen.queryByRole('button', { name: 'Confirm paid' })).toBeNull();
   expect(await screen.findByText('012345678901')).toBeTruthy();
+});
+
+
+it('reports clipboard failures instead of confirming that the payment number was copied', async () => {
+  writeClipboard.mockRejectedValue(new Error('Clipboard permission denied'));
+  page(); fireEvent.click(await screen.findByRole('button', { name: 'Review' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Copy bank account number' }));
+  await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Could not copy bank account number. Select and copy the number manually.'));
+  expect(toast.success).not.toHaveBeenCalled();
+  expect(apiClient.tagWithdrawals.decide).not.toHaveBeenCalled();
 });

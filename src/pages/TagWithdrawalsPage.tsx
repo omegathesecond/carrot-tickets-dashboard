@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowDownToLine, ArrowRight, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Inbox, Loader2, RefreshCw, Search, Tag, XCircle } from 'lucide-react';
+import { ArrowDownToLine, ArrowRight, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Copy, Inbox, Loader2, RefreshCw, Search, Tag, XCircle } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { canViewTagWithdrawals, canProcessTagWithdrawals } from '@/lib/permissions';
@@ -32,6 +32,20 @@ function WithdrawalStatusBadge({ status }: { status: TagWithdrawalStatus }) {
   return <Badge variant="outline" className={cn('gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 font-medium', color)}>
     <Icon aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />{label}
   </Badge>;
+}
+
+function CopyPaymentNumberButton({ value, label }: { value: string; label: string }) {
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success(`${label} copied`);
+    } catch {
+      toast.error(`Could not copy ${label.toLowerCase()}. Select and copy the number manually.`);
+    }
+  }
+  return <Button type="button" variant="outline" size="sm" className="h-10 shrink-0 gap-1.5 sm:h-8" aria-label={`Copy ${label.toLowerCase()}`} onClick={() => void copy()}>
+    <Copy aria-hidden="true" className="h-3.5 w-3.5" />Copy
+  </Button>;
 }
 
 export function TagWithdrawalsPage() {
@@ -168,7 +182,7 @@ export function TagWithdrawalsPage() {
         </div>
         {details && <section className="space-y-1 text-sm text-slate-600"><h3 className="mb-2 font-semibold text-slate-900">Contact</h3><p>{details.fullName}</p><p>{details.contactPhone}</p>{details.email && <p>{details.email}</p>}</section>}
         {details && <section className="rounded-xl border border-slate-200 p-5 space-y-2 text-sm"><h3 className="font-semibold">{request.method === 'mobile_money' ? 'Mobile money payout' : 'Bank payout'} · {request.country === 'SZ' ? 'Eswatini' : 'South Africa'}</h3>
-          {details.bank ? <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2">{Object.entries({ Bank: details.bank.bank, 'Account holder': details.bank.accountHolder, 'Account type': details.bank.accountType, 'Account number': details.bank.accountNumber, 'Branch code': details.bank.branchCode }).map(([key, value]) => <div key={key} className="contents"><dt className="text-slate-500">{key}</dt><dd className="break-all select-all font-medium">{value}</dd></div>)}</dl> : <><p>{details.provider}</p><p className="select-all font-mono text-lg">{details.mobileNumber}</p></>}
+          {details.bank ? <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2">{Object.entries({ Bank: details.bank.bank, 'Account holder': details.bank.accountHolder, 'Account type': details.bank.accountType, 'Account number': details.bank.accountNumber, 'Branch code': details.bank.branchCode }).map(([key, value]) => <div key={key} className="contents"><dt className="self-center text-slate-500">{key}</dt><dd className="flex min-w-0 items-center justify-between gap-2 font-medium"><span className="min-w-0 break-all select-all">{value}</span>{key === 'Account number' && <CopyPaymentNumberButton value={value} label="Bank account number" />}</dd></div>)}</dl> : <><p>{details.provider}</p><div className="flex items-center justify-between gap-3"><p className="min-w-0 break-all select-all font-mono text-lg">{details.mobileNumber}</p>{details.mobileNumber && <CopyPaymentNumberButton value={details.mobileNumber} label="Mobile money number" />}</div></>}
         </section>}
         {canProcess && request.status === 'pending' && <div className="space-y-3 rounded-xl border border-orange-100 bg-orange-50/50 p-5"><p className="text-sm text-slate-500">The attendee’s balance is reserved. Start processing to assign this payout to yourself before sending money.</p><Button disabled={decide.isPending} onClick={() => decide.mutate('processing')}>Start processing</Button></div>}
         {canProcess && request.status === 'processing' && !mine && <p className="rounded-lg bg-amber-50 p-4 text-sm">Another person is processing this payment. Do not send a second payout.</p>}
