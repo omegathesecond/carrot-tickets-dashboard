@@ -7,7 +7,7 @@ import { TagWithdrawalsPage } from '../TagWithdrawalsPage';
 import { apiClient } from '@/lib/api';
 import type { TagWithdrawalRequest } from '@/types/tagWithdrawal';
 vi.mock('@/lib/api', () => ({ apiClient: { tagWithdrawals: { events: vi.fn(), list: vi.fn(), detail: vi.fn(), decide: vi.fn() } } }));
-const auth = vi.hoisted(() => ({ user: { _id: 'admin-1', isSuperAdmin: true, permissions: [] as string[] } }));
+const auth = vi.hoisted(() => ({ user: { _id: 'admin-1', isSuperAdmin: true, permissions: [] as string[], userType: undefined as 'vendor' | 'sub-user' | undefined } }));
 vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: auth.user, isLoading: false }) }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 let row: TagWithdrawalRequest;
@@ -17,7 +17,7 @@ function page() {
 }
 beforeEach(() => {
   vi.clearAllMocks();
-  auth.user = { _id: 'admin-1', isSuperAdmin: true, permissions: [] };
+  auth.user = { _id: 'admin-1', isSuperAdmin: true, permissions: [], userType: undefined };
   vi.mocked(apiClient.tagWithdrawals.events).mockResolvedValue([{ id: 'event-1', name: 'Festival' }]);
   row = { _id: 'request-1', eventId: 'event-1', walletId: 'wallet-1', eventName: 'Festival', bandUid: '0ae98d36', amount: 12345,
     currency: 'ZAR', country: 'ZA', method: 'bank_transfer', status: 'pending', destinationSummary: 'Test Bank ••••8901',
@@ -48,7 +48,7 @@ it('requires processing before showing payment details, then requires a referenc
 it('blocks a second administrator from paying a claimed request', async () => {
   row = { ...row, status: 'processing', processingBy: 'another-admin' };
   page(); fireEvent.click(await screen.findByRole('button', { name: 'Review' }));
-  await screen.findByText(/Another administrator is processing/);
+  await screen.findByText(/Another person is processing/);
   expect(screen.queryByRole('button', { name: 'Confirm paid' })).toBeNull();
   expect(screen.queryByText('012345678901')).toBeNull();
 });
@@ -86,10 +86,10 @@ it('filters by each status tab and resets pagination when switching tabs', async
   }
 });
 
-it('lets financial organizers view requests without payout actions or payment details', async () => {
-  auth.user = { _id: 'organizer-1', isSuperAdmin: false, permissions: ['tickets:view_revenue'] };
+it('keeps financial staff read-only without payout actions or payment details', async () => {
+  auth.user = { _id: 'organizer-1', isSuperAdmin: false, permissions: ['tickets:view_revenue'], userType: 'sub-user' };
   page(); fireEvent.click(await screen.findByRole('button', { name: 'View' }));
-  await screen.findByText(/Carrot administrators handle the payout/);
+  await screen.findByText('View the request status and payment history.');
   expect(screen.queryByRole('button', { name: 'Start processing' })).toBeNull();
   expect(screen.queryByRole('button', { name: 'Reject and release balance' })).toBeNull();
   expect(screen.queryByText('012345678901')).toBeNull();
@@ -97,7 +97,7 @@ it('lets financial organizers view requests without payout actions or payment de
 });
 
 it('does not fetch requests for accounts without financial permission', async () => {
-  auth.user = { _id: 'scanner-1', isSuperAdmin: false, permissions: ['tickets:scan_tickets'] };
+  auth.user = { _id: 'scanner-1', isSuperAdmin: false, permissions: ['tickets:scan_tickets'], userType: 'sub-user' };
   page();
   expect(apiClient.tagWithdrawals.list).not.toHaveBeenCalled();
   expect(screen.queryByRole('heading', { name: 'Tag withdrawals' })).toBeNull();
@@ -155,4 +155,34 @@ it('shows an event lookup failure instead of an empty event filter', async () =>
   fireEvent.click(screen.getByRole('combobox'));
   expect((await screen.findByRole('alert')).textContent).toContain('Event lookup unavailable');
   expect(screen.queryByText('No events found')).toBeNull();
+});
+
+
+it('lets an event owner process a withdrawal and keeps bank details visible when reopening it', async () => {
+  auth.user = { _id: 'organizer-1', isSuperAdmin: false, permissions: ['tickets:view_revenue'], userType: 'vendor' };
+  vi.mocked(apiClient.tagWithdrawals.decide).mockImplementation(async (_id, data) => {
+    row = { ...row, status: data.status, processingBy: 'organizer-1', paymentReference: data.paymentReference }; return row;
+  });
+  page(); fireEvent.click(await screen.findByRole('button', { name: 'Review' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Start processing' }));
+  await screen.findByRole('heading', { name: 'Confirm completed payment' });
+  expect(screen.getByText('012345678901')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Review' }));
+  expect(await screen.findByText('012345678901')).toBeTruthy();
+  const confirm = screen.getByRole('button', { name: 'Confirm paid' }) as HTMLButtonElement;
+  expect(confirm.disabled).toBe(true);
+  fireEvent.change(screen.getByLabelText('Payment reference'), { target: { value: 'OWNER-123' } });
+  fireEvent.click(screen.getByRole('checkbox', { name: 'I have sent this payment and confirmed it completed.' }));
+  fireEvent.click(confirm);
+  await waitFor(() => expect(apiClient.tagWithdrawals.decide).toHaveBeenLastCalledWith('request-1', { status: 'paid', paymentReference: 'OWNER-123', paymentCompleted: true }));
+});
+
+it('prevents an organizer from paying a request already claimed by someone else', async () => {
+  auth.user = { _id: 'organizer-1', isSuperAdmin: false, permissions: ['tickets:view_revenue'], userType: 'vendor' };
+  row = { ...row, status: 'processing', processingBy: 'another-person' };
+  page(); fireEvent.click(await screen.findByRole('button', { name: 'Review' }));
+  await screen.findByText(/Another person is processing/);
+  expect(screen.queryByRole('button', { name: 'Confirm paid' })).toBeNull();
+  expect(screen.queryByText('012345678901')).toBeNull();
 });
