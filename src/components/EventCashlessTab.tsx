@@ -152,11 +152,7 @@ export function EventCashlessTab({ eventId, eventName }: Props) {
         ))}
       </TabsContent>
       <TabsContent value="manage">
-<<<<<<< HEAD
-        <EventStallsPanel canDelete={!!user?.isSuperAdmin} scope={{ kind: 'event', eventId }} />
-=======
         <EventStallsPanel key={eventId} canDelete={!!user?.isSuperAdmin} scope={{ kind: 'event', eventId }} />
->>>>>>> release/nearby-prod
       </TabsContent>
     </Tabs>
   );

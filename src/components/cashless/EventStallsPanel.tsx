@@ -14,7 +14,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { ViewAffordance } from '@/components/ViewAffordance';
 import { scopeKey, stallPath, type StockScope } from '@/lib/stockScope';
 import { matchesSearch } from '@/lib/search';
-import { scopeKey, stallPath, type StockScope } from '@/lib/stockScope';
 
 const initialsOf = (name: string) =>
   name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
@@ -172,15 +171,9 @@ export function EventStallsPanel({ scope, canDelete = false }: { scope: StockSco
                   <ViewAffordance label="View stall" />
 
                   <div className="mt-auto space-y-2">
-<<<<<<< HEAD
                     <EventResourceActions kind="stall" initial={{ name: v.name, ...(scope.kind === 'event' ? { commissionPercent: String(v.commissionPercent) } : {}) }}
                     canDelete={scope.kind === 'event' && canDelete} queryKey={['merchants', scopeKey(scope)]}
-                    onSave={(values) => apiClient.merchants.update(scope, v._id, { name: values.name, commissionPercent: Number(values.commissionPercent) })}
-=======
-                    <EventResourceActions kind="stall" initial={{ name: v.name, commissionPercent: String(v.commissionPercent) }}
-                    canDelete={scope.kind === 'event' && canDelete} queryKey={['merchants', scopeKey(scope)]}
                     onSave={(values) => apiClient.merchants.update(scope, v._id, { name: values.name, ...(scope.kind === 'event' ? { commissionPercent: Number(values.commissionPercent) } : {}) })}
->>>>>>> release/nearby-prod
                     onDelete={() => apiClient.merchants.delete(v._id)} />
                     <Button variant="outline" size="sm" disabled={pendingActiveId === v._id}
                       onClick={(e) => { e.stopPropagation(); setActive.mutate({ id: v._id, isActive: !active }); }}

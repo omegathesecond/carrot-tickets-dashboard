@@ -583,11 +583,7 @@ export function EventCataloguePanel({ scope, currency = 'ZAR' }: { scope: StockS
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard icon={<TrendingUp className="h-4 w-4" />} label="Units sold" value={totals.unitsSold.toLocaleString('en-ZA')} hint="rung up on itemised charges" tone="blue" />
             <StatCard icon={<Coins className="h-4 w-4" />} label="Sales" value={fmtCents(totals.revenue, currency)} hint="what those units took" tone="green" />
-<<<<<<< HEAD
-            <StatCard icon={<Boxes className="h-4 w-4" />} label="On hand" value={totals.onHand.toLocaleString('en-ZA')} hint="units still on the shelf" tone="ink" />
-=======
             <StatCard icon={<Boxes className="h-4 w-4" />} label="On hand" value={totals.uncounted ? 'Not counted' : totals.onHand.toLocaleString('en-ZA')} hint={totals.uncounted ? 'Inventory quantities are not tracked' : 'units still on the shelf'} tone="ink" />
->>>>>>> release/nearby-prod
             <StatCard icon={<AlertTriangle className="h-4 w-4" />} label="Needs attention" value={String(totals.needsAttention)} hint="products low or sold out" tone="orange" />
           </div>
 

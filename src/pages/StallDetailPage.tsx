@@ -10,11 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { TransactionDetailDialog, type TxnDetail } from '@/components/TransactionDetailDialog';
 import { StallOperatorsPanel } from '@/components/StallOperatorsPanel';
-<<<<<<< HEAD
-import type { StockScope } from '@/lib/stockScope';
-=======
 import { StallMenuPanel } from '@/components/StallMenuPanel';
->>>>>>> release/nearby-prod
 import { Input } from '@/components/ui/input';
 import { matchesSearch } from '@/lib/search';
 import { fmtR } from '@/lib/money';
@@ -44,17 +40,12 @@ export function StallDetailPage() {
   const [search, setSearch] = useState('');
 
   const { data, isLoading, error } = useQuery({
-<<<<<<< HEAD
-    queryKey: ['stall-detail', merchantId],
-    queryFn: () => apiClient.merchants.transactions(scope, merchantId),
-=======
     queryKey: ['stall-detail', scopeKey(scope), merchantId],
     queryFn: async () => {
       const detail = await apiClient.merchants.transactions(scope, merchantId);
       if (scope.kind === 'event' && detail.event?.id !== id) throw new Error('This stall does not belong to this event.');
       return detail;
     },
->>>>>>> release/nearby-prod
     retry: false,
   });
   // The stall belongs to an event or a venue — the API names whichever it is.
@@ -124,11 +115,7 @@ export function StallDetailPage() {
 
             <Card>
               <CardContent className="pt-6">
-<<<<<<< HEAD
-                <StallOperatorsPanel scope={scope} canDelete={!!user?.isSuperAdmin} merchantId={merchantId} stallName={data.merchant.name} />
-=======
                 <StallOperatorsPanel key={merchantId} canDelete={scope.kind === 'event' && !!user?.isSuperAdmin} scope={scope} merchantId={merchantId} stallName={data.merchant.name} />
->>>>>>> release/nearby-prod
               </CardContent>
             </Card>
 

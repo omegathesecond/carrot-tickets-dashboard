@@ -7,9 +7,6 @@ import { fmtCents } from '@/lib/money';
 import type { Currency } from '@/lib/currency';
 import { scopeKey, type StockScope } from '@/lib/stockScope';
 import { formatMoney } from '@/lib/currency';
-import { fmtCents } from '@/lib/money';
-import type { Currency } from '@/lib/currency';
-import { scopeKey, type StockScope } from '@/lib/stockScope';
 import { saveBlob } from '@/lib/ticketDownloads';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -332,11 +329,7 @@ function ReconciliationSection({ scope, currency }: { scope: StockScope; currenc
               </TableBody>
             </Table>
           </div>
-<<<<<<< HEAD
           {data && scope.kind === 'event' && <SalesPricingAudit data={data} currency={currency} />}
-=======
-          {data && <SalesPricingAudit data={data} currency={currency} />}
->>>>>>> release/nearby-prod
         </SectionState>
       </CardContent>
     </Card>
@@ -356,11 +349,7 @@ function SalesPricingAudit({ data, currency }: { data: import('@/lib/api').Stock
   ] as const;
   const values = (row: typeof data.total) => columns.map(col => (
     <TableCell key={col.key} className="text-right tabular-nums">
-<<<<<<< HEAD
       {'money' in col ? formatMoney(row[col.key] / 100, data.event?.currency ?? currency, { decimals: 2 }) : row[col.key]}
-=======
-      {'money' in col ? formatMoney(row[col.key] / 100, currency, { decimals: 2 }) : row[col.key]}
->>>>>>> release/nearby-prod
     </TableCell>
   ));
   return <div className="mt-6 space-y-3">

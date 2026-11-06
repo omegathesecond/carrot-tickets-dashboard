@@ -12,7 +12,6 @@ import { OperatorCredentialsDialog } from '@/components/OperatorCredentialsDialo
 import { OperatorGrantsField } from '@/components/OperatorGrantsField';
 import type { StockScope } from '@/lib/stockScope';
 import { matchesSearch } from '@/lib/search';
-import type { StockScope } from '@/lib/stockScope';
 
 type Credentials = { title: string; operatorName: string; phoneNumber?: string; loginCode: string; pin: string };
 
@@ -25,11 +24,7 @@ type Credentials = { title: string; operatorName: string; phoneNumber?: string; 
  * already loads under MANAGE_ACCESS, so no separate permission gate is
  * needed here.
  */
-<<<<<<< HEAD
-export function StallOperatorsPanel({ scope, merchantId, stallName, canDelete = false }: { scope: StockScope; canDelete?: boolean; merchantId: string; stallName: string }) {
-=======
 export function StallOperatorsPanel({ scope, merchantId, stallName, canDelete = false }: { scope: StockScope; merchantId: string; stallName: string; canDelete?: boolean }) {
->>>>>>> release/nearby-prod
   const qc = useQueryClient();
   const [adding, setAdding] = useState(false);
   const [search, setSearch] = useState('');
@@ -46,10 +41,7 @@ export function StallOperatorsPanel({ scope, merchantId, stallName, canDelete = 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['merchantOperators', merchantId] });
 
   const create = useMutation({
-<<<<<<< HEAD
-=======
     gcTime: 0,
->>>>>>> release/nearby-prod
     mutationFn: () => apiClient.merchantOperators.create(scope, merchantId, {
       fullName: form.fullName.trim(),
       ...(form.phoneNumber.trim() ? { phoneNumber: form.phoneNumber.trim() } : {}),
@@ -65,14 +57,9 @@ export function StallOperatorsPanel({ scope, merchantId, stallName, canDelete = 
   });
 
   const resetPin = useMutation({
-<<<<<<< HEAD
-    mutationFn: (id: string) => apiClient.merchantOperators.resetPin(scope, id),
-    onSuccess: (res) => setCredentials({ title: 'New PIN', pin: res.pin }),
-=======
     gcTime: 0,
     mutationFn: (operator: MerchantOperatorRow) => apiClient.merchantOperators.resetPin(scope, operator._id),
     onSuccess: (res, operator) => setCredentials({ title: `${operator.fullName} — new PIN`, operatorName: operator.fullName, phoneNumber: operator.phoneNumber, loginCode: operator.loginCode, pin: res.pin }),
->>>>>>> release/nearby-prod
     onError: (e: Error) => toast.error(e.message || 'Failed to reset PIN'),
   });
 
@@ -162,11 +149,7 @@ export function StallOperatorsPanel({ scope, merchantId, stallName, canDelete = 
                 </div>
               </div>
               <EventResourceActions kind="till staff" initial={{ name: op.fullName, phoneNumber: op.phoneNumber ?? '' }}
-<<<<<<< HEAD
                     canDelete={scope.kind === 'event' && canDelete} queryKey={['merchantOperators', merchantId]}
-=======
-                    canDelete={canDelete} queryKey={['merchantOperators', merchantId]}
->>>>>>> release/nearby-prod
                     onSave={(values) => apiClient.merchantOperators.update(scope, op._id, { fullName: values.name, phoneNumber: values.phoneNumber })}
                     onReveal={() => apiClient.merchantOperators.revealPin(op._id)}
                     cardIdentity={{ operatorName: op.fullName, stallName, phoneNumber: op.phoneNumber }}

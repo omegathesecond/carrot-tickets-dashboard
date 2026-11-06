@@ -481,10 +481,7 @@ export class ApiClient {
     getEventTables: async (id: string): Promise<EventTablesReport> =>
       this.request<EventTablesReport>(`/tickets/events/${id}/tables`),
 
-<<<<<<< HEAD
-=======
 
->>>>>>> release/nearby-prod
     createEvent: async (data: EventFormData): Promise<Event> => {
       return this.request<Event>(`/tickets/events`, {
         method: 'POST',
@@ -1548,11 +1545,8 @@ export class ApiClient {
       this.request<MerchantDetail>(
         `${stallsBase(scope)}/${id}/transactions?limit=${limit}`,
       ),
-<<<<<<< HEAD
-=======
     menu: async (id: string): Promise<StallMenu> =>
       this.request<StallMenu>(`/tickets/merchants/${id}/menu`),
->>>>>>> release/nearby-prod
   };
 
   // MerchantOperators — the people who actually work a stall's till, each
@@ -1692,11 +1686,7 @@ export class ApiClient {
     reconciliation: async (scope: StockScope, range?: { from: string; to: string }): Promise<StockReconciliation> =>
       this.request<StockReconciliation>(`${stockBase(scope)}/stock/reconciliation${rangeQuery(scope, range)}`),
 
-<<<<<<< HEAD
-    /** The same reconciliation as a printable PDF — bytes, so it goes via `fetchBlob`. */
-=======
     /** The same reconciliation as a printable PDF — bytes, so it goes via `fetchPdf`. */
->>>>>>> release/nearby-prod
     reconciliationPdf: async (scope: StockScope, range?: { from: string; to: string }): Promise<Blob> =>
       this.fetchBlob(`${stockBase(scope)}/stock/reconciliation.pdf${rangeQuery(scope, range)}`, { method: 'GET' }),
 
@@ -2864,13 +2854,8 @@ export interface ReconRow {
 }
 export interface StockReconciliation {
   /** Exactly one: the event, or the venue. */
-<<<<<<< HEAD
-  event?: { id: string; name: string; currency?: 'SZL' | 'ZAR' };
-  venue?: { id: string; name: string; currency?: 'SZL' | 'ZAR' };
-=======
   event?: { id: string; name: string; currency: 'SZL' | 'ZAR' };
   venue?: { id: string; name: string; currency: 'SZL' | 'ZAR' };
->>>>>>> release/nearby-prod
   perBar: ReconRow[];
   byProduct: ReconRow[];
   total: Omit<ReconRow, 'merchantId' | 'merchantName' | 'productId' | 'productName'>;
