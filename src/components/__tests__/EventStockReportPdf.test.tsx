@@ -72,7 +72,7 @@ function renderReport() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <EventStockReport scope={{ kind: 'event', eventId: 'e1' }} />
+      <EventStockReport scope={{ kind: 'event', eventId: 'e1' }} currency="SZL" />
     </QueryClientProvider>,
   );
 }
