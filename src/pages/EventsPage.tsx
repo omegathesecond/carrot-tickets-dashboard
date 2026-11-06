@@ -1,3 +1,5 @@
+import { EventLocationPicker } from '@/components/EventLocationPicker';
+import { emptyLocation, parseEventLocation } from '@/lib/eventLocation';
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -79,6 +81,7 @@ export function EventsPage() {
   // often doesn't notice there's a multi-day option at all.
   const [isMultiDay, setIsMultiDay] = useState(true);
   // No default — the organizer must pick one explicitly (see handleSubmit).
+  const [locationDraft, setLocationDraft] = useState(emptyLocation);
   const [category, setCategory] = useState<EventCategory | ''>('');
   const [lineup, setLineup] = useState<string[]>([]);
   const [outfitThemeOptions, setOutfitThemeOptions] = useState<string[]>([]);
@@ -116,6 +119,7 @@ export function EventsPage() {
   });
 
   const resetCreateForm = () => {
+    setLocationDraft(emptyLocation);
     setIsDialogOpen(false);
     setIsMultiDay(true);
     setCategory('');
@@ -254,6 +258,8 @@ export function EventsPage() {
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
+    let eventLocation;
+    try { eventLocation = parseEventLocation(locationDraft); } catch (error) { toast.error((error as Error).message); return; }
     const formData = new FormData(e.currentTarget);
 
     const name = formData.get('name') as string;
@@ -287,6 +293,7 @@ export function EventsPage() {
       name,
       description: description || undefined,
       venue,
+      eventLocation,
       category,
       eventDate,
       startTime,
@@ -368,6 +375,7 @@ export function EventsPage() {
                   <Label htmlFor="venue">Venue</Label>
                   <Input id="venue" name="venue" required placeholder="e.g., National Stadium" />
                 </div>
+                <EventLocationPicker value={locationDraft} onChange={setLocationDraft} />
               </div>
 
               <div className="space-y-2">

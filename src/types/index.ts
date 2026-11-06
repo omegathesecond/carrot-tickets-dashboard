@@ -120,6 +120,7 @@ export interface Event {
   name: string;
   description?: string;
   venue: string;
+  eventLocation?: { lat: number; lng: number } | null;
   // Organizer-set category — see constants/eventCategories. Always present
   // on events created after the 16-category rollout; legacy events read
   // through the API's own fallback.
@@ -195,6 +196,7 @@ export interface EventFormData {
   name: string;
   description?: string;
   venue: string;
+  eventLocation?: { lat: number; lng: number } | null;
   // Required at creation (backend rejects a missing value); optional on an
   // update PATCH, where omitting it just leaves the stored category alone.
   category: EventCategory;
