@@ -1,3 +1,5 @@
+import { EventLocationPicker } from '@/components/EventLocationPicker';
+import { parseEventLocation, type LocationDraft } from '@/lib/eventLocation';
 import { Guarantees } from '@/components/Guarantees';
 import { EventPayoutPanel } from '@/components/EventPayoutPanel';
 import { hasPermission, TicketsPermission } from '@/lib/permissions';
@@ -34,7 +36,7 @@ import { ChannelsManager } from '@/components/community/ChannelsManager';
 import { AnnouncementComposer } from '@/components/community/AnnouncementComposer';
 import { MembersModeration } from '@/components/community/MembersModeration';
 import { useAuth } from '@/contexts/AuthContext';
-import { canManageEvents, canEditEventInfo, canViewEventFinancials, canManageMenu } from '@/lib/permissions';
+import { canManageEvents, canEditEventInfo, canViewEventFinancials, canManageMenu, canViewTagWithdrawals } from '@/lib/permissions';
 import {
   composeEventDateTime,
   eventToDateTimeInputs,
@@ -55,7 +57,7 @@ import { TicketType, EventFormData } from '@/types';
 import { EVENT_CATEGORIES, EVENT_CATEGORY_LABELS, type EventCategory } from '@/constants/eventCategories';
 
 /** Draft state for the editable Event Information card. */
-type InfoDraft = { name: string; description: string; venue: string; category: EventCategory | '' } & EventDateTimeFormValues;
+type InfoDraft = { locationDraft: LocationDraft; name: string; description: string; venue: string; category: EventCategory | '' } & EventDateTimeFormValues;
 
 export function EventDetailsPage() {
   const { id } = useParams<{ id: string }>();
@@ -245,6 +247,7 @@ export function EventDetailsPage() {
       name: event.name ?? '',
       description: event.description ?? '',
       venue: event.venue ?? '',
+      locationDraft: { lat: event.eventLocation ? String(event.eventLocation.lat) : '', lng: event.eventLocation ? String(event.eventLocation.lng) : '' },
       category: event.category ?? '',
       ...eventToDateTimeInputs(event),
     });
@@ -261,6 +264,8 @@ export function EventDetailsPage() {
 
   const handleSaveInfo = () => {
     if (!infoDraft) return;
+    let eventLocation;
+    try { eventLocation = parseEventLocation(infoDraft.locationDraft); } catch (error) { toast.error((error as Error).message); return; }
     const name = infoDraft.name.trim();
     const venue = infoDraft.venue.trim();
     if (!name) { toast.error('Event name cannot be empty'); return; }
@@ -286,6 +291,7 @@ export function EventDetailsPage() {
       name,
       description: infoDraft.description.trim() || undefined,
       venue,
+      eventLocation,
       category: infoDraft.category as EventCategory,
       isMultiDay: infoDraft.isMultiDay,
       eventDate,
@@ -786,6 +792,8 @@ export function EventDetailsPage() {
                   />
                 </div>
 
+                <EventLocationPicker value={infoDraft.locationDraft} onChange={(value) => setInfoField('locationDraft', value)} />
+
                 <div className="space-y-2">
                   <Label htmlFor="edit-category">Category</Label>
                   <select
@@ -898,6 +906,7 @@ export function EventDetailsPage() {
                       Venue
                     </div>
                     <div className="text-sm text-slate-900 break-words">{event.venue}</div>
+                    <p className="text-sm text-slate-500">{event.eventLocation ? `Map: ${event.eventLocation.lat}, ${event.eventLocation.lng}` : 'Event location unavailable'}</p>
                   </div>
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-slate-500">
@@ -1386,7 +1395,8 @@ export function EventDetailsPage() {
         {/* Cashless Tab — organizer's money report for a cashless event */}
         {event?.cashless && (
           <TabsContent value="cashless" className="mt-6">
-            <EventCashlessTab eventId={id!} />
+            {canViewTagWithdrawals(user) && <a className="mb-4 inline-block font-medium text-orange-600 underline" href={`/tag-withdrawals?eventId=${id}`}>View attendee tag withdrawals →</a>}
+            <EventCashlessTab eventId={id!} eventName={event.name} />
           </TabsContent>
         )}
 

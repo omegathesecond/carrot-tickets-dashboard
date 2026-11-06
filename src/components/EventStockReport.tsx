@@ -7,6 +7,9 @@ import { fmtCents } from '@/lib/money';
 import type { Currency } from '@/lib/currency';
 import { scopeKey, type StockScope } from '@/lib/stockScope';
 import { formatMoney } from '@/lib/currency';
+import { fmtCents } from '@/lib/money';
+import type { Currency } from '@/lib/currency';
+import { scopeKey, type StockScope } from '@/lib/stockScope';
 import { saveBlob } from '@/lib/ticketDownloads';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -58,6 +61,7 @@ export function EventStockReport({ scope, currency = 'ZAR' }: { scope: StockScop
 
 // ---------------------------------------------------------------- helpers
 const STATUS_META: Record<StockStatus, { label: string; className: string }> = {
+  UNTRACKED: { label: 'Not counted', className: 'bg-slate-100 text-slate-700' },
   in_stock: { label: 'In stock', className: 'bg-slate-100 text-slate-700' },
   low: { label: 'Low', className: 'bg-amber-100 text-amber-800' },
   sold_out: { label: 'Sold out', className: 'bg-red-100 text-red-700' },
@@ -302,12 +306,12 @@ function ReconciliationSection({ scope, currency }: { scope: StockScope; currenc
                 {(data?.byProduct ?? []).map((r) => (
                   <TableRow key={r.productId}>
                     <TableCell className="font-medium">{r.productName}</TableCell>
-                    <TableCell className="text-right">{r.opening}</TableCell>
-                    <TableCell className="text-right">{r.added}</TableCell>
-                    <TableCell className="text-right">{r.transferIn}</TableCell>
-                    <TableCell className="text-right">{r.transferOut}</TableCell>
+                    <TableCell className="text-right">{r.stockTracked === false ? '—' : r.opening}</TableCell>
+                    <TableCell className="text-right">{r.stockTracked === false ? '—' : r.added}</TableCell>
+                    <TableCell className="text-right">{r.stockTracked === false ? '—' : r.transferIn}</TableCell>
+                    <TableCell className="text-right">{r.stockTracked === false ? '—' : r.transferOut}</TableCell>
                     <TableCell className="text-right">{r.sold}</TableCell>
-                    <TableCell className="text-right font-semibold">{r.expectedClosing}</TableCell>
+                    <TableCell className="text-right font-semibold">{r.stockTracked === false ? '—' : r.expectedClosing}</TableCell>
                     <TableCell className="text-right">{num(r.physicalCount)}</TableCell>
                     <TableCell className="text-right">{variance(r.variance)}</TableCell>
                   </TableRow>
@@ -315,12 +319,12 @@ function ReconciliationSection({ scope, currency }: { scope: StockScope; currenc
                 {data && (
                   <TableRow className="border-t-2 font-semibold">
                     <TableCell>Total</TableCell>
-                    <TableCell className="text-right">{data.total.opening}</TableCell>
-                    <TableCell className="text-right">{data.total.added}</TableCell>
-                    <TableCell className="text-right">{data.total.transferIn}</TableCell>
-                    <TableCell className="text-right">{data.total.transferOut}</TableCell>
+                    <TableCell className="text-right">{data.total.stockTracked === false ? '—' : data.total.opening}</TableCell>
+                    <TableCell className="text-right">{data.total.stockTracked === false ? '—' : data.total.added}</TableCell>
+                    <TableCell className="text-right">{data.total.stockTracked === false ? '—' : data.total.transferIn}</TableCell>
+                    <TableCell className="text-right">{data.total.stockTracked === false ? '—' : data.total.transferOut}</TableCell>
                     <TableCell className="text-right">{data.total.sold}</TableCell>
-                    <TableCell className="text-right">{data.total.expectedClosing}</TableCell>
+                    <TableCell className="text-right">{data.total.stockTracked === false ? '—' : data.total.expectedClosing}</TableCell>
                     <TableCell className="text-right">{num(data.total.physicalCount)}</TableCell>
                     <TableCell className="text-right">{variance(data.total.variance)}</TableCell>
                   </TableRow>
@@ -328,7 +332,11 @@ function ReconciliationSection({ scope, currency }: { scope: StockScope; currenc
               </TableBody>
             </Table>
           </div>
+<<<<<<< HEAD
           {data && scope.kind === 'event' && <SalesPricingAudit data={data} currency={currency} />}
+=======
+          {data && <SalesPricingAudit data={data} currency={currency} />}
+>>>>>>> release/nearby-prod
         </SectionState>
       </CardContent>
     </Card>
@@ -348,7 +356,11 @@ function SalesPricingAudit({ data, currency }: { data: import('@/lib/api').Stock
   ] as const;
   const values = (row: typeof data.total) => columns.map(col => (
     <TableCell key={col.key} className="text-right tabular-nums">
+<<<<<<< HEAD
       {'money' in col ? formatMoney(row[col.key] / 100, data.event?.currency ?? currency, { decimals: 2 }) : row[col.key]}
+=======
+      {'money' in col ? formatMoney(row[col.key] / 100, currency, { decimals: 2 }) : row[col.key]}
+>>>>>>> release/nearby-prod
     </TableCell>
   ));
   return <div className="mt-6 space-y-3">

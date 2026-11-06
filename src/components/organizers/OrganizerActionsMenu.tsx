@@ -28,9 +28,13 @@ export function OrganizerActionsMenu({ organizer: o, actions }: { organizer: Org
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+<<<<<<< HEAD
         <DropdownMenuItem asChild>
           <Link to={`/gate-operators?vendorId=${encodeURIComponent(o.id)}`}>Gate Operators</Link>
         </DropdownMenuItem>
+=======
+        <DropdownMenuItem asChild><Link to={`/gate-operators?vendorId=${encodeURIComponent(o.id)}`}>Gate Operators</Link></DropdownMenuItem>
+>>>>>>> release/nearby-prod
         {o.verificationStatus !== 'verified' && (
           <DropdownMenuItem onClick={() => actions.onVerification(o, 'verified')}>
             Verify

@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { OperatorCredentialsDialog } from '@/components/OperatorCredentialsDialog';
+import type { LoginCardIdentity } from '@/lib/operatorLoginCards';
 
 type Values = { name: string; phoneNumber: string; commissionPercent: string };
 type Props = {
@@ -17,10 +18,11 @@ type Props = {
   onSave: (values: Values) => Promise<unknown>;
   onDelete: () => Promise<unknown>;
   onReveal?: () => Promise<{ loginCode: string; pin: string }>;
+  cardIdentity?: LoginCardIdentity;
 };
 
 /** The same edit, delete and credential flow across event stalls and staff. */
-export function EventResourceActions({ kind, initial, canDelete, queryKey, onSave, onDelete, onReveal }: Props) {
+export function EventResourceActions({ kind, initial, canDelete, queryKey, onSave, onDelete, onReveal, cardIdentity }: Props) {
   const qc = useQueryClient();
   const [mode, setMode] = useState<'edit' | 'delete' | null>(null);
   const [values, setValues] = useState<Values>({ name: '', phoneNumber: '', commissionPercent: '' });
@@ -72,7 +74,7 @@ export function EventResourceActions({ kind, initial, canDelete, queryKey, onSav
           <Trash2 className="h-4 w-4 mr-1.5" />Delete
         </Button>}
         {canDelete && onReveal && <Button size="sm" variant="outline" disabled={reveal.isPending} onClick={() => reveal.mutate()}>
-          <Eye className="h-4 w-4 mr-1.5" />{reveal.isPending ? 'Loading PIN…' : 'Show PIN'}
+          <Eye className="h-4 w-4 mr-1.5" />{reveal.isPending ? 'Loading PIN…' : cardIdentity ? 'Login card' : 'Show PIN'}
         </Button>}
       </div>
       <Dialog open={mode !== null} onOpenChange={(open) => { if (!open && !pending) setMode(null); }}>
@@ -100,7 +102,7 @@ export function EventResourceActions({ kind, initial, canDelete, queryKey, onSav
           </form>}
         </DialogContent>
       </Dialog>
-      {credentials && <OperatorCredentialsDialog open title={`${initial.name} — PIN`} {...credentials} onClose={() => { setCredentials(null); reveal.reset(); }} />}
+      {credentials && <OperatorCredentialsDialog open title={`${initial.name} — ${cardIdentity ? 'login card' : 'PIN'}`} {...credentials} cardIdentity={cardIdentity} onClose={() => { setCredentials(null); reveal.reset(); }} />}
     </div>
   );
 }

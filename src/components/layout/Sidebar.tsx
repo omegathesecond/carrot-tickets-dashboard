@@ -43,6 +43,7 @@ import {
   canPrintWristbands,
   canModerateSocial,
   canManageTransport,
+  canViewTagWithdrawals,
 } from '@/lib/permissions';
 
 interface NavigationItem {
@@ -148,6 +149,12 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       href: '/analytics',
       icon: BarChart3,
       show: hasPermission(user, TicketsPermission.VIEW_STATS),
+    },
+    {
+      name: 'Tag withdrawals',
+      href: '/tag-withdrawals',
+      icon: Banknote,
+      show: canViewTagWithdrawals(user),
     },
     {
       name: 'Users',

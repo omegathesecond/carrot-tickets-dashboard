@@ -77,8 +77,9 @@ const EMPTY_OP: OpForm = {
  * which reads as a dash. A zero would say the same thing as a product that
  * has sold out, and those call for different actions.
  */
-const stockCell = (row?: { onHand: number; status: string }) => {
+const stockCell = (row?: { onHand: number; status: string; stockTracked?: boolean }) => {
   if (!row) return <span className="text-muted-foreground">—</span>;
+  if (row.stockTracked === false) return <Badge variant="secondary">Not counted</Badge>;
   if (row.status === 'sold_out') {
     return <Badge variant="secondary" className="bg-red-100 text-red-800">Sold out</Badge>;
   }
@@ -215,6 +216,7 @@ export function EventCataloguePanel({ scope, currency = 'ZAR' }: { scope: StockS
     return {
       unitsSold: rows.reduce((n, r) => n + r.unitsSold, 0),
       revenue: rows.reduce((n, r) => n + r.revenue, 0),
+      uncounted: rows.length > 0 && rows.every(r => r.stockTracked === false),
       onHand: rows.reduce((n, r) => n + r.totalOnHand, 0),
       needsAttention: rows.filter((r) => r.status === 'low' || r.status === 'sold_out').length,
     };
@@ -231,9 +233,9 @@ export function EventCataloguePanel({ scope, currency = 'ZAR' }: { scope: StockS
    * things to an organizer deciding what to order.
    */
   const stockByProduct = useMemo(() => {
-    const m = new Map<string, { onHand: number; status: string }>();
+    const m = new Map<string, { onHand: number; status: string; stockTracked?: boolean }>();
     (board?.byProduct ?? []).forEach((r) => {
-      m.set(r.productId, { onHand: r.totalOnHand, status: r.status });
+      m.set(r.productId, { onHand: r.totalOnHand, status: r.status, stockTracked: r.stockTracked });
     });
     return m;
   }, [board]);
@@ -581,7 +583,11 @@ export function EventCataloguePanel({ scope, currency = 'ZAR' }: { scope: StockS
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard icon={<TrendingUp className="h-4 w-4" />} label="Units sold" value={totals.unitsSold.toLocaleString('en-ZA')} hint="rung up on itemised charges" tone="blue" />
             <StatCard icon={<Coins className="h-4 w-4" />} label="Sales" value={fmtCents(totals.revenue, currency)} hint="what those units took" tone="green" />
+<<<<<<< HEAD
             <StatCard icon={<Boxes className="h-4 w-4" />} label="On hand" value={totals.onHand.toLocaleString('en-ZA')} hint="units still on the shelf" tone="ink" />
+=======
+            <StatCard icon={<Boxes className="h-4 w-4" />} label="On hand" value={totals.uncounted ? 'Not counted' : totals.onHand.toLocaleString('en-ZA')} hint={totals.uncounted ? 'Inventory quantities are not tracked' : 'units still on the shelf'} tone="ink" />
+>>>>>>> release/nearby-prod
             <StatCard icon={<AlertTriangle className="h-4 w-4" />} label="Needs attention" value={String(totals.needsAttention)} hint="products low or sold out" tone="orange" />
           </div>
 
@@ -649,7 +655,7 @@ export function EventCataloguePanel({ scope, currency = 'ZAR' }: { scope: StockS
                                 </TableCell>
                                 <TableCell className="text-right tabular-nums">{r.unitsSold}</TableCell>
                                 <TableCell className="text-right tabular-nums font-semibold">
-                                  {stockEditKey === `${merchantId}:${r.productId}` ? (
+                                  {r.stockTracked === false ? <span className="text-muted-foreground font-normal">Not counted</span> : stockEditKey === `${merchantId}:${r.productId}` ? (
                                     <Input
                                       autoFocus
                                       inputMode="numeric"
@@ -981,6 +987,7 @@ export function EventCataloguePanel({ scope, currency = 'ZAR' }: { scope: StockS
 
 // ---- shared bits ----
 const STATUS_META: Record<StockStatus, { label: string; className: string }> = {
+  UNTRACKED: { label: 'Not counted', className: 'bg-slate-100 text-slate-700' },
   in_stock: { label: 'In stock', className: 'bg-slate-100 text-slate-700' },
   low: { label: 'Low', className: 'bg-amber-100 text-amber-800' },
   sold_out: { label: 'Sold out', className: 'bg-red-100 text-red-700' },

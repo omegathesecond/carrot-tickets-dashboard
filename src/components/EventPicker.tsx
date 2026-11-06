@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 
 /** The shape the picker needs — both event APIs are reduced to this. */
 export interface PickableEvent {
@@ -38,6 +39,8 @@ interface EventPickerProps {
    */
   placeholder?: string;
   className?: string;
+  selectionMode?: 'single' | 'multiple';
+  cacheKey?: string;
 }
 
 const SEARCH_DEBOUNCE_MS = 250;
@@ -50,7 +53,7 @@ function searchTicketsEvents(vendorId?: string) {
       ...(search ? { search } : {}),
       ...(vendorId ? { vendorId } : {}),
     });
-    return (result.data ?? []).map((event) => ({ id: event._id, name: event.name, venue: event.venue }));
+    return result.data.map((event) => ({ id: event._id, name: event.name, venue: event.venue }));
   };
 }
 
@@ -74,6 +77,8 @@ export function EventPicker({
   disabled,
   placeholder,
   className,
+  selectionMode = 'multiple',
+  cacheKey = 'event-picker',
 }: EventPickerProps) {
   const fetchEvents = React.useMemo(
     () => searchEvents ?? searchTicketsEvents(vendorId),
@@ -81,7 +86,7 @@ export function EventPicker({
   );
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState('');
-  const [debounced, setDebounced] = React.useState('');
+  const debounced = useDebouncedValue(search.trim(), SEARCH_DEBOUNCE_MS);
 
   // Names of events the user has picked, remembered across searches — a chosen
   // event usually falls out of the next query's results, and a chip reading
@@ -89,16 +94,11 @@ export function EventPicker({
   const [names, setNames] = React.useState<Record<string, string>>({});
 
   React.useEffect(() => {
-    const t = setTimeout(() => setDebounced(search.trim()), SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(t);
-  }, [search]);
-
-  React.useEffect(() => {
     if (open) setSearch('');
   }, [open]);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['event-picker', vendorId ?? '', debounced],
+  const { data, isLoading, isError, error, refetch } = useQuery({
+    queryKey: [cacheKey, vendorId ?? '', debounced],
     queryFn: () => fetchEvents(debounced),
     enabled: open,
   });
@@ -119,6 +119,11 @@ export function EventPicker({
   }, [options]);
 
   const toggle = (eventId: string) => {
+    if (selectionMode === 'single') {
+      onChange([eventId]);
+      setOpen(false);
+      return;
+    }
     onChange(value.includes(eventId) ? value.filter((id) => id !== eventId) : [...value, eventId]);
   };
 
@@ -132,7 +137,7 @@ export function EventPicker({
             type="button"
             role="combobox"
             aria-expanded={open}
-            className="flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            className={cn('flex h-9 w-full items-center justify-between gap-2 whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50', selectionMode === 'single' && 'h-10 rounded-lg border-slate-200 bg-white shadow-none')}
           >
             <span className={cn('line-clamp-1 text-left', (placeholder || value.length === 0) && 'text-muted-foreground')}>
               {placeholder
@@ -157,9 +162,12 @@ export function EventPicker({
               className="flex h-9 w-full bg-transparent px-2 py-2 text-sm outline-none placeholder:text-muted-foreground"
             />
           </div>
-          <div role="listbox" aria-multiselectable className="max-h-60 overflow-y-auto p-1">
+          <div role="listbox" aria-multiselectable={selectionMode === 'multiple'} className="max-h-60 overflow-y-auto p-1">
+            {selectionMode === 'single' && <button type="button" role="option" aria-selected={value.length === 0} onClick={() => { onChange([]); setOpen(false); }} className="flex w-full items-center rounded-sm px-3 py-2 text-left text-sm font-medium hover:bg-accent">All events</button>}
             {isLoading ? (
               <div className="py-6 text-center text-sm text-muted-foreground">Searching…</div>
+            ) : isError ? (
+              <div role="alert" className="space-y-2 p-3 text-sm text-red-600"><p>{error.message}</p><button type="button" className="font-medium underline" onClick={() => void refetch()}>Retry</button></div>
             ) : options.length === 0 ? (
               <div className="py-6 text-center text-sm text-muted-foreground">No events found</div>
             ) : (
@@ -184,7 +192,7 @@ export function EventPicker({
         </PopoverContent>
       </Popover>
 
-      {!placeholder && value.length > 0 && (
+      {selectionMode === 'multiple' && !placeholder && value.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {value.map((eventId) => (
             <Badge key={eventId} variant="secondary" className="gap-1 pr-1 font-normal">
@@ -203,7 +211,7 @@ export function EventPicker({
         </div>
       )}
 
-      {!placeholder && (
+      {selectionMode === 'multiple' && !placeholder && (
         <p className="text-xs text-muted-foreground">
           {value.length === 0
             ? 'Works every event. Pick one or more to restrict them.'

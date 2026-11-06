@@ -1,4 +1,5 @@
 import type { GuaranteeRequest, GuaranteeInput } from '@/types/guarantee';
+import type { TagWithdrawalRequest, TagWithdrawalStatus } from '@/types/tagWithdrawal';
 import type { PayoutBank, EventPayoutRequest, EventPayoutOverview, PayoutStatus } from '@/types/eventPayout';
 import type { EventCoupon, CreateCouponsInput } from '@/types/eventCoupon';
 import type { DeskTopupMethod, DeskTopupTotals } from '@/lib/deskPaymentMethod';
@@ -480,6 +481,10 @@ export class ApiClient {
     getEventTables: async (id: string): Promise<EventTablesReport> =>
       this.request<EventTablesReport>(`/tickets/events/${id}/tables`),
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> release/nearby-prod
     createEvent: async (data: EventFormData): Promise<Event> => {
       return this.request<Event>(`/tickets/events`, {
         method: 'POST',
@@ -1029,6 +1034,17 @@ export class ApiClient {
   };
 
   // Reseller admin endpoints (super-admin only)
+  tagWithdrawals = {
+    events: (search: string) => this.request<Array<{ id: string; name: string }>>(`/admin/tag-withdrawals/events?${new URLSearchParams({ search })}`),
+    list: (search: string, status: string, page: number, eventId?: string) => {
+      const query = new URLSearchParams({ search, page: String(page), ...(status ? { status } : {}), ...(eventId ? { eventId } : {}) });
+      return this.request<{ items: TagWithdrawalRequest[]; total: number; page: number }>(`/admin/tag-withdrawals?${query}`);
+    },
+    detail: (id: string) => this.request<TagWithdrawalRequest>(`/admin/tag-withdrawals/${id}`),
+    decide: (id: string, data: { status: TagWithdrawalStatus; paymentReference?: string; paymentCompleted?: boolean; rejectionReason?: string }) =>
+      this.request<TagWithdrawalRequest>(`/admin/tag-withdrawals/${id}/status`, { method: 'POST', body: JSON.stringify(data) }),
+  };
+
   payoutRequests = {
     overview: (eventId: string) => this.request<EventPayoutOverview>(`/payout-requests/events/${eventId}`),
     bank: () => this.request<PayoutBank | null>('/payout-requests/bank'),
@@ -1220,12 +1236,13 @@ export class ApiClient {
 
     list: async (
       eventId: string,
-      params: { limit?: number; cursor?: string; status?: TagStatus; q?: string } = {},
+      params: { limit?: number; cursor?: string; status?: TagStatus; q?: string; fundedOnly?: boolean } = {},
     ): Promise<{ tags: TagRow[]; hasMore: boolean; nextCursor: string | null }> => {
       const qs = new URLSearchParams();
       if (params.limit) qs.set('limit', String(params.limit));
       if (params.cursor) qs.set('cursor', params.cursor);
       if (params.status) qs.set('status', params.status);
+      if (params.fundedOnly !== undefined) qs.set('fundedOnly', String(params.fundedOnly));
       if (params.q) qs.set('q', params.q);
       const query = qs.toString();
       return this.request(`/tickets/events/${eventId}/tags${query ? `?${query}` : ''}`);
@@ -1531,12 +1548,20 @@ export class ApiClient {
       this.request<MerchantDetail>(
         `${stallsBase(scope)}/${id}/transactions?limit=${limit}`,
       ),
+<<<<<<< HEAD
+=======
+    menu: async (id: string): Promise<StallMenu> =>
+      this.request<StallMenu>(`/tickets/merchants/${id}/menu`),
+>>>>>>> release/nearby-prod
   };
 
   // MerchantOperators — the people who actually work a stall's till, each
   // with their own loginCode + PIN so a charge names a human (MANAGE_ACCESS;
   // ownership is enforced server-side off the stall's event, never the body).
   merchantOperators = {
+    createMissingForEvent: async (eventId: string): Promise<{ created: number; existing: number; inactive: number; skipped: number }> =>
+      this.request(`/tickets/events/${eventId}/stall-users`, { method: 'POST' }),
+
     revealPin: async (id: string): Promise<{ loginCode: string; pin: string }> =>
       this.request(`/tickets/merchant-operators/${id}/reveal-pin`, { method: 'POST' }),
 
@@ -1667,7 +1692,11 @@ export class ApiClient {
     reconciliation: async (scope: StockScope, range?: { from: string; to: string }): Promise<StockReconciliation> =>
       this.request<StockReconciliation>(`${stockBase(scope)}/stock/reconciliation${rangeQuery(scope, range)}`),
 
+<<<<<<< HEAD
     /** The same reconciliation as a printable PDF — bytes, so it goes via `fetchBlob`. */
+=======
+    /** The same reconciliation as a printable PDF — bytes, so it goes via `fetchPdf`. */
+>>>>>>> release/nearby-prod
     reconciliationPdf: async (scope: StockScope, range?: { from: string; to: string }): Promise<Blob> =>
       this.fetchBlob(`${stockBase(scope)}/stock/reconciliation.pdf${rangeQuery(scope, range)}`, { method: 'GET' }),
 
@@ -2622,7 +2651,7 @@ export interface IssuedMerchantOperatorCredentials {
 }
 
 // ---- Cashless stock (Slices 4/6) — mirror the API payloads exactly ----
-export type StockStatus = 'in_stock' | 'low' | 'sold_out';
+export type StockStatus = 'in_stock' | 'low' | 'sold_out' | 'UNTRACKED';
 
 export interface ProductCategoryOption {
   value: string;
@@ -2642,6 +2671,7 @@ export const PRODUCT_CATEGORIES: ProductCategoryOption[] = [
 ];
 
 export interface StockProductRow {
+  stockTracked?: boolean;
   _id: string;
   eventId: string;
   name: string;
@@ -2658,6 +2688,7 @@ export interface StockProductRow {
 }
 
 export interface NewProduct {
+  stockTracked?: boolean;
   name: string;
   category: string;
   price: number; // ZAR cents
@@ -2773,6 +2804,7 @@ export const MENU_ORDER_FULFILLMENT_LABELS: Record<MenuOrderFulfillmentStatus, s
 };
 
 export interface StockBoardBarRow {
+  stockTracked?: boolean;
   merchantId: string;
   merchantName: string;
   productId: string;
@@ -2787,6 +2819,7 @@ export interface StockBoardBarRow {
   status: StockStatus;
 }
 export interface StockBoardProductRow {
+  stockTracked?: boolean;
   productId: string;
   productName: string;
   category: string;
@@ -2804,6 +2837,7 @@ export interface StockBoard {
 }
 
 export interface ReconRow {
+  stockTracked?: boolean;
   merchantId?: string;
   merchantName?: string;
   productId: string;
@@ -2830,8 +2864,13 @@ export interface ReconRow {
 }
 export interface StockReconciliation {
   /** Exactly one: the event, or the venue. */
+<<<<<<< HEAD
   event?: { id: string; name: string; currency?: 'SZL' | 'ZAR' };
   venue?: { id: string; name: string; currency?: 'SZL' | 'ZAR' };
+=======
+  event?: { id: string; name: string; currency: 'SZL' | 'ZAR' };
+  venue?: { id: string; name: string; currency: 'SZL' | 'ZAR' };
+>>>>>>> release/nearby-prod
   perBar: ReconRow[];
   byProduct: ReconRow[];
   total: Omit<ReconRow, 'merchantId' | 'merchantName' | 'productId' | 'productName'>;
@@ -2897,6 +2936,21 @@ export interface MerchantDetail {
   venue?: { id: string; name: string };
   transactions: MerchantChargeTxn[];
   summary: { totalCharged: number; totalNet: number; totalFee: number; count: number };
+}
+
+export interface StallMenu {
+  merchantId: string;
+  event: { id: string; name: string; currency: 'SZL' | 'ZAR' };
+  products: {
+    productId: string;
+    name: string;
+    price: number;
+    category: string;
+    status: 'in_stock' | 'low' | 'sold_out' | 'untracked';
+    onHand: number;
+    unitLabel: string;
+    bundlePrice: { quantity: number; price: number } | null;
+  }[];
 }
 
 export interface WristbandBatch {

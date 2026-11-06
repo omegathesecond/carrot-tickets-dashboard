@@ -1,10 +1,18 @@
+<<<<<<< HEAD
 vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: { isSuperAdmin: false } }) }));
+=======
+>>>>>>> release/nearby-prod
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
+<<<<<<< HEAD
+=======
+vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: { isSuperAdmin: false } }) }));
+vi.mock('@/components/StallMenuPanel', () => ({ StallMenuPanel: () => null }));
+>>>>>>> release/nearby-prod
 vi.mock('@/lib/api', () => ({
   apiClient: {
     merchants: { transactions: vi.fn() },
