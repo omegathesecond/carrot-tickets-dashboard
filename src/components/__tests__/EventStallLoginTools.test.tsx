@@ -10,7 +10,7 @@ const error = vi.fn();
 vi.mock('@/lib/api', () => ({ apiClient: { merchantOperators: { createMissingForEvent: (...args: unknown[]) => create(...args) } } }));
 vi.mock('sonner', () => ({ toast: { success: (...args: unknown[]) => success(...args), info: (...args: unknown[]) => info(...args), error: (...args: unknown[]) => error(...args) } }));
 vi.mock('@/components/StallLoginPicker', () => ({ StallLoginPicker: () => <button>Share one login</button> }));
-vi.mock('@/components/StallLoginExports', () => ({ StallLoginExports: () => <button>Download all logins</button>, stallLoginTargets: vi.fn() }));
+vi.mock('@/components/LoginExports', () => ({ LoginExports: () => <button>Download all logins</button> }));
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 function mount() {
   const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });

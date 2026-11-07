@@ -1,3 +1,6 @@
+import { LoginExports } from '@/components/LoginExports';
+import { staffLoginTargets } from '@/lib/operatorLoginCards';
+import type { LoginCardIdentity } from '@/lib/operatorLoginCards';
 import { EventResourceActions } from '@/components/EventResourceActions';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -30,12 +33,12 @@ const DEFAULT_FORM: AddForm = { fullName: '', phoneNumber: '', grants: [] };
  * loads under canManageAccess, so no separate permission gate is needed
  * here — mirrors StallOperatorsPanel's shape.
  */
-export function CashiersPanel({ eventId, canDelete = false }: { eventId: string; canDelete?: boolean }) {
+export function CashiersPanel({ eventId, eventName, canDelete = false }: { eventId: string; eventName: string; canDelete?: boolean }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [form, setForm] = useState<AddForm>(DEFAULT_FORM);
-  const [issued, setIssued] = useState<{ title: string; loginCode?: string; pin: string } | null>(null);
+  const [issued, setIssued] = useState<{ title: string; loginCode: string; pin: string; identity: LoginCardIdentity } | null>(null);
 
   const { data: cashiers = [], isLoading, isError, error } = useQuery({
     queryKey: ['cashiers', eventId],
@@ -43,9 +46,13 @@ export function CashiersPanel({ eventId, canDelete = false }: { eventId: string;
     enabled: !!eventId,
   });
 
+  const teamName = `${eventName} — Cashiers`;
+  const identity = (person: CashierRow): LoginCardIdentity => ({ operatorName: person.fullName, stallName: teamName, phoneNumber: person.phoneNumber });
+
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['cashiers', eventId] });
 
   const createCashier = useMutation({
+    gcTime: 0,
     mutationFn: () => apiClient.cashiers.create({
       fullName: form.fullName,
       ...(form.phoneNumber.trim() ? { phoneNumber: form.phoneNumber.trim() } : {}),
@@ -55,7 +62,7 @@ export function CashiersPanel({ eventId, canDelete = false }: { eventId: string;
     onSuccess: (res) => {
       invalidate();
       toast.success('Cashier created');
-      setIssued({ title: 'Cashier created', loginCode: res.loginCode, pin: res.pin });
+      setIssued({ title: 'Cashier created', loginCode: res.loginCode, pin: res.pin, identity: identity(res.cashier) });
       setIsAddOpen(false);
       setForm(DEFAULT_FORM);
     },
@@ -63,8 +70,9 @@ export function CashiersPanel({ eventId, canDelete = false }: { eventId: string;
   });
 
   const resetPin = useMutation({
-    mutationFn: (id: string) => apiClient.cashiers.resetPin(id),
-    onSuccess: (res) => setIssued({ title: 'PIN reset', pin: res.pin }),
+    gcTime: 0,
+    mutationFn: (person: CashierRow) => apiClient.cashiers.resetPin(person._id),
+    onSuccess: (res, person) => setIssued({ title: 'PIN reset', loginCode: person.loginCode, pin: res.pin, identity: identity(person) }),
     onError: (e: Error) => toast.error(e.message || 'Failed to reset PIN'),
   });
 
@@ -93,7 +101,7 @@ export function CashiersPanel({ eventId, canDelete = false }: { eventId: string;
 
   // Per-row pending ids — a mutation in flight for one cashier must not
   // disable the same action on every other row.
-  const pendingResetId = resetPin.isPending ? resetPin.variables : undefined;
+  const pendingResetId = resetPin.isPending ? resetPin.variables?._id : undefined;
   const pendingActiveId = setActive.isPending ? setActive.variables?.id : undefined;
   const isFormValid = form.fullName.trim().length > 0;
 
@@ -103,49 +111,55 @@ export function CashiersPanel({ eventId, canDelete = false }: { eventId: string;
         <p className="text-sm text-muted-foreground">
           Choose each cashier's cash reload, card reload and withdrawal permissions. Open their profile to change access.
         </p>
-        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-gradient-to-r from-orange-600 to-amber-600 text-white hover:opacity-90">
-              <Plus className="h-4 w-4 mr-1.5" />
-              Add cashier
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-h-[90vh] overflow-y-auto">
-            <DialogHeader><DialogTitle>Add cashier</DialogTitle></DialogHeader>
-            <form
-              onSubmit={(e) => { e.preventDefault(); if (isFormValid) createCashier.mutate(); }}
-              className="space-y-4"
-            >
-              <div className="space-y-2">
-                <Label htmlFor="c-name">Full name</Label>
-                <Input id="c-name" value={form.fullName} required className="h-12"
-                  onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="c-phone">Phone number (optional)</Label>
-                <Input id="c-phone" value={form.phoneNumber} className="h-12" placeholder="+268..."
-                  onChange={(e) => setForm((f) => ({ ...f, phoneNumber: e.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label>Cashier permissions</Label>
-                <p className="text-xs text-muted-foreground">Money actions are off until selected. Choose only the duties this cashier needs.</p>
-                <OperatorGrantsField
-                  population="cashier"
-                  idPrefix="cashier"
-                  value={form.grants}
-                  onChange={(grants) => setForm((f) => ({ ...f, grants }))}
-                />
-              </div>
-              <div className="flex justify-end space-x-2 pt-2">
-                <Button type="button" variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
-                <Button type="submit" disabled={createCashier.isPending || !isFormValid}
-                  className="bg-gradient-to-r from-orange-600 to-amber-600 text-white hover:opacity-90">
-                  {createCashier.isPending ? 'Creating…' : 'Create'}
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <div className="flex flex-wrap gap-2">
+          {canDelete && <LoginExports name={teamName}
+            disabled={isLoading || isError || !cashiers.some(person => person.isActive)}
+            loadTargets={async () => staffLoginTargets(teamName, await apiClient.cashiers.list(eventId))}
+            revealPin={id => apiClient.cashiers.revealPin(id)} />}
+          <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-gradient-to-r from-orange-600 to-amber-600 text-white hover:opacity-90">
+                <Plus className="h-4 w-4 mr-1.5" />
+                Add cashier
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-h-[90vh] overflow-y-auto">
+              <DialogHeader><DialogTitle>Add cashier</DialogTitle></DialogHeader>
+              <form
+                onSubmit={(e) => { e.preventDefault(); if (isFormValid) createCashier.mutate(); }}
+                className="space-y-4"
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="c-name">Full name</Label>
+                  <Input id="c-name" value={form.fullName} required className="h-12"
+                    onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="c-phone">Phone number (optional)</Label>
+                  <Input id="c-phone" value={form.phoneNumber} className="h-12" placeholder="+268..."
+                    onChange={(e) => setForm((f) => ({ ...f, phoneNumber: e.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Cashier permissions</Label>
+                  <p className="text-xs text-muted-foreground">Money actions are off until selected. Choose only the duties this cashier needs.</p>
+                  <OperatorGrantsField
+                    population="cashier"
+                    idPrefix="cashier"
+                    value={form.grants}
+                    onChange={(grants) => setForm((f) => ({ ...f, grants }))}
+                  />
+                </div>
+                <div className="flex justify-end space-x-2 pt-2">
+                  <Button type="button" variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
+                  <Button type="submit" disabled={createCashier.isPending || !isFormValid}
+                    className="bg-gradient-to-r from-orange-600 to-amber-600 text-white hover:opacity-90">
+                    {createCashier.isPending ? 'Creating…' : 'Create'}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {isLoading && (
@@ -214,6 +228,7 @@ export function CashiersPanel({ eventId, canDelete = false }: { eventId: string;
                     canDelete={canDelete} queryKey={['cashiers', eventId]}
                     onSave={(values) => apiClient.cashiers.update(c._id, { fullName: values.name, phoneNumber: values.phoneNumber })}
                     onReveal={() => apiClient.cashiers.revealPin(c._id)}
+                    cardIdentity={identity(c)}
                     onDelete={() => apiClient.cashiers.delete(c._id)} /></div>
                   <Button variant="outline" size="sm"
                     disabled={setTagDesk.isPending && setTagDesk.variables?.id === c._id}
@@ -228,7 +243,7 @@ export function CashiersPanel({ eventId, canDelete = false }: { eventId: string;
                     {(c.grants ?? []).includes('issue_tags') ? 'Tag desk on' : 'Tag desk off'}
                   </Button>
                   <Button variant="outline" size="sm" disabled={pendingResetId === c._id}
-                    onClick={(e) => { e.stopPropagation(); resetPin.mutate(c._id); }}>
+                    onClick={(e) => { e.stopPropagation(); resetPin.mutate(c); }}>
                     <KeyRound className="h-4 w-4 mr-1.5" /> Reset PIN
                   </Button>
                   <Button variant="outline" size="sm" disabled={pendingActiveId === c._id}
@@ -246,8 +261,8 @@ export function CashiersPanel({ eventId, canDelete = false }: { eventId: string;
       )}
 
       {issued && (
-        <OperatorCredentialsDialog open={!!issued} onClose={() => setIssued(null)}
-          title={issued.title} loginCode={issued.loginCode} pin={issued.pin} />
+        <OperatorCredentialsDialog open={!!issued} onClose={() => { setIssued(null); createCashier.reset(); resetPin.reset(); }}
+          title={issued.title} loginCode={issued.loginCode} pin={issued.pin} cardIdentity={issued.identity} />
       )}
     </div>
   );

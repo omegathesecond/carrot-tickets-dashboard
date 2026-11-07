@@ -1,19 +1,14 @@
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { apiClient, type MerchantOperatorRow } from '@/lib/api';
 import { downloadLoginCards, loadLoginCards, type LoginCardTarget, type LoginExportFormat } from '@/lib/operatorLoginCards';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 
-export function stallLoginTargets(stallName: string, operators: MerchantOperatorRow[]): LoginCardTarget[] {
-  return operators.filter(op => op.isActive).map(op => ({ id: op._id, operatorName: op.fullName, stallName, phoneNumber: op.phoneNumber, loginCode: op.loginCode }));
-}
-
-export function StallLoginExports({ loadTargets, name, disabled = false }: { loadTargets: () => Promise<LoginCardTarget[]>; name: string; disabled?: boolean }) {
+export function LoginExports({ loadTargets, revealPin, name, disabled = false }: { loadTargets: () => Promise<LoginCardTarget[]>; revealPin: (id: string) => Promise<{ loginCode: string; pin: string }>; name: string; disabled?: boolean }) {
   const exportCards = useMutation({
     gcTime: 0,
     mutationFn: async (format: LoginExportFormat) => {
-      const cards = await loadLoginCards(await loadTargets(), id => apiClient.merchantOperators.revealPin(id));
+      const cards = await loadLoginCards(await loadTargets(), revealPin);
       await downloadLoginCards(cards, format, name);
     },
     onSuccess: () => toast.success('Login cards downloaded — each person has a named card.'),

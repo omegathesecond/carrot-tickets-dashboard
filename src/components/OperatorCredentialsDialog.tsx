@@ -25,7 +25,7 @@ interface OperatorCredentialsDialogProps {
 export function OperatorCredentialsDialog({
   open, onClose, title, loginCode, pin, businessName, hubName, cardIdentity,
 }: OperatorCredentialsDialogProps) {
-  const copyText = `${cardIdentity ? `${cardIdentity.operatorName}\nStall: ${cardIdentity.stallName}\n${cardIdentity.phoneNumber ? `Recipient: ${cardIdentity.phoneNumber}\n` : ''}` : ''}${loginCode ? `User ID: ${loginCode}\n` : ''}PIN: ${pin}`;
+  const copyText = `${cardIdentity ? `${cardIdentity.operatorName}\nTeam: ${cardIdentity.stallName}\n${cardIdentity.phoneNumber ? `Recipient: ${cardIdentity.phoneNumber}\n` : ''}` : ''}${loginCode ? `User ID: ${loginCode}\n` : ''}PIN: ${pin}`;
 
   const handleCopy = async () => {
     try {
