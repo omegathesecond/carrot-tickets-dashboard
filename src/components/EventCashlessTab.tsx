@@ -188,7 +188,7 @@ export function EventCashlessTab({ eventId, eventName }: Props) {
         {summaryBody((s) => <CashierActivity summary={s} onManage={() => setCashiersView('manage')} />)}
       </TabsContent>
       <TabsContent value="manage">
-        <CashiersPanel eventId={eventId} canDelete={!!user?.isSuperAdmin} />
+        <CashiersPanel eventId={eventId} eventName={eventName} canDelete={!!user?.isSuperAdmin} />
       </TabsContent>
     </Tabs>
   );
@@ -223,7 +223,7 @@ export function EventCashlessTab({ eventId, eventName }: Props) {
       {showCashiers && <TabsContent value="cashiers">{cashiersBody}</TabsContent>}
       {showWaiters && (
         <TabsContent value="waiters">
-          <WaitersPanel eventId={eventId} canDelete={!!user?.isSuperAdmin} />
+          <WaitersPanel eventId={eventId} eventName={eventName} canDelete={!!user?.isSuperAdmin} />
         </TabsContent>
       )}
       <TabsContent value="balances">

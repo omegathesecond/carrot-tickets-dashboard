@@ -1,3 +1,4 @@
+import type { MerchantOperatorRow } from '@/lib/api';
 import { PDFDocument } from 'pdf-lib';
 import JSZip from 'jszip';
 import { saveBlob } from '@/lib/ticketDownloads';
@@ -10,6 +11,10 @@ export interface LoginCardIdentity {
 export interface LoginCard extends LoginCardIdentity { loginCode: string; pin: string }
 export interface LoginCardTarget extends LoginCardIdentity { id: string; loginCode: string }
 export type LoginExportFormat = 'images' | 'pdfs' | 'print';
+export function staffLoginTargets(stallName: string, operators: Pick<MerchantOperatorRow, '_id' | 'fullName' | 'phoneNumber' | 'loginCode' | 'isActive'>[]): LoginCardTarget[] {
+  return operators.filter(op => op.isActive).map(op => ({ id: op._id, operatorName: op.fullName, stallName, phoneNumber: op.phoneNumber, loginCode: op.loginCode }));
+}
+
 const slug = (value: string) => value.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '').toLowerCase();
 export const loginCardFilename = (card: LoginCard, extension: 'png' | 'pdf') => `${slug(card.operatorName)}__${slug(card.stallName)}__${card.loginCode}.${extension}`;
 const escapeXml = (s: string) => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[c]!);
@@ -42,7 +47,7 @@ export function loginCardSvg(card: LoginCard): string {
   <rect width="1080" height="${height}" fill="#fff"/><rect width="1080" height="16" fill="#ea580c"/>
   <g font-family="Arial, sans-serif" fill="#0f172a">
   <text x="72" y="91" font-size="36" font-weight="700" fill="#c2410c">CARROT TICKETS</text>
-  <text x="72" y="143" font-size="23" fill="#64748b">PERSONAL STALL LOGIN</text>
+  <text x="72" y="143" font-size="23" fill="#64748b">PERSONAL POS LOGIN</text>
   ${textLines(names, 72, nameY, 64, 50, true)}
   ${textLines(stalls, 72, stallY, 45, 34)}
   ${card.phoneNumber ? `<text x="72" y="${userY - 35}" font-size="27" fill="#475569">Recipient: ${escapeXml(card.phoneNumber)}</text>` : ''}
@@ -88,7 +93,7 @@ export async function buildLoginCardsPdf(images: Blob[]): Promise<Blob> {
 
 /** All-or-nothing: a failed PIN lookup never produces an incomplete pack. */
 export async function loadLoginCards(targets: LoginCardTarget[], reveal: (id: string) => Promise<{ loginCode: string; pin: string }>): Promise<LoginCard[]> {
-  if (!targets.length) throw new Error('No active till logins. Add people to the stalls first.');
+  if (!targets.length) throw new Error('No active logins to export. Add or activate staff first.');
   const cards: LoginCard[] = [];
   for (let start = 0; start < targets.length; start += 4) {
     const batch = targets.slice(start, start + 4);

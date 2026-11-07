@@ -59,7 +59,7 @@ function renderPanel() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <WaitersPanel eventId="e1" />
+      <WaitersPanel eventId="e1" eventName="Phakama" />
     </QueryClientProvider>,
   );
 }
