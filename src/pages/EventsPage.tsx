@@ -1,3 +1,4 @@
+import { mintSocialFeedUrl } from '@/lib/socialFeed';
 import { EventLocationPicker } from '@/components/EventLocationPicker';
 import { emptyLocation, parseEventLocation } from '@/lib/eventLocation';
 import { useMemo, useState } from 'react';
@@ -132,6 +133,20 @@ export function EventsPage() {
     setOutfitThemeOptions([]);
   };
 
+  const [preparationEvent, setPreparationEvent] = useState<Event | null>(null);
+  const [openingPreparation, setOpeningPreparation] = useState(false);
+  const openPreparations = async () => {
+    if (!preparationEvent) return;
+    setOpeningPreparation(true);
+    try {
+      const url = await mintSocialFeedUrl();
+      if (!url) throw new Error('Could not open event preparations. Please try again.');
+      window.location.assign(`${url}&preparationEvent=${encodeURIComponent(preparationEvent._id)}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not open event preparations.');
+    } finally { setOpeningPreparation(false); }
+  };
+
   const createMutation = useMutation({
     mutationFn: (vars: {
       data: EventFormData;
@@ -140,7 +155,7 @@ export function EventsPage() {
       cashless?: { note?: string };
     }) =>
       submitNewEvent(vars.data, { poster: vars.poster, gallery: vars.gallery }, vars.cashless),
-    onSuccess: ({ uploadError, cashlessError }) => {
+    onSuccess: ({ event, uploadError, cashlessError }) => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
       if (uploadError) {
         toast.error(`Event created, but the images didn't upload: ${uploadError} Add them from the event page.`);
@@ -153,6 +168,7 @@ export function EventsPage() {
         toast.success('Event created successfully');
       }
       resetCreateForm();
+      if (!isAdmin) setPreparationEvent(event);
     },
     onError: (error: any) => toast.error(error.message || 'Failed to create event'),
   });
@@ -329,6 +345,13 @@ export function EventsPage() {
 
   return (
     <div className="p-8 space-y-6">
+      <Dialog open={Boolean(preparationEvent)} onOpenChange={open => { if (!open && !openingPreparation) setPreparationEvent(null); }}>
+        <DialogContent><DialogHeader><DialogTitle>Prepare for Your Event</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">{preparationEvent?.name} is created. Choose the services you need, send requests to providers and track their responses in Services &gt; My Event Preparations.</p>
+          <Button disabled={openingPreparation} onClick={() => void openPreparations()}>{openingPreparation ? 'Opening…' : 'Open My Event Preparations'}</Button>
+          <Button variant="ghost" disabled={openingPreparation} onClick={() => setPreparationEvent(null)}>Skip for now</Button>
+        </DialogContent>
+      </Dialog>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Events</h1>
