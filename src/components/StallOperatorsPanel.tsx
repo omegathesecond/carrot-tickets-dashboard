@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { apiClient, type OperatorGrant, type MerchantOperatorRow } from '@/lib/api';
-import { StallLoginExports, stallLoginTargets } from '@/components/StallLoginExports';
+import { LoginExports } from '@/components/LoginExports';
+import { staffLoginTargets } from '@/lib/operatorLoginCards';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -96,7 +97,7 @@ export function StallOperatorsPanel({ scope, merchantId, stallName, canDelete = 
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {canDelete && <StallLoginExports name={stallName} disabled={isLoading || isError || !operators.some(op => op.isActive)} loadTargets={async () => stallLoginTargets(stallName, (await apiClient.merchantOperators.list(scope, merchantId)).operators)} />}
+          {canDelete && <LoginExports revealPin={id => apiClient.merchantOperators.revealPin(id)} name={stallName} disabled={isLoading || isError || !operators.some(op => op.isActive)} loadTargets={async () => staffLoginTargets(stallName, (await apiClient.merchantOperators.list(scope, merchantId)).operators)} />}
           <Button size="sm" onClick={() => setAdding(true)}>Add person</Button>
         </div>
       </div>

@@ -28,6 +28,6 @@ describe('named login cards', () => {
   await expect(loadLoginCards([targets[0]!], vi.fn().mockResolvedValue({ loginCode: 'BAD999', pin: '111111' }))).rejects.toThrow('User ID changed');
  });
  it('does not invent logins for a stall without staff', async () => {
-  const reveal = vi.fn(); await expect(loadLoginCards([], reveal)).rejects.toThrow('No active till logins'); expect(reveal).not.toHaveBeenCalled();
+  const reveal = vi.fn(); await expect(loadLoginCards([], reveal)).rejects.toThrow('No active logins to export'); expect(reveal).not.toHaveBeenCalled();
  });
 });

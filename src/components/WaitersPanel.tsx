@@ -1,3 +1,6 @@
+import { LoginExports } from '@/components/LoginExports';
+import { staffLoginTargets } from '@/lib/operatorLoginCards';
+import type { LoginCardIdentity } from '@/lib/operatorLoginCards';
 import { EventResourceActions } from '@/components/EventResourceActions';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -25,7 +28,7 @@ import { EventTablesPanel } from '@/components/EventTablesPanel';
  * watching the floor is why an organizer opens this area during service, and
  * putting the staff list in front of it meant a click every single time.
  */
-export function WaitersPanel({ eventId, canDelete = false }: { eventId: string; canDelete?: boolean }) {
+export function WaitersPanel({ eventId, eventName, canDelete = false }: { eventId: string; eventName: string; canDelete?: boolean }) {
   return (
     <Tabs defaultValue="tables" className="space-y-4">
       <TabsList>
@@ -36,7 +39,7 @@ export function WaitersPanel({ eventId, canDelete = false }: { eventId: string; 
         <EventTablesPanel eventId={eventId} />
       </TabsContent>
       <TabsContent value="waiters">
-        <WaiterStaffList eventId={eventId} canDelete={canDelete} />
+        <WaiterStaffList eventId={eventId} eventName={eventName} canDelete={canDelete} />
       </TabsContent>
     </Tabs>
   );
@@ -58,11 +61,11 @@ const DEFAULT_FORM: AddForm = { fullName: '', phoneNumber: '' };
  * hired for exactly one event and the event is immutable at the API, so this
  * panel takes the event it lives under rather than asking which one.
  */
-function WaiterStaffList({ eventId, canDelete = false }: { eventId: string; canDelete?: boolean }) {
+function WaiterStaffList({ eventId, eventName, canDelete = false }: { eventId: string; eventName: string; canDelete?: boolean }) {
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [form, setForm] = useState<AddForm>(DEFAULT_FORM);
-  const [issued, setIssued] = useState<{ title: string; loginCode?: string; pin: string } | null>(null);
+  const [issued, setIssued] = useState<{ title: string; loginCode: string; pin: string; identity: LoginCardIdentity } | null>(null);
 
   const { data: waiters = [], isLoading, isError, error } = useQuery({
     queryKey: ['waiters', eventId],
@@ -70,9 +73,13 @@ function WaiterStaffList({ eventId, canDelete = false }: { eventId: string; canD
     enabled: !!eventId,
   });
 
+  const teamName = `${eventName} — Waiters`;
+  const identity = (person: WaiterRow): LoginCardIdentity => ({ operatorName: person.fullName, stallName: teamName, phoneNumber: person.phoneNumber });
+
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['waiters', eventId] });
 
   const createWaiter = useMutation({
+    gcTime: 0,
     mutationFn: () => apiClient.waiters.create({
       fullName: form.fullName,
       ...(form.phoneNumber.trim() ? { phoneNumber: form.phoneNumber.trim() } : {}),
@@ -81,7 +88,7 @@ function WaiterStaffList({ eventId, canDelete = false }: { eventId: string; canD
     onSuccess: (res) => {
       invalidate();
       toast.success('Waiter created');
-      setIssued({ title: 'Waiter created', loginCode: res.loginCode, pin: res.pin });
+      setIssued({ title: 'Waiter created', loginCode: res.loginCode, pin: res.pin, identity: identity(res.waiter) });
       setIsAddOpen(false);
       setForm(DEFAULT_FORM);
     },
@@ -89,8 +96,9 @@ function WaiterStaffList({ eventId, canDelete = false }: { eventId: string; canD
   });
 
   const resetPin = useMutation({
-    mutationFn: (id: string) => apiClient.waiters.resetPin(id),
-    onSuccess: (res) => setIssued({ title: 'PIN reset', pin: res.pin }),
+    gcTime: 0,
+    mutationFn: (person: WaiterRow) => apiClient.waiters.resetPin(person._id),
+    onSuccess: (res, person) => setIssued({ title: 'PIN reset', loginCode: person.loginCode, pin: res.pin, identity: identity(person) }),
     onError: (e: Error) => toast.error(e.message || 'Failed to reset PIN'),
   });
 
@@ -122,7 +130,7 @@ function WaiterStaffList({ eventId, canDelete = false }: { eventId: string; canD
 
   // Per-row pending ids — a mutation in flight for one waiter must not
   // disable the same action on every other row.
-  const pendingResetId = resetPin.isPending ? resetPin.variables : undefined;
+  const pendingResetId = resetPin.isPending ? resetPin.variables?._id : undefined;
   const pendingSettleId = setSettling.isPending ? setSettling.variables?.id : undefined;
   const pendingActiveId = setActive.isPending ? setActive.variables?.id : undefined;
   const isFormValid = form.fullName.trim().length > 0;
@@ -133,39 +141,45 @@ function WaiterStaffList({ eventId, canDelete = false }: { eventId: string; canD
         <p className="text-sm text-muted-foreground">
           Everyone gets their own login and PIN, so every table opened at this event is attributed to a person.
         </p>
-        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-gradient-to-r from-orange-600 to-amber-600 text-white hover:opacity-90">
-              <Plus className="h-4 w-4 mr-1.5" />
-              Add waiter
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader><DialogTitle>Add waiter</DialogTitle></DialogHeader>
-            <form
-              onSubmit={(e) => { e.preventDefault(); if (isFormValid) createWaiter.mutate(); }}
-              className="space-y-4"
-            >
-              <div className="space-y-2">
-                <Label htmlFor="w-name">Full name</Label>
-                <Input id="w-name" value={form.fullName} required className="h-12"
-                  onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="w-phone">Phone number (optional)</Label>
-                <Input id="w-phone" value={form.phoneNumber} className="h-12" placeholder="+268..."
-                  onChange={(e) => setForm((f) => ({ ...f, phoneNumber: e.target.value }))} />
-              </div>
-              <div className="flex justify-end space-x-2 pt-2">
-                <Button type="button" variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
-                <Button type="submit" disabled={createWaiter.isPending || !isFormValid}
-                  className="bg-gradient-to-r from-orange-600 to-amber-600 text-white hover:opacity-90">
-                  {createWaiter.isPending ? 'Creating…' : 'Create'}
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <div className="flex flex-wrap gap-2">
+          {canDelete && <LoginExports name={teamName}
+            disabled={isLoading || isError || !waiters.some(person => person.isActive)}
+            loadTargets={async () => staffLoginTargets(teamName, await apiClient.waiters.list(eventId))}
+            revealPin={id => apiClient.waiters.revealPin(id)} />}
+          <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-gradient-to-r from-orange-600 to-amber-600 text-white hover:opacity-90">
+                <Plus className="h-4 w-4 mr-1.5" />
+                Add waiter
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Add waiter</DialogTitle></DialogHeader>
+              <form
+                onSubmit={(e) => { e.preventDefault(); if (isFormValid) createWaiter.mutate(); }}
+                className="space-y-4"
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="w-name">Full name</Label>
+                  <Input id="w-name" value={form.fullName} required className="h-12"
+                    onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="w-phone">Phone number (optional)</Label>
+                  <Input id="w-phone" value={form.phoneNumber} className="h-12" placeholder="+268..."
+                    onChange={(e) => setForm((f) => ({ ...f, phoneNumber: e.target.value }))} />
+                </div>
+                <div className="flex justify-end space-x-2 pt-2">
+                  <Button type="button" variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
+                  <Button type="submit" disabled={createWaiter.isPending || !isFormValid}
+                    className="bg-gradient-to-r from-orange-600 to-amber-600 text-white hover:opacity-90">
+                    {createWaiter.isPending ? 'Creating…' : 'Create'}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {isLoading && (
@@ -228,6 +242,7 @@ function WaiterStaffList({ eventId, canDelete = false }: { eventId: string; canD
                     canDelete={canDelete} queryKey={['waiters', eventId]}
                     onSave={(values) => apiClient.waiters.update(w._id, { fullName: values.name, phoneNumber: values.phoneNumber })}
                     onReveal={() => apiClient.waiters.revealPin(w._id)}
+                    cardIdentity={identity(w)}
                     onDelete={() => apiClient.waiters.delete(w._id)} /></div>
                   <Button variant="outline" size="sm"
                     disabled={pendingSettleId === w._id}
@@ -239,7 +254,7 @@ function WaiterStaffList({ eventId, canDelete = false }: { eventId: string; canD
                     {(w.grants ?? []).includes('settle_tables') ? 'Settling on' : 'Settling off'}
                   </Button>
                   <Button variant="outline" size="sm" disabled={pendingResetId === w._id}
-                    onClick={() => resetPin.mutate(w._id)}>
+                    onClick={() => resetPin.mutate(w)}>
                     <KeyRound className="h-4 w-4 mr-1.5" /> Reset PIN
                   </Button>
                   <Button variant="outline" size="sm" disabled={pendingActiveId === w._id}
@@ -257,8 +272,8 @@ function WaiterStaffList({ eventId, canDelete = false }: { eventId: string; canD
       )}
 
       {issued && (
-        <OperatorCredentialsDialog open={!!issued} onClose={() => setIssued(null)}
-          title={issued.title} loginCode={issued.loginCode} pin={issued.pin} />
+        <OperatorCredentialsDialog open={!!issued} onClose={() => { setIssued(null); createWaiter.reset(); resetPin.reset(); }}
+          title={issued.title} loginCode={issued.loginCode} pin={issued.pin} cardIdentity={issued.identity} />
       )}
     </div>
   );

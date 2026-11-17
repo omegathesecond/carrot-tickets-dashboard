@@ -57,7 +57,7 @@ function renderPanel() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <WaitersPanel eventId="e1" />
+      <WaitersPanel eventId="e1" eventName="Phakama" />
     </QueryClientProvider>,
   );
   // Tables is the default tab; this suite is about the staff list, so switch
@@ -100,7 +100,7 @@ describe('WaitersPanel', () => {
     // A fresh dialog replaces the hire form, showing the one-time credentials.
     expect(await screen.findByText('ZYXWVU')).toBeTruthy();
     expect(screen.getByText('445566')).toBeTruthy();
-    expect(screen.getByText(/Keep it confidential/i)).toBeTruthy();
+    expect(screen.getByText(/Share this login card only with the named person/i)).toBeTruthy();
   });
 
   it('turns settling on for a waiter who cannot yet settle, calling setGrants with settle_tables', async () => {
