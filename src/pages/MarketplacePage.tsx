@@ -477,6 +477,7 @@ function ApplicationReview({
           })
         )}
       </section>
+      {a.paymentProof && <Button size="sm" variant="outline" disabled={busy} onClick={() => action(() => api.downloadStatement('/marketplace/applications/' + a._id + '/payment-proof', a.paymentProof!.name), 'Payment proof downloaded.')}>Download proof of payment</Button>}
       <Field label="Message to provider (optional)">
         <textarea
           className={control}
