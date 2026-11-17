@@ -93,6 +93,7 @@ export interface OrganiserApplication {
   certificates: string[];
   status: string;
   paymentStatus: string;
+  paymentProof?: { name: string; mime: string; uploadedAt: string };
   message?: string;
   createdAt: string;
   terms: {
