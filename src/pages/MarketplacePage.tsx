@@ -28,6 +28,7 @@ export function MarketplacePage() {
   const [notice, setNotice] = useState('');
   const [deadlineItem, setDeadlineItem] = useState<Opportunity>();
   const [deadline, setDeadline] = useState('');
+  const [paymentDeadline, setPaymentDeadline] = useState('');
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [retry, setRetry] = useState(0);
@@ -159,13 +160,14 @@ export function MarketplacePage() {
         <form className="space-y-3 rounded-xl border p-4" onSubmit={(e) => {
           e.preventDefault();
           action(async () => {
-            await api.marketplace(`/manage/opportunities/${deadlineItem._id}/application-deadline`, { method: 'PATCH', body: JSON.stringify({ applicationDeadline: new Date(deadline).toISOString() }) });
+            await api.marketplace(`/manage/opportunities/${deadlineItem._id}/application-deadline`, { method: 'PATCH', body: JSON.stringify({ applicationDeadline: new Date(deadline).toISOString(), paymentDeadline: new Date(paymentDeadline).toISOString() }) });
             setDeadlineItem(undefined);
           }, 'Application deadline saved.');
         }}>
           <h2 className="font-semibold">Change application deadline · {deadlineItem.name}</h2>
-          <p>Existing applications and their statuses will be kept. The payment deadline and existing terms will remain unchanged.</p>
+          <p>Existing applications, statuses and their payment terms will be kept. New applications will use the payment deadline below.</p>
           <Field label="New application deadline (your local time)"><input required type="datetime-local" className={control} value={deadline} onChange={(e) => setDeadline(e.target.value)} /></Field>
+          <Field label="Payment deadline for new applications (your local time)"><input required type="datetime-local" className={control} value={paymentDeadline} onChange={(e) => setPaymentDeadline(e.target.value)} /></Field>
           <div className="flex gap-2"><Button disabled={busy} type="submit">Confirm and save</Button><Button type="button" variant="outline" onClick={() => setDeadlineItem(undefined)}>Cancel</Button></div>
         </form>
       )}
@@ -220,6 +222,8 @@ export function MarketplacePage() {
                   setDeadlineItem(o);
                   const date = new Date(o.applicationDeadline);
                   setDeadline(new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16));
+                  const paymentDate = new Date(o.paymentDeadline);
+                  setPaymentDeadline(new Date(paymentDate.getTime() - paymentDate.getTimezoneOffset() * 60000).toISOString().slice(0, 16));
                 }}>Change application deadline</Button>}
                 <Button
                   size="sm"
