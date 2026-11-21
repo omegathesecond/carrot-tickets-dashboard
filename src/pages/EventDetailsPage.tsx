@@ -995,7 +995,7 @@ export function EventDetailsPage() {
           </Card>
 
           {/* Cashless Card — admin-held switch, organizer request path. */}
-          {event && <EventCashlessSetting event={event} isAdmin={isAdmin} />}
+          {event && <EventCashlessSetting event={event} isAdmin={isAdmin} canManageWithdrawals={isAdmin || user?.userType === 'vendor'} />}
 
           {/* Ticket Types Card — Carrot's own tier editor. */}
           <Card ref={ticketTypesCardRef}>

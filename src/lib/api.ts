@@ -1032,6 +1032,7 @@ export class ApiClient {
 
   // Reseller admin endpoints (super-admin only)
   tagWithdrawals = {
+    setEnabled: (eventId: string, enabled: boolean) => this.request<{ enabled: boolean }>(`/admin/tag-withdrawals/events/${eventId}/setting`, { method: 'PUT', body: JSON.stringify({ enabled }) }),
     events: (search: string) => this.request<Array<{ id: string; name: string }>>(`/admin/tag-withdrawals/events?${new URLSearchParams({ search })}`),
     list: (search: string, status: string, page: number, eventId?: string) => {
       const query = new URLSearchParams({ search, page: String(page), ...(status ? { status } : {}), ...(eventId ? { eventId } : {}) });
