@@ -9,8 +9,10 @@ afterEach(cleanup);
 
 const setCashlessFn = vi.fn(async () => ({}));
 const requestCashlessFn = vi.fn(async () => ({}));
+const setWithdrawalsFn = vi.fn(async () => ({}));
 vi.mock('@/lib/api', () => ({
   apiClient: {
+    tagWithdrawals: { setEnabled: (...a: unknown[]) => setWithdrawalsFn(...(a as [])) },
     events: {
       setCashless: (...a: unknown[]) => setCashlessFn(...(a as [])),
       requestCashless: (...a: unknown[]) => requestCashlessFn(...(a as [])),
@@ -41,7 +43,7 @@ function renderCard(event: Event, isAdmin: boolean) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <EventCashlessSetting event={event} isAdmin={isAdmin} />
+      <EventCashlessSetting event={event} isAdmin={isAdmin} canManageWithdrawals />
     </QueryClientProvider>,
   );
 }
@@ -49,14 +51,14 @@ function renderCard(event: Event, isAdmin: boolean) {
 describe('EventCashlessSetting', () => {
   it('gives an admin the switch, not the request button', () => {
     renderCard(eventWith(), true);
-    expect(screen.getByRole('switch')).toBeDefined();
+    expect(screen.getByRole('switch', { name: /cashless for this event/i })).toBeDefined();
     expect(screen.queryByRole('button', { name: /request cashless/i })).toBeNull();
   });
 
   it('gives an organizer the request button, not the switch', () => {
     renderCard(eventWith(), false);
     expect(screen.getByRole('button', { name: /request cashless/i })).toBeDefined();
-    expect(screen.queryByRole('switch')).toBeNull();
+    expect(screen.queryByRole('switch', { name: /cashless for this event/i })).toBeNull();
   });
 
   it('shows an organizer their pending request instead of asking again', () => {
@@ -83,14 +85,14 @@ describe('EventCashlessSetting', () => {
 describe('EventCashlessSetting — payloads and failures', () => {
   it('grants by sending cashless:true, not just flipping the UI', async () => {
     renderCard(eventWith(), true);
-    fireEvent.click(screen.getByRole('switch'));
+    fireEvent.click(screen.getByRole('switch', { name: /cashless for this event/i }));
     await waitFor(() => expect(setCashlessFn).toHaveBeenCalledWith('e1', true));
   });
 
   it('surfaces a refused grant instead of swallowing it', async () => {
     setCashlessFn.mockRejectedValueOnce(new Error('Money has already moved'));
     renderCard(eventWith({ cashless: true }), true);
-    fireEvent.click(screen.getByRole('switch'));
+    fireEvent.click(screen.getByRole('switch', { name: /cashless for this event/i }));
     await waitFor(() => expect(toastError).toHaveBeenCalledWith('Money has already moved'));
   });
 
@@ -109,4 +111,10 @@ describe('EventCashlessSetting — payloads and failures', () => {
     fireEvent.click(screen.getByRole('button', { name: /request cashless/i }));
     await waitFor(() => expect(toastError).toHaveBeenCalledWith('Event not found'));
   });
+});
+
+it('changes the selected event withdrawal setting', async () => {
+  renderCard(eventWith(), true);
+  fireEvent.click(screen.getByRole('switch', { name: /tag withdrawals: off/i }));
+  await waitFor(() => expect(setWithdrawalsFn).toHaveBeenCalledWith('e1', true));
 });

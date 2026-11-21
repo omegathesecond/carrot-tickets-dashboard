@@ -150,6 +150,7 @@ export interface Event {
   // NFC closed-loop cashless event: attendees carry funded wristbands, vendors
   // charge them, cashiers top up + cash out. Gates the organizer Cashless tab.
   purchaseCharge?: { type: 'fixed' | 'percentage'; value: number } | null;
+  tagWithdrawalsEnabled?: boolean;
   cashless?: boolean;
   // Organizer's standing ask for cashless — an organizer may not set the flag
   // themselves (the API 403s), so they request and an admin grants.

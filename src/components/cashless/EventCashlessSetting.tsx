@@ -26,7 +26,7 @@ const fmtDate = (iso?: string | null) => {
  * (409) once any money has moved on the event, so that error is surfaced as
  * written rather than second-guessed here.
  */
-export function EventCashlessSetting({ event, isAdmin }: { event: Event; isAdmin: boolean }) {
+export function EventCashlessSetting({ event, isAdmin, canManageWithdrawals }: { event: Event; isAdmin: boolean; canManageWithdrawals: boolean }) {
   const queryClient = useQueryClient();
   const [note, setNote] = useState('');
   const requested = !!event.cashlessRequestedAt;
@@ -40,6 +40,15 @@ export function EventCashlessSetting({ event, isAdmin }: { event: Event; isAdmin
       toast.success(next ? 'Cashless enabled for this event' : 'Cashless turned off');
     },
     onError: (e: Error) => toast.error(e.message || 'Could not change the cashless setting'),
+  });
+
+  const setWithdrawals = useMutation({
+    mutationFn: (next: boolean) => apiClient.tagWithdrawals.setEnabled(event._id, next),
+    onSuccess: (_res, next) => {
+      invalidate();
+      toast.success(next ? 'Tag withdrawals enabled for this event' : 'Tag withdrawals disabled for this event');
+    },
+    onError: (e: Error) => toast.error(e.message || 'Could not change tag withdrawals'),
   });
 
   const request = useMutation({
@@ -120,6 +129,14 @@ export function EventCashlessSetting({ event, isAdmin }: { event: Event; isAdmin
             </Button>
           </div>
         )}
+        <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+          <div className="space-y-0.5">
+            <Label htmlFor="tag-withdrawals-switch">Tag Withdrawals: {event.tagWithdrawalsEnabled ? 'On' : 'Off'}</Label>
+            <p className="text-xs text-muted-foreground">Allow attendees to request remaining tag balances after this event. Existing requests remain available.</p>
+          </div>
+          <Switch id="tag-withdrawals-switch" checked={!!event.tagWithdrawalsEnabled} disabled={!canManageWithdrawals || setWithdrawals.isPending}
+            onCheckedChange={(value) => setWithdrawals.mutate(value)} />
+        </div>
         {event.cashless && <PurchaseChargeSetting key={JSON.stringify(event.purchaseCharge)} event={event} />}
       </CardContent>
     </Card>
