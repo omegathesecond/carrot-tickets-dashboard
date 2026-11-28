@@ -121,12 +121,15 @@ export function EventCashlessTab({ eventId, eventName }: Props) {
     <div className="space-y-6">
       {/* Totals stay above the log: they are the answer to "how did the night
           go", which the log below is a breakdown of. */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-        <StatCard icon={<Wallet className="h-4 w-4" />} label="ORGANISER CHARGES" value={fmtR(s.purchaseCharges)} hint="earned from purchases · updates every 5s" tone="orange" />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4" aria-label="Fees collected">
+        <StatCard icon={<Wallet className="h-4 w-4" />} label="Transaction fees collected" value={fmtR(s.purchaseCharges)} hint="from completed purchases · updates every 5s" tone="orange" />
+        <StatCard icon={<ArrowDownCircle className="h-4 w-4" />} label="Withdrawal fees collected" value={fmtR(s.withdrawalFees)} hint="from completed withdrawals · updates every 5s" tone="orange" />
+        <StatCard icon={<Wallet className="h-4 w-4" />} label="Total fees collected" value={fmtR(s.purchaseCharges + s.withdrawalFees)} hint="transaction fees + withdrawal fees" tone="green" />
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard icon={<CreditCard className="h-4 w-4" />} label="Circulated" value={fmtR(s.circulated)} hint="loaded onto bands" tone="ink" />
         <StatCard icon={<ArrowUpCircle className="h-4 w-4" />} label="Spent" value={fmtR(s.spent)} hint="at stalls" tone="blue" />
         <StatCard icon={<ArrowDownCircle className="h-4 w-4" />} label="Withdrawn" value={fmtR(s.withdrawn)} hint="removed from bands, including fees" tone="orange" />
-        <StatCard icon={<Wallet className="h-4 w-4" />} label="Withdrawal fees" value={fmtR(s.withdrawalFees)} hint="earned from withdrawals" tone="orange" />
         <StatCard icon={<Wallet className="h-4 w-4" />} label="Left behind" value={fmtR(s.leftBehind)} hint="still on bands" tone="green" />
       </div>
 

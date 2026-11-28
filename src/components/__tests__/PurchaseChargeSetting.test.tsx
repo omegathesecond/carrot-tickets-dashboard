@@ -61,3 +61,27 @@ it('saves an independent withdrawal fee', async () => {
   fireEvent.click(screen.getByText('Save withdrawal fee'));
   await waitFor(() => expect(update).toHaveBeenCalledWith('event', { withdrawalFee: { type: 'fixed', value: 500 } }));
 });
+
+it.each(['purchaseCharge', 'withdrawalFee'] as const)('lets mobile users type limits and decimal fees for %s without losing drafts', async (field) => {
+  render(<QueryClientProvider client={new QueryClient()}><CashlessFeeSetting field={field} event={{ _id: 'event', currency: 'SZL' } as Event} /></QueryClientProvider>);
+  const label = field === 'purchaseCharge' ? 'Purchase charge' : 'Withdrawal fee';
+  fireEvent.change(screen.getByLabelText(`${label} type`), { target: { value: 'tiered' } });
+  const limit = screen.getByLabelText('Below (E)') as HTMLInputElement;
+  expect(limit.readOnly).toBe(false);
+  expect(limit.inputMode).toBe('decimal');
+  expect(limit.placeholder).toBe('No limit');
+  expect(screen.getByLabelText('From (E)').tagName).toBe('OUTPUT');
+  fireEvent.change(limit, { target: { value: '1' } });
+  fireEvent.change(limit, { target: { value: '100' } });
+  expect(screen.getAllByLabelText('Below (E)')[0]).toBe(limit);
+  expect(screen.getAllByLabelText('Below (E)')).toHaveLength(2);
+  const fee = screen.getAllByLabelText('Fee (E)')[0] as HTMLInputElement;
+  expect(fee.type).toBe('text');
+  expect(fee.inputMode).toBe('decimal');
+  fireEvent.change(fee, { target: { value: '2,' } });
+  expect(fee.value).toBe('2,');
+  fireEvent.change(fee, { target: { value: '2,50' } });
+  fireEvent.change(screen.getAllByLabelText('Fee (E)')[1]!, { target: { value: '5' } });
+  fireEvent.click(screen.getByText(`Save ${label.toLowerCase()}`));
+  await waitFor(() => expect(update).toHaveBeenCalledWith('event', { [field]: { type: 'tiered', tiers: [{ min: 0, max: 10000, fee: 250 }, { min: 10000, max: null, fee: 500 }] } }));
+});

@@ -248,11 +248,17 @@ describe('organiser charge earnings', () => {
       fees: 450, purchaseCharges: 400, withdrawalFees: 150, withdrawalPayouts: 1850, walletsFunded: 5, vendors: [], cashiers: [] };
     summary.mockResolvedValue(data);
     renderTab(SUPER_ADMIN);
-    const label = await screen.findByText('ORGANISER CHARGES');
+    const label = await screen.findByText('Transaction fees collected');
     const card = label.parentElement!.parentElement!;
     expect(within(card).getByText(fmtR(400))).toBeDefined();
-    summary.mockResolvedValue({ ...data, purchaseCharges: 800 });
+    const withdrawalCard = screen.getByText('Withdrawal fees collected').parentElement!.parentElement!;
+    const totalCard = screen.getByText('Total fees collected').parentElement!.parentElement!;
+    expect(within(withdrawalCard).getByText(fmtR(150))).toBeDefined();
+    expect(within(totalCard).getByText(fmtR(550))).toBeDefined();
+    summary.mockResolvedValue({ ...data, purchaseCharges: 800, withdrawalFees: 250 });
     expect(await within(card).findByText(fmtR(800), {}, { timeout: 6500 })).toBeDefined();
+    expect(within(withdrawalCard).getByText(fmtR(250))).toBeDefined();
+    expect(within(totalCard).getByText(fmtR(1050))).toBeDefined();
   }, 10000);
 });
 

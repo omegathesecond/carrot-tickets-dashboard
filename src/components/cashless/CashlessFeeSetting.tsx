@@ -7,7 +7,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 
-const cents = (text: string) => /^\d+(\.\d{1,2})?$/.test(text) && Number(text) <= 100000 ? Math.round(Number(text) * 100) : NaN;
+const decimalPattern = /^\d+([.,]\d{1,2})?$/;
+const decimal = (text: string) => Number(text.replace(',', '.'));
+const cents = (text: string) => decimalPattern.test(text) && decimal(text) <= 100000 ? Math.round(decimal(text) * 100) : NaN;
 export function CashlessFeeSetting({ event, field }: { event: Event; field: 'purchaseCharge' | 'withdrawalFee' }) {
   const current = event[field];
   const withdrawal = field === 'withdrawalFee';
@@ -22,12 +24,12 @@ export function CashlessFeeSetting({ event, field }: { event: Event; field: 'pur
   let setting: CashlessFee | null = null;
   let valid = type === 'off';
   if (type === 'fixed' || type === 'percentage') {
-    const parsed = type === 'fixed' ? cents(value) : Number(value);
-    valid = /^\d+(\.\d{1,2})?$/.test(value) && Number.isFinite(parsed) && parsed > 0 && parsed <= (type === 'fixed' ? 10000000 : 100);
+    const parsed = type === 'fixed' ? cents(value) : decimal(value);
+    valid = decimalPattern.test(value) && Number.isFinite(parsed) && parsed > 0 && parsed <= (type === 'fixed' ? 10000000 : 100);
     setting = { type, value: parsed };
   } else if (type === 'tiered') {
-    const rows = tiers.map((t, i) => ({ min: i === 0 ? 0 : cents(tiers[i - 1]!.max), max: i === tiers.length - 1 ? null : cents(t.max), fee: cents(t.fee) }));
-    valid = rows.every(t => Number.isFinite(t.min) && (t.max === null || Number.isFinite(t.max) && t.max > t.min) && Number.isFinite(t.fee));
+    const rows = tiers.map((t, i) => ({ min: i === 0 ? 0 : cents(tiers[i - 1]!.max), max: i === tiers.length - 1 && t.max === '' ? null : cents(t.max), fee: cents(t.fee) }));
+    valid = rows[rows.length - 1]!.max === null && rows.every(t => Number.isFinite(t.min) && (t.max === null || Number.isFinite(t.max) && t.max > t.min) && Number.isFinite(t.fee));
     setting = { type: 'tiered', tiers: rows };
   }
   const save = useMutation({
@@ -35,7 +37,13 @@ export function CashlessFeeSetting({ event, field }: { event: Event; field: 'pur
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['event', event._id] }); toast.success(`${label} saved`); },
     onError: (error: Error) => toast.error(error.message || `Could not save ${label.toLowerCase()}`),
   });
-  const updateTier = (index: number, key: 'max' | 'fee', text: string) => setTiers(rows => rows.map((row, i) => i === index ? { ...row, [key]: text } : row));
+  const updateTier = (index: number, key: 'max' | 'fee', text: string) => setTiers(rows => {
+    const updated = rows.map((row, i) => i === index ? { ...row, [key]: text } : row);
+    // Typing a limit on the final row starts the next adjoining range. Keep
+    // the same input mounted so mobile keyboards retain focus and draft text.
+    if (key === 'max' && text !== '' && index === rows.length - 1 && rows.length < 50) updated.push({ max: '', fee: '' });
+    return updated;
+  });
   return <form className="space-y-4 rounded-lg border p-4" onSubmit={e => { e.preventDefault(); if (valid) save.mutate(); }}>
     <div><h3 className="font-medium">{withdrawal ? label : 'Charge per purchase'}</h3>
       <p className="text-sm text-muted-foreground">{withdrawal ? 'Deducted from each withdrawal. Applies to cashier cash-outs, office refunds and post-event tag withdrawals. Collected for the organizer.' : 'Added to the customer’s total on each payment. Collected for the organizer.'}</p></div>
@@ -44,13 +52,13 @@ export function CashlessFeeSetting({ event, field }: { event: Event; field: 'pur
         <option value="off">No charge</option><option value="fixed">Fixed amount</option><option value="percentage">Percentage</option><option value="tiered">Amount tiers</option>
       </select></div>
     {(type === 'fixed' || type === 'percentage') && <div className="space-y-2"><Label htmlFor={`${field}-value`}>{type === 'fixed' ? `Amount (${currency})` : 'Percentage (%)'}</Label>
-      <Input id={`${field}-value`} type="number" min="0.01" max={type === 'fixed' ? 100000 : 100} step="0.01" value={value} required disabled={save.isPending} onChange={e => setValue(e.target.value)} /></div>}
+      <Input id={`${field}-value`} type="text" inputMode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" value={value} required disabled={save.isPending} onChange={e => setValue(e.target.value)} /></div>}
     {type === 'tiered' && <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">Each range includes “From” and stops before “Below”. The next range starts there. The last range has no upper limit. Enter 0 for a free tier.</p>
+      <p className="text-xs text-muted-foreground">Type a fee and an upper limit for each range. Adding a limit starts the next tier automatically. “From” updates for you. Leave the last limit blank for no limit. Enter 0 for a free tier.</p>
       {tiers.map((tier, i) => <fieldset key={i} disabled={save.isPending} className="grid grid-cols-3 gap-2 rounded-md bg-muted/40 p-3">
-        <div className="space-y-1"><Label htmlFor={`${field}-min-${i}`}>From ({currency})</Label><Input id={`${field}-min-${i}`} value={i === 0 ? '0.00' : tiers[i - 1]!.max} readOnly /></div>
-        <div className="space-y-1"><Label htmlFor={`${field}-max-${i}`}>Below ({currency})</Label>{i === tiers.length - 1 ? <Input id={`${field}-max-${i}`} value="No limit" readOnly /> : <Input id={`${field}-max-${i}`} type="number" min="0.01" max="100000" step="0.01" value={tier.max} onChange={e => updateTier(i, 'max', e.target.value)} required />}</div>
-        <div className="space-y-1"><Label htmlFor={`${field}-fee-${i}`}>Fee ({currency})</Label><Input id={`${field}-fee-${i}`} type="number" min="0" max="100000" step="0.01" value={tier.fee} onChange={e => updateTier(i, 'fee', e.target.value)} required /></div>
+        <div className="space-y-1"><Label htmlFor={`${field}-min-${i}`}>From ({currency})</Label><output id={`${field}-min-${i}`} className="flex h-9 items-center px-1 text-sm tabular-nums">{i === 0 ? '0.00' : tiers[i - 1]!.max || '—'}</output></div>
+        <div className="space-y-1"><Label htmlFor={`${field}-max-${i}`}>Below ({currency})</Label><Input id={`${field}-max-${i}`} type="text" inputMode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" placeholder={i === tiers.length - 1 ? 'No limit' : 'e.g. 100.00'} value={tier.max} onChange={e => updateTier(i, 'max', e.target.value)} required={i < tiers.length - 1} /></div>
+        <div className="space-y-1"><Label htmlFor={`${field}-fee-${i}`}>Fee ({currency})</Label><Input id={`${field}-fee-${i}`} type="text" inputMode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" placeholder="e.g. 2.50" value={tier.fee} onChange={e => updateTier(i, 'fee', e.target.value)} required /></div>
         {tiers.length > 1 && <Button type="button" variant="ghost" size="sm" className="col-span-3 justify-self-end" onClick={() => setTiers(rows => rows.filter((_, index) => index !== i))}>Remove tier {i + 1}</Button>}
       </fieldset>)}
       <Button type="button" variant="outline" disabled={save.isPending || tiers.length >= 50} onClick={() => setTiers(rows => [...rows, { max: '', fee: '' }])}>Add tier</Button>
