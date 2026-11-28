@@ -23,7 +23,7 @@ beforeEach(() => {
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: writeClipboard } });
   auth.user = { _id: 'admin-1', isSuperAdmin: true, permissions: [], userType: undefined };
   vi.mocked(apiClient.tagWithdrawals.events).mockResolvedValue([{ id: 'event-1', name: 'Festival' }]);
-  row = { _id: 'request-1', eventId: 'event-1', walletId: 'wallet-1', eventName: 'Festival', bandUid: '0ae98d36', amount: 12345,
+  row = { _id: 'request-1', eventId: 'event-1', walletId: 'wallet-1', eventName: 'Festival', bandUid: '0ae98d36', amount: 12345, feeAmount: 0, payoutAmount: 12345,
     currency: 'ZAR', country: 'ZA', method: 'bank_transfer', status: 'pending', destinationSummary: 'Test Bank ••••8901',
     createdAt: '2026-10-29T12:00:00Z', history: [], details: { fullName: 'Attendee', contactPhone: '+26878422613',
       bank: { country: 'South Africa', bank: 'Test Bank', accountHolder: 'Attendee', accountType: 'Savings', branchCode: '123456', accountNumber: '012345678901' } } };

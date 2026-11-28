@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { PurchaseChargeSetting } from '@/components/cashless/PurchaseChargeSetting';
+import { CashlessFeeSetting } from '@/components/cashless/CashlessFeeSetting';
 import { Badge } from '@/components/ui/badge';
 
 const fmtDate = (iso?: string | null) => {
@@ -137,7 +137,10 @@ export function EventCashlessSetting({ event, isAdmin, canManageWithdrawals }: {
           <Switch id="tag-withdrawals-switch" checked={!!event.tagWithdrawalsEnabled} disabled={!canManageWithdrawals || setWithdrawals.isPending}
             onCheckedChange={(value) => setWithdrawals.mutate(value)} />
         </div>
-        {event.cashless && <PurchaseChargeSetting key={JSON.stringify(event.purchaseCharge)} event={event} />}
+        {event.cashless && <>
+          <CashlessFeeSetting key={`purchase:${JSON.stringify(event.purchaseCharge)}`} event={event} field="purchaseCharge" />
+          <CashlessFeeSetting key={`withdrawal:${JSON.stringify(event.withdrawalFee)}`} event={event} field="withdrawalFee" />
+        </>}
       </CardContent>
     </Card>
   );

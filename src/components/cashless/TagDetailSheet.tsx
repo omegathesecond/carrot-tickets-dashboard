@@ -27,6 +27,13 @@ export function TagDetailSheet({
   const [action, setAction] = useState<null | 'refund' | 'deactivate' | 'reissue'>(null);
   const [amountRand, setAmountRand] = useState('');
   const [reason, setReason] = useState('');
+  const refundAmount = randToCents(amountRand);
+  const quote = useQuery({
+    queryKey: ['refund-quote', eventId, walletId, refundAmount],
+    queryFn: () => apiClient.tags.quoteRefund(eventId, walletId!, refundAmount!),
+    enabled: action === 'refund' && !!walletId && refundAmount !== null && refundAmount > 0,
+    retry: false,
+  });
   const [newUid, setNewUid] = useState('');
   // One key per opened dialog: a double-click cannot become a double refund.
   const [txnKey, setTxnKey] = useState('');
@@ -42,7 +49,8 @@ export function TagDetailSheet({
       const cents = randToCents(amountRand);
       // Fail loud rather than send a fabricated 0.
       if (cents == null || cents <= 0) throw new Error('Enter a valid amount');
-      return apiClient.tags.refund(eventId, walletId!, cents, txnKey);
+      if (!quote.data || quote.data.amount !== cents || quote.isFetching || quote.isError) throw new Error('Review the payout quote first');
+      return apiClient.tags.refund(eventId, walletId!, cents, txnKey, quote.data.payoutAmount);
     },
     onSuccess: () => { invalidate(); setAction(null); toast.success('Refund recorded'); },
     onError: (e: Error) => toast.error(e.message || 'Could not record the refund'),
@@ -102,14 +110,15 @@ export function TagDetailSheet({
 
             {action === 'refund' && (
               <div className="rounded-lg border p-3 space-y-2">
-                <Label htmlFor="refund-amount">Amount (R)</Label>
+                <Label htmlFor="refund-amount">Wallet debit (R)</Label>
                 <Input id="refund-amount" inputMode="decimal" value={amountRand} onChange={(e) => setAmountRand(e.target.value)} />
+                {quote.isFetching ? <p>Loading fee…</p> : quote.isError ? <p role="alert" className="text-destructive">{quote.error.message}</p> : quote.data && <p>Fee {fmtR(quote.data.feeAmount)} · Hand over <strong>{fmtR(quote.data.payoutAmount)}</strong></p>}
                 <p className="text-xs text-muted-foreground">
                   This records cash handed over at the office. It does not send money anywhere.
                 </p>
                 <div className="flex justify-end gap-2">
                   <Button variant="outline" size="sm" onClick={() => setAction(null)}>Cancel</Button>
-                  <Button size="sm" disabled={refundM.isPending} className="bg-orange-600 hover:bg-orange-700" onClick={() => refundM.mutate()}>
+                  <Button size="sm" disabled={refundM.isPending || !quote.data || quote.isFetching || quote.isError || quote.data.amount !== refundAmount} className="bg-orange-600 hover:bg-orange-700" onClick={() => refundM.mutate()}>
                     {refundM.isPending ? 'Recording…' : 'Record refund'}
                   </Button>
                 </div>
@@ -172,7 +181,7 @@ export function TagDetailSheet({
                   {m.kind === 'topup' || m.kind === 'reversal'
                     ? <ArrowDownCircle className="h-4 w-4 text-green-600 shrink-0" />
                     : <ArrowUpCircle className="h-4 w-4 text-orange-600 shrink-0" />}
-                  <span className="flex-1">{m.label}{m.kind === 'spend' && m.purchaseChargeAmount !== undefined && <span className="block text-xs text-muted-foreground">Organizer charge {fmtR(m.purchaseChargeAmount)}</span>}</span>
+                  <span className="flex-1">{m.label}{m.kind === 'cashout' && <span className="block text-xs text-muted-foreground">Paid {fmtR(m.payoutAmount)} · fee {fmtR(m.feeAmount)}</span>}{m.kind === 'spend' && m.purchaseChargeAmount !== undefined && <span className="block text-xs text-muted-foreground">Organizer charge {fmtR(m.purchaseChargeAmount)}</span>}</span>
                   <span className="text-xs text-muted-foreground">{fmtWhen(m.at)}</span>
                   <span className="font-semibold tabular-nums">{fmtR(m.amount)}</span>
                 </div>

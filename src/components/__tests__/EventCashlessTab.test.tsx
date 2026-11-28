@@ -209,7 +209,7 @@ describe('EventCashlessTab once the summary has loaded', () => {
     authUser.mockReturnValue(SUPER_ADMIN);
     summary.mockResolvedValue({
       cashTopups: 5000, cardTopups: 3000, deltapayTopups: 0, mobileMoneyTopups: 0, circulated: 164000, spent: 24200, withdrawn: 4000, leftBehind: 135800,
-      fees: 450, purchaseCharges: 400, walletsFunded: 5, vendors: [], cashiers: [],
+      fees: 450, purchaseCharges: 400, withdrawalFees: 150, withdrawalPayouts: 1850, walletsFunded: 5, vendors: [], cashiers: [],
     });
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
@@ -245,7 +245,7 @@ describe('EventCashlessTab once the summary has loaded', () => {
 describe('organiser charge earnings', () => {
   it('shows the collected charge total prominently and refreshes new payments', async () => {
     const data = { cashTopups: 5000, cardTopups: 3000, deltapayTopups: 0, mobileMoneyTopups: 0, circulated: 164000, spent: 24200, withdrawn: 4000, leftBehind: 135800,
-      fees: 450, purchaseCharges: 400, walletsFunded: 5, vendors: [], cashiers: [] };
+      fees: 450, purchaseCharges: 400, withdrawalFees: 150, withdrawalPayouts: 1850, walletsFunded: 5, vendors: [], cashiers: [] };
     summary.mockResolvedValue(data);
     renderTab(SUPER_ADMIN);
     const label = await screen.findByText('ORGANISER CHARGES');

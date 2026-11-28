@@ -119,7 +119,7 @@ export function EventTransactionLog({ eventId }: { eventId: string }) {
                         onClick={() => setSelected({
                           id: t.id, type: t.type, method: t.method, amount: t.amount, at: t.at,
                           actorName: t.actorName, actorType: t.actorType,
-                          bandUid: t.tagUid ?? t.bandUid, purchaseChargeAmount: t.purchaseChargeAmount, fee: t.fee, netAmount: t.netAmount,
+                          bandUid: t.tagUid ?? t.bandUid, feeAmount: t.feeAmount, payoutAmount: t.payoutAmount, purchaseChargeAmount: t.purchaseChargeAmount, fee: t.fee, netAmount: t.netAmount,
                           ref: t.ref, status: t.status,
                         })}
                       >
@@ -133,7 +133,7 @@ export function EventTransactionLog({ eventId }: { eventId: string }) {
                           <Badge variant="secondary" className={meta.className}>{meta.label}</Badge>
                         </TableCell>
                         <TableCell>{t.type === 'purchase' ? '—' : deskPaymentMethodLabel(t.method)}</TableCell>
-                        <TableCell className="text-right font-medium">{fmtR(t.amount)}</TableCell>
+                        <TableCell className="text-right font-medium">{fmtR(t.amount)}{t.type === 'withdrawal' && <span className="block text-xs font-normal text-muted-foreground">Paid {fmtR(t.payoutAmount)} · fee {fmtR(t.feeAmount)}</span>}</TableCell>
                         <TableCell>
                           <Badge variant="secondary" className={t.status === 'reversed' ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'}>
                             {t.status ?? 'completed'}

@@ -1,3 +1,4 @@
+export type CashlessFee = { type: 'fixed' | 'percentage'; value: number } | { type: 'tiered'; tiers: Array<{ min: number; max: number | null; fee: number }> };
 import type { DeskTopupMethod, DeskTopupTotals } from '@/lib/deskPaymentMethod';
 export * from './reseller';
 import type { EventCategory } from '@/constants/eventCategories';
@@ -149,7 +150,8 @@ export interface Event {
   status: 'draft' | 'pending_approval' | 'published' | 'cancelled' | 'completed';
   // NFC closed-loop cashless event: attendees carry funded wristbands, vendors
   // charge them, cashiers top up + cash out. Gates the organizer Cashless tab.
-  purchaseCharge?: { type: 'fixed' | 'percentage'; value: number } | null;
+  purchaseCharge?: CashlessFee | null;
+  withdrawalFee?: CashlessFee | null;
   tagWithdrawalsEnabled?: boolean;
   cashless?: boolean;
   // Organizer's standing ask for cashless — an organizer may not set the flag
@@ -224,7 +226,8 @@ export interface EventFormData {
   priceMax?: number;
   // Admin-only. The API rejects this from a non-super-admin token, so the
   // form only ever sends it when the toggle was rendered for an admin.
-  purchaseCharge?: { type: 'fixed' | 'percentage'; value: number } | null;
+  purchaseCharge?: CashlessFee | null;
+  withdrawalFee?: CashlessFee | null;
   cashless?: boolean;
   // Attendance Status feature inputs — see Event.lineup / Event.outfitThemeOptions.
   lineup?: string[];
@@ -1080,6 +1083,8 @@ export interface CashlessSummary extends DeskTopupTotals {
   withdrawn: number;  // Σ cash-outs
   leftBehind: number; // Σ remaining wallet balances (un-withdrawn)
   fees: number;       // Carrot commission collected
+  withdrawalFees: number;
+  withdrawalPayouts: number;
   purchaseCharges: number; // Customer charges owed to organizer
   walletsFunded: number;
   vendors: CashlessVendorRow[];
@@ -1107,6 +1112,8 @@ export interface CashlessTxn {
    * band bound then — a desk top-up before the attendee collected their tag.
    */
   tagUid?: string | null;
+  feeAmount?: number;
+  payoutAmount?: number;
   purchaseChargeAmount?: number;
   fee?: number;
   netAmount?: number;

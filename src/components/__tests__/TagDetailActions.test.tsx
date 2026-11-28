@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, it, expect, vi } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TagDetailSheet } from '@/components/cashless/TagDetailSheet';
@@ -8,11 +8,14 @@ afterEach(cleanup);
 
 const detail = vi.fn();
 const refund = vi.fn();
+const quoteRefund = vi.fn();
+beforeEach(() => { vi.clearAllMocks(); quoteRefund.mockResolvedValue({ amount: 7500, feeAmount: 250, payoutAmount: 7250 }); });
 const deactivate = vi.fn();
 vi.mock('@/lib/api', () => ({
   apiClient: {
     tags: {
       detail: (...a: unknown[]) => detail(...a),
+      quoteRefund: (...a: unknown[]) => quoteRefund(...a),
       refund: (...a: unknown[]) => refund(...a),
       deactivate: (...a: unknown[]) => deactivate(...a),
       reissue: vi.fn(),
@@ -44,7 +47,7 @@ describe('TagDetailSheet actions', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: /^refund$/i }));
 
-    await waitFor(() => expect((screen.getByLabelText(/amount/i) as HTMLInputElement).value).toBe('75.00'));
+    await waitFor(() => expect((screen.getByLabelText(/wallet debit/i) as HTMLInputElement).value).toBe('75.00'));
   });
 
   it('sends the refund in cents with an idempotency key', async () => {
@@ -53,11 +56,13 @@ describe('TagDetailSheet actions', () => {
     renderSheet();
 
     fireEvent.click(await screen.findByRole('button', { name: /^refund$/i }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /record refund/i })).toHaveProperty('disabled', false));
     fireEvent.click(screen.getByRole('button', { name: /record refund/i }));
 
     await waitFor(() => expect(refund).toHaveBeenCalled());
-    const [eventId, walletId, amount, clientTxnId] = refund.mock.calls[0]!;
+    const [eventId, walletId, amount, clientTxnId, quotedPayoutAmount] = refund.mock.calls[0]!;
     expect([eventId, walletId, amount]).toEqual(['e1', 'w1', 7500]);
+    expect(quotedPayoutAmount).toBe(7250);
     expect(String(clientTxnId).length).toBeGreaterThan(8);
   });
 
@@ -81,4 +86,14 @@ describe('TagDetailSheet actions', () => {
     fireEvent.click(confirm);
     expect(deactivate).not.toHaveBeenCalled();
   });
+});
+
+it('surfaces a quote failure and prevents an unreviewed office refund', async () => {
+  detail.mockResolvedValue(DETAIL);
+  quoteRefund.mockRejectedValue(new Error('Fee lookup unavailable'));
+  renderSheet();
+  fireEvent.click(await screen.findByRole('button', { name: /^refund$/i }));
+  await screen.findByRole('alert');
+  expect(screen.getByRole('button', { name: /record refund/i })).toHaveProperty('disabled', true);
+  expect(refund).not.toHaveBeenCalled();
 });

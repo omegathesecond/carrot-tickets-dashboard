@@ -1331,9 +1331,12 @@ export class ApiClient {
       }),
 
     // amount is integer cents; clientTxnId makes a double submit idempotent.
-    refund: async (eventId: string, walletId: string, amount: number, clientTxnId: string): Promise<{ walletId: string; balance: number }> =>
+    quoteRefund: async (eventId: string, walletId: string, amount: number): Promise<{ amount: number; feeAmount: number; payoutAmount: number }> =>
+      this.request(`/tickets/events/${eventId}/tags/${walletId}/refund`, { method: 'POST', body: JSON.stringify({ amount, quoteOnly: true }) }),
+
+    refund: async (eventId: string, walletId: string, amount: number, clientTxnId: string, quotedPayoutAmount: number): Promise<{ walletId: string; balance: number }> =>
       this.request(`/tickets/events/${eventId}/tags/${walletId}/refund`, {
-        method: 'POST', body: JSON.stringify({ amount, clientTxnId }),
+        method: 'POST', body: JSON.stringify({ amount, clientTxnId, quotedPayoutAmount }),
       }),
   };
 
@@ -2428,6 +2431,8 @@ export interface TagBinding {
 }
 
 export interface TagMovement {
+  feeAmount?: number;
+  payoutAmount?: number;
   purchaseChargeAmount?: number;
   kind: 'topup' | 'spend' | 'cashout' | 'reversal';
   amount: number;

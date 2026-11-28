@@ -23,6 +23,8 @@ export interface TxnDetail {
   actorName?: string;
   actorType?: string;
   bandUid?: string;
+  feeAmount?: number;
+  payoutAmount?: number;
   purchaseChargeAmount?: number;
   fee?: number;
   netAmount?: number;
@@ -71,6 +73,7 @@ export function TransactionDetailDialog({ txn, onClose }: { txn: TxnDetail | nul
               <Row label={ACTOR_LABEL[txn.actorType ?? ''] ?? 'By'} value={txn.actorName} />
             )}
             {txn.type !== 'purchase' && <Row label="Payment" value={deskPaymentMethodLabel(txn.method)} />}
+            {txn.type === 'withdrawal' && <><Row label="Withdrawal fee" value={fmtR(txn.feeAmount)} /><Row label="Amount paid out" value={fmtR(txn.payoutAmount)} /></>}
             {txn.type === 'purchase' && (
               <>
                 <Row label="Organizer purchase charge" value={fmtR(txn.purchaseChargeAmount)} />
