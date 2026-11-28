@@ -12,6 +12,7 @@ import {
   Search,
   ArrowLeft,
   Banknote,
+  CreditCard,
   Smartphone,
   Wallet,
   type LucideIcon,
@@ -33,6 +34,7 @@ import { friendlyMessage, momoFailureMessage } from '@/lib/errors';
 import { formatMoney } from '@/lib/currency';
 
 const PAYMENT_META: Record<string, { label: string; icon: LucideIcon; tint: string }> = {
+  pos_payment: { label: 'POS payment', icon: CreditCard, tint: 'bg-purple-50 text-purple-600' },
   cash: { label: 'Cash', icon: Banknote, tint: 'bg-green-50 text-green-600' },
   mtn_momo: { label: 'MTN MoMo', icon: Smartphone, tint: 'bg-amber-50 text-amber-600' },
   keshless_wallet: { label: 'Keshless Wallet', icon: Wallet, tint: 'bg-blue-50 text-blue-600' },
@@ -191,6 +193,8 @@ export function ResellerPosPage() {
       toast.error('That ticket type is no longer available. Please re-select it.');
       return;
     }
+
+    if (paymentMethod === 'pos_payment' && !window.confirm(`Has your POS terminal approved ${formatMoney(total, selectedEvent?.currency ?? 'SZL')}? Only continue after payment is approved.`)) return;
 
     setIsSubmitting(true);
 

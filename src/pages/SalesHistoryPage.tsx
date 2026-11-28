@@ -169,6 +169,7 @@ export function SalesHistoryPage() {
                 <SelectContent>
                   <SelectItem value={ALL}>All</SelectItem>
                   <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="pos_payment">POS payment</SelectItem>
                   <SelectItem value="keshless_wallet">Wallet</SelectItem>
                   <SelectItem value="mtn_momo">MoMo</SelectItem>
                   <SelectItem value="peach_card">Card</SelectItem>

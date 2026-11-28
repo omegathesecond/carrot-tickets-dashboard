@@ -64,6 +64,7 @@ export const VIBRANT_PALETTE = [
 // Color mapping for payment methods
 export const PAYMENT_METHOD_COLORS: Record<string, string> = {
   cash: CHART_COLORS.cash,
+  pos_payment: CHART_COLORS.secondary,
   keshless_wallet: CHART_COLORS.wallet,
   wallet: CHART_COLORS.wallet,
   mtn_momo: CHART_COLORS.momo,

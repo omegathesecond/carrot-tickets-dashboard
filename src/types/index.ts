@@ -14,6 +14,7 @@ export type { EventCategory };
  */
 export type PaymentMethodValue =
   | 'cash'
+  | 'pos_payment'
   | 'keshless_wallet'
   | 'mtn_momo'
   | 'peach_card'

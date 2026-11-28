@@ -1,5 +1,6 @@
 export const PAYMENT_LABEL: Record<string, string> = {
   cash: 'Cash',
+  pos_payment: 'POS payment',
   keshless_wallet: 'Wallet',
   mtn_momo: 'MoMo',
   peach_card: 'Card',

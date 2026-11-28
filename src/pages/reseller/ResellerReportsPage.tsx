@@ -17,13 +17,9 @@ import {
   YAxis,
 } from 'recharts';
 import { resellerReportsApi, resellerApi } from '@/lib/resellerApi';
+import { paymentLabel } from '@/lib/payment';
 import { formatMoney, type Currency } from '@/lib/currency';
 
-const METHOD_LABELS: Record<string, string> = {
-  cash: 'Cash',
-  mtn_momo: 'MTN MoMo',
-  keshless_wallet: 'Keshless Wallet',
-};
 
 const money = (n: number, currency: Currency = 'SZL') =>
   formatMoney(n, currency, { space: true, decimals: 0 });
@@ -178,7 +174,7 @@ export function ResellerReportsPage() {
           title="By payment method"
           currency={reportCurrency}
           rows={(data?.byMethod ?? []).map((m) => ({
-            name: METHOD_LABELS[m.method] ?? m.method,
+            name: paymentLabel(m.method),
             revenue: m.revenue,
             sub: `${m.count} sale${m.count === 1 ? '' : 's'} · ${m.tickets} tickets`,
           }))}

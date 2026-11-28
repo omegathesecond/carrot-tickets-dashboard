@@ -3,13 +3,9 @@ import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ChevronLeft, ChevronRight, Receipt } from 'lucide-react';
 import { resellerReportsApi, type ManagerSale } from '@/lib/resellerApi';
+import { paymentLabel } from '@/lib/payment';
 import { formatMoney } from '@/lib/currency';
 
-const METHOD_LABELS: Record<string, string> = {
-  cash: 'Cash',
-  mtn_momo: 'MTN MoMo',
-  keshless_wallet: 'Keshless Wallet',
-};
 
 const STATUS_STYLES: Record<string, string> = {
   completed: 'bg-green-100 text-green-700',
@@ -143,7 +139,7 @@ export function ResellerSalesHistoryPage() {
                     {money(s.totalAmount, s.currency ?? 'SZL')}
                   </td>
                   <td className="px-4 py-3 text-slate-600">
-                    {METHOD_LABELS[s.paymentMethod] ?? s.paymentMethod}
+                    {paymentLabel(s.paymentMethod)}
                   </td>
                   <td className="px-4 py-3">
                     <span

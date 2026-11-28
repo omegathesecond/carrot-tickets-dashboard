@@ -45,6 +45,7 @@ export interface ResellerTicketType {
 
 export type ResellerPaymentMethods = {
   cash?: boolean;
+  pos_payment?: boolean;
   mtn_momo?: boolean;
   keshless_wallet?: boolean;
 };
@@ -219,6 +220,7 @@ export const resellerApi = {
       const methods = (result as { methods: string[] }).methods;
       return {
         cash: methods.includes('cash'),
+        pos_payment: methods.includes('pos_payment'),
         mtn_momo: methods.includes('mtn_momo'),
         keshless_wallet: methods.includes('keshless_wallet'),
       };
